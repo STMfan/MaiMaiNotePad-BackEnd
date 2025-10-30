@@ -8,15 +8,16 @@ MaiBot的非官方知识库与人设卡分享网站后端服务
 
 ## 技术栈
 
-- **后端框架**: Node.js + Express.js
-- **数据库**: MongoDB + Mongoose
+- **后端框架**: Node.js + Express.js / Cloudflare Workers
+- **数据库**: MongoDB + Mongoose / Cloudflare D1 (SQLite)
 - **认证**: JWT (JSON Web Token)
-- **文件上传**: Multer
+- **文件上传**: Multer / Cloudflare R2
 - **邮件服务**: Nodemailer
-- **安全防护**: Helmet, CORS, Rate Limiting
-- **日志**: Winston
+- **安全防护**: Helmet, CORS, Rate Limiting / 原生Workers安全中间件
+- **日志**: Winston / 原生Workers日志系统
 - **测试**: Jest + Supertest
 - **文档**: Swagger
+- **部署**: Docker / Cloudflare Workers
 
 ## 功能特性
 
@@ -98,6 +99,7 @@ npm start
 
 ## 项目结构
 
+### 传统部署结构
 ```
 backend/
 ├── src/
@@ -116,6 +118,43 @@ backend/
 ├── templates/           # 模板文件
 ├── logs/                # 日志文件
 └── backups/             # 备份文件
+```
+
+### Cloudflare Workers 结构
+```
+backend/
+├── src/
+│   ├── config/          # 配置文件
+│   ├── database/        # D1数据库客户端和迁移
+│   │   ├── d1-client.js
+│   │   ├── migrate.js
+│   │   └── migrations/
+│   ├── middleware/      # Workers原生中间件
+│   │   ├── auth-workers.js
+│   │   ├── error-handler.js
+│   │   ├── security-workers.js
+│   │   └── rate-limit-workers.js
+│   ├── models/          # Workers数据模型
+│   │   ├── User-workers.js
+│   │   ├── Note-workers.js
+│   │   ├── File-workers.js
+│   │   └── index-workers.js
+│   ├── routes/          # Workers路由处理
+│   │   ├── auth-workers.js
+│   │   ├── knowledge-workers.js
+│   │   └── upload-workers.js
+│   ├── services/        # Workers服务
+│   │   ├── database-workers.js
+│   │   ├── cache-workers.js
+│   │   └── storage-workers.js
+│   ├── utils/           # 工具函数
+│   └── workers/         # Workers主入口
+│       ├── config/
+│       ├── index.js     # Workers主文件
+│       └── routes/
+├── scripts/             # 构建和部署脚本
+├── wrangler.toml        # Workers配置文件
+└── package.json
 ```
 
 ## 开发指南
@@ -158,6 +197,74 @@ npm run create-test-user
 
 ## 部署指南
 
+### Cloudflare Workers 部署（推荐）
+
+#### 环境要求
+- Node.js >= 16.0.0
+- Wrangler CLI >= 3.0.0
+- Cloudflare 账号
+
+#### 安装 Wrangler
+```bash
+npm install -g wrangler
+```
+
+#### 配置 Wrangler
+```bash
+# 登录 Cloudflare
+wrangler login
+
+# 初始化项目（如果尚未初始化）
+wrangler init
+```
+
+#### 配置环境变量
+编辑 `wrangler.toml` 文件，配置以下参数：
+
+```toml
+name = "maimai-notepad-backend"
+main = "src/workers/index.js"
+compatibility_date = "2024-01-01"
+
+[env.production.vars]
+# 数据库配置
+DATABASE_TYPE = "d1"
+D1_DATABASE_ID = "your-d1-database-id"
+
+# 存储配置
+STORAGE_TYPE = "r2"
+STORAGE_BUCKET = "maimai-notepad-files"
+STORAGE_REGION = "auto"
+STORAGE_ENDPOINT = "https://your-r2-endpoint.r2.cloudflarestorage.com"
+
+# 安全配置
+JWT_SECRET = "your-jwt-secret-key"
+ALLOWED_ORIGINS = "https://maimainotepad.com,https://www.maimainotepad.com"
+
+# 邮件配置（可选）
+EMAIL_ENABLED = "true"
+EMAIL_PROVIDER = "sendgrid"
+EMAIL_FROM = "noreply@maimainotepad.com"
+```
+
+#### 部署到 Cloudflare
+```bash
+# 测试部署（干运行）
+wrangler deploy --dry-run
+
+# 正式部署
+wrangler deploy
+
+# 部署到指定环境
+wrangler deploy --env production
+```
+
+#### 绑定服务
+在 Cloudflare 控制台中绑定以下服务：
+- **D1 Database**: 创建并绑定数据库
+- **R2 Storage**: 创建并绑定存储桶
+- **KV Namespace**: 用于缓存和速率限制（可选）
+
 ### Docker部署
 
 ```bash
@@ -184,6 +291,8 @@ pm2 startup
 
 ## 环境变量说明
 
+### 传统部署环境变量
+
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
 | NODE_ENV | 运行环境 | development |
@@ -197,6 +306,32 @@ pm2 startup
 | SMTP_PASS | SMTP密码 | 必填 |
 | UPLOAD_MAX_SIZE | 文件上传大小限制 | 10485760 |
 | ALLOWED_FILE_TYPES | 允许的文件类型 | txt,md,pdf,doc,docx |
+
+### Cloudflare Workers 环境变量
+
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| DATABASE_TYPE | 数据库类型 (d1/mongodb) | d1 |
+| D1_DATABASE_ID | Cloudflare D1 数据库 ID | 必填 |
+| STORAGE_TYPE | 存储类型 (r2/local) | r2 |
+| STORAGE_BUCKET | R2 存储桶名称 | maimai-notepad-files |
+| STORAGE_REGION | 存储区域 | auto |
+| STORAGE_ENDPOINT | R2 存储端点 | https://your-r2-endpoint.r2.cloudflarestorage.com |
+| JWT_SECRET | JWT密钥 | 必填 |
+| JWT_EXPIRE | JWT过期时间 | 7d |
+| ALLOWED_ORIGINS | 允许的跨域源 | * |
+| RATE_LIMIT_ENABLED | 启用速率限制 | true |
+| RATE_LIMIT_STORE | 速率限制存储 (kv/memory) | kv |
+| CACHE_ENABLED | 启用缓存 | true |
+| CACHE_TTL | 缓存过期时间 (秒) | 3600 |
+| EMAIL_ENABLED | 启用邮件服务 | false |
+| EMAIL_PROVIDER | 邮件提供商 (sendgrid/smtp) | sendgrid |
+| EMAIL_FROM | 发件人邮箱 | noreply@maimainotepad.com |
+| ANALYTICS_ENABLED | 启用分析 | false |
+| ANALYTICS_PROVIDER | 分析提供商 | cloudflare |
+| BACKUP_ENABLED | 启用备份 | false |
+| BACKUP_RETENTION_DAYS | 备份保留天数 | 7 |
+| MAINTENANCE_MODE | 维护模式 | false |
 
 ## 贡献指南
 
