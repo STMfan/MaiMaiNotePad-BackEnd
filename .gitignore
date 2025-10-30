@@ -3,22 +3,26 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-lerna-debug.log*
+package-lock.json
+yarn.lock
 
 # Environment variables
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.development
+.env.test
+.env.production
+.env.staging
+
+# Cloudflare Workers
+.wrangler/
+wrangler.toml.backup
+wrangler.secrets.toml
 
 # Logs
 logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
+*.log.*
 
 # Runtime data
 pids/
@@ -29,19 +33,28 @@ pids/
 # Coverage directory used by tools like istanbul
 coverage/
 *.lcov
+.nyc_output/
 
-# nyc test coverage
-.nyc_output
+# Grunt intermediate storage
+.grunt/
+
+# Bower dependency directory
+bower_components/
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons
+build/Release/
 
 # Dependency directories
-node_modules/
 jspm_packages/
 
 # Optional npm cache directory
-.npm
+.npm/
 
-# Optional eslint cache
-.eslintcache
+# Optional REPL history
+.node_repl_history
 
 # Output of 'npm pack'
 *.tgz
@@ -49,20 +62,28 @@ jspm_packages/
 # Yarn Integrity file
 .yarn-integrity
 
-# parcel-bundler cache (https://parceljs.org/)
-.cache
-.parcel-cache
+# dotenv environment variables file
+.env.test.local
+.env.production.local
+
+# parcel-bundler cache
+.cache/
+.parcel-cache/
 
 # Next.js build output
-.next
+.next/
 
 # Nuxt.js build / generate output
-.nuxt
-dist
+.nuxt/
+dist/
+
+# Gatsby files
+.cache/
+public/
 
 # Storybook build outputs
-.out
-.storybook-out
+.out/
+.storybook-out/
 
 # Temporary folders
 tmp/
@@ -84,13 +105,1343 @@ temp/
 ehthumbs.db
 Thumbs.db
 
-# Uploads
-uploads/
-!uploads/.gitkeep
-
-# Backups
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+*.sql
+*.sql.gz
 backups/
 
-# Test files
-test-files/
-*.test.js.snap
+# Security keys and certificates
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+
+# Backup files
+*.backup
+*.bak
+*.old
+*.orig
+
+# Build artifacts
+build/
+dist/
+out/
+
+# Test artifacts
+test-results/
+junit.xml
+
+# MongoDB data (for local development)
+data/
+mongodb/
+
+# Redis dump
+dump.rdb
+
+# Session files
+sessions/
+
+# Upload files (for local development)
+uploads/
+public/uploads/
+
+# Cache files
+.cache/
+*.cache
+
+# TypeScript
+*.tsbuildinfo
+
+# Webpack
+.webpack/
+
+# Rollup
+.rpt2_cache/
+
+# Serverless
+.serverless/
+
+# FuseBox
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test/
+
+# Security audit reports
+security-audit/
+*.security-report.json
+
+# Performance reports
+performance-reports/
+*.performance-report.json
+
+# Backup configuration files
+*.config.backup
+*.config.old
+
+# Local development overrides
+local-overrides.js
+local-overrides.json
+
+# Cloudflare specific
+.cf/
+cloudflare-config.json
+
+# Analytics data
+analytics-data/
+
+# Temporary migration files
+migration-temp/
+migration-backup/
+
+# Lock files (use package-lock.json or yarn.lock, not both)
+package-lock.json
+!yarn.lock
+
+# Wrangler build output
+.wrangler/build/
+.wrangler/cache/
+
+# D1 database exports (sensitive)
+*.d1-export.sql
+
+# R2 bucket exports (sensitive)
+*.r2-export.json
+
+# KV namespace exports (sensitive)
+*.kv-export.json
+
+# Analytics engine data (sensitive)
+*.analytics-export.json
+
+# Security scanner results
+*.security-scan.json
+*.vulnerability-report.json
+
+# Performance profiling data
+*.cpuprofile
+*.heapprofile
+
+# Debug files
+*.debug
+*.trace
+
+# Core dumps
+*.core
+core
+
+# Process files
+*.pid
+*.seed
+*.pid.lock
+
+# Lock files for different package managers
+.npm/
+.yarn/
+.pnpm/
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+# Comment in the public line in if your project uses Gatsby and not Next.js
+# https://nextjs.org/blog/next-9-1#public-directory-support
+# public
+
+# vuepress build output
+.vuepress/dist
+
+# Serverless directories
+.serverless/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Security and configuration files that should never be committed
+config/secrets.json
+config/production.json
+config/staging.json
+src/config/secrets.js
+src/config/production.js
+src/config/staging.js
+
+# Environment-specific files
+*.env.production
+*.env.staging
+*.env.development
+
+# Backup and temporary files from migration scripts
+migration-backups/
+temp-migration/
+*.migration-backup
+
+# Log files from migration and deployment
+migration.log
+deployment.log
+*.migration.log
+*.deployment.log
+
+# Local development database files
+local.db
+local.sqlite
+*.local.db
+*.local.sqlite
+
+# Test database files
+test.db
+test.sqlite
+*.test.db
+*.test.sqlite
+
+# CI/CD pipeline artifacts
+ci-artifacts/
+cd-artifacts/
+*.ci.log
+*.cd.log
+
+# Docker files (if using Docker for local development)
+docker-compose.override.yml
+Dockerfile.local
+.dockerignore.local
+
+# Kubernetes manifests (if using K8s for local development)
+k8s/local/
+k8s/development/
+
+# Terraform state files (if using Terraform)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Ansible files (if using Ansible)
+*.ansible-vault
+ansible-vault-password
+
+# Custom scripts and tools output
+tools-output/
+scripts-output/
+*.tools.log
+*.scripts.log
+
+# Performance monitoring data
+monitoring-data/
+*.monitoring.json
+
+# Error tracking and reporting data
+error-reports/
+*.error-report.json
+
+# User analytics data (GDPR sensitive)
+user-analytics/
+*.user-data.json
+
+# A/B testing data
+ab-test-data/
+*.ab-test.json
+
+# Feature flag data
+feature-flags/
+*.feature-flags.json
+
+# Machine learning model files (if using ML)
+ml-models/
+*.model
+*.ml-model
+
+# AI training data (if using AI)
+ai-training-data/
+*.ai-training.json
+
+# Blockchain and Web3 data (if using blockchain)
+blockchain-data/
+*.blockchain.json
+*.web3.json
+
+# Cryptocurrency wallet files (highly sensitive)
+wallets/
+*.wallet
+*.keystore
+
+# NFT and digital asset data (if using NFTs)
+nft-data/
+*.nft.json
+*.digital-asset.json
+
+# Game data and save files (if it's a game)
+game-data/
+*.save
+*.game-data
+
+# Virtual reality and augmented reality data (if using VR/AR)
+vr-data/
+ar-data/
+*.vr.json
+*.ar.json
+
+# Internet of Things (IoT) data (if using IoT)
+iot-data/
+*.iot.json
+
+# Robotics data (if using robotics)
+robotics-data/
+*.robotics.json
+
+# 3D printing and modeling data (if using 3D printing)
+3d-models/
+*.stl
+*.obj
+*.3ds
+
+# Computer vision and image processing data (if using CV)
+cv-data/
+*.cv.json
+*.image-processing.json
+
+# Natural language processing data (if using NLP)
+nlp-data/
+*.nlp.json
+*.text-processing.json
+
+# Speech recognition and synthesis data (if using speech tech)
+speech-data/
+*.speech.json
+*.voice.json
+
+# Biometric data (highly sensitive, GDPR and privacy laws)
+biometric-data/
+*.biometric.json
+*.fingerprint
+*.face
+*.iris
+*.dna
+
+# Health and medical data (highly sensitive, HIPAA and other regulations)
+health-data/
+*.medical.json
+*.health.json
+*.patient-data
+
+# Financial and banking data (highly sensitive, PCI DSS and other regulations)
+financial-data/
+*.financial.json
+*.banking.json
+*.credit-card
+*.payment
+
+# Legal and compliance data (highly sensitive)
+legal-data/
+*.legal.json
+*.compliance.json
+*.audit.json
+
+# Government and public sector data (highly sensitive, various regulations)
+government-data/
+*.government.json
+*.public-sector.json
+
+# Educational and academic data (FERPA and other regulations)
+educational-data/
+*.educational.json
+*.academic.json
+*.student-data
+
+# Employment and HR data (various labor laws and regulations)
+hr-data/
+*.employment.json
+*.hr.json
+*.employee-data
+
+# Real estate and property data (various property laws and regulations)
+real-estate-data/
+*.real-estate.json
+*.property.json
+
+# Transportation and logistics data (various transportation regulations)
+transportation-data/
+*.transportation.json
+*.logistics.json
+
+# Energy and utilities data (various energy regulations)
+energy-data/
+*.energy.json
+*.utilities.json
+
+# Telecommunications data (various telecom regulations)
+telecom-data/
+*.telecom.json
+*.communications.json
+
+# Media and entertainment data (various media regulations and copyrights)
+media-data/
+*.media.json
+*.entertainment.json
+*.copyright
+
+# Retail and e-commerce data (various consumer protection regulations)
+retail-data/
+*.retail.json
+*.ecommerce.json
+*.consumer-data
+
+# Manufacturing and industrial data (various industrial regulations)
+manufacturing-data/
+*.manufacturing.json
+*.industrial.json
+
+# Agriculture and food data (various food safety and agricultural regulations)
+agriculture-data/
+*.agriculture.json
+*.food.json
+*.farming.json
+
+# Environmental and sustainability data (various environmental regulations)
+environmental-data/
+*.environmental.json
+*.sustainability.json
+*.carbon
+
+# Research and development data (various IP and trade secret laws)
+rd-data/
+*.research.json
+*.development.json
+*.prototype
+
+# Intellectual property and patent data (various IP laws and regulations)
+intellectual-property/
+*.patent.json
+*.trademark.json
+*.copyright.json
+*.trade-secret.json
+
+# Trade and export data (various trade and export regulations)
+trade-data/
+*.trade.json
+*.export.json
+*.import.json
+
+# Customs and immigration data (various customs and immigration regulations)
+customs-data/
+*.customs.json
+*.immigration.json
+*.border.json
+
+# Defense and military data (highly sensitive, various defense regulations)
+defense-data/
+*.defense.json
+*.military.json
+*.classified
+
+# Intelligence and security data (highly sensitive, various intelligence regulations)
+intelligence-data/
+*.intelligence.json
+*.security.json
+*.surveillance.json
+
+# Emergency and disaster response data (various emergency management regulations)
+emergency-data/
+*.emergency.json
+*.disaster.json
+*.response.json
+
+# Public safety and law enforcement data (various public safety regulations)
+public-safety/
+*.public-safety.json
+*.law-enforcement.json
+*.police.json
+
+# Fire and rescue data (various fire safety regulations)
+fire-data/
+*.fire.json
+*.rescue.json
+*.emergency-response.json
+
+# Medical emergency and ambulance data (various medical emergency regulations)
+medical-emergency/
+*.medical-emergency.json
+*.ambulance.json
+*.ems.json
+
+# Search and rescue data (various search and rescue regulations)
+search-rescue/
+*.search-rescue.json
+*.sar.json
+
+# Hazardous materials and waste data (various hazmat regulations)
+hazmat-data/
+*.hazmat.json
+*.hazardous.json
+*.waste.json
+
+# Nuclear and radioactive data (highly sensitive, various nuclear regulations)
+nuclear-data/
+*.nuclear.json
+*.radioactive.json
+*.radiation.json
+
+# Chemical and biological data (various chemical and biological regulations)
+chemical-data/
+*.chemical.json
+*.biological.json
+*.biohazard.json
+
+# Pharmaceutical and drug data (various pharmaceutical regulations)
+pharmaceutical-data/
+*.pharmaceutical.json
+*.drug.json
+*.medication.json
+
+# Food and beverage data (various food safety regulations)
+food-data/
+*.food.json
+*.beverage.json
+*.nutrition.json
+
+# Cosmetic and personal care data (various cosmetic regulations)
+cosmetic-data/
+*.cosmetic.json
+*.personal-care.json
+*.beauty.json
+
+# Textile and apparel data (various textile regulations)
+textile-data/
+*.textile.json
+*.apparel.json
+*.clothing.json
+
+# Automotive and vehicle data (various automotive regulations)
+automotive-data/
+*.automotive.json
+*.vehicle.json
+*.car.json
+
+# Aerospace and aviation data (various aviation regulations)
+aerospace-data/
+*.aerospace.json
+*.aviation.json
+*.aircraft.json
+
+# Maritime and shipping data (various maritime regulations)
+maritime-data/
+*.maritime.json
+*.shipping.json
+*.vessel.json
+
+# Rail and train data (various rail regulations)
+rail-data/
+*.rail.json
+*.train.json
+*.railway.json
+
+# Pipeline and infrastructure data (various infrastructure regulations)
+pipeline-data/
+*.pipeline.json
+*.infrastructure.json
+*.utilities.json
+
+# Construction and building data (various construction regulations)
+construction-data/
+*.construction.json
+*.building.json
+*.architecture.json
+
+# Mining and minerals data (various mining regulations)
+mining-data/
+*.mining.json
+*.minerals.json
+*.extractive.json
+
+# Oil and gas data (various oil and gas regulations)
+oil-gas-data/
+*.oil.json
+*.gas.json
+*.petroleum.json
+
+# Renewable energy data (various renewable energy regulations)
+renewable-energy/
+*.renewable.json
+*.solar.json
+*.wind.json
+*.hydro.json
+
+# Water and wastewater data (various water regulations)
+water-data/
+*.water.json
+*.wastewater.json
+*.sewage.json
+
+# Waste management and recycling data (various waste regulations)
+waste-management/
+*.waste-management.json
+*.recycling.json
+*.garbage.json
+
+# Air quality and pollution data (various air quality regulations)
+air-quality/
+*.air-quality.json
+*.pollution.json
+*.emissions.json
+
+# Climate and weather data (various climate regulations)
+climate-data/
+*.climate.json
+*.weather.json
+*.meteorology.json
+
+# Forestry and timber data (various forestry regulations)
+forestry-data/
+*.forestry.json
+*.timber.json
+*.forest.json
+
+# Fishing and aquaculture data (various fishing regulations)
+fishing-data/
+*.fishing.json
+*.aquaculture.json
+*.fisheries.json
+
+# Wildlife and conservation data (various wildlife regulations)
+wildlife-data/
+*.wildlife.json
+*.conservation.json
+*.biodiversity.json
+
+# National parks and protected areas data (various park regulations)
+park-data/
+*.park.json
+*.protected-area.json
+*.nature-reserve.json
+
+# Cultural heritage and historic sites data (various heritage regulations)
+cultural-heritage/
+*.cultural-heritage.json
+*.historic-site.json
+*.monument.json
+
+# Archaeological and excavation data (various archaeological regulations)
+archaeological-data/
+*.archaeological.json
+*.excavation.json
+*.artifact.json
+
+# Museum and collection data (various museum regulations)
+museum-data/
+*.museum.json
+*.collection.json
+*.exhibit.json
+
+# Library and archive data (various library regulations)
+library-data/
+*.library.json
+*.archive.json
+*.manuscript.json
+
+# Publishing and media data (various publishing regulations)
+publishing-data/
+*.publishing.json
+*.media.json
+*.book.json
+
+# Broadcasting and television data (various broadcasting regulations)
+broadcasting-data/
+*.broadcasting.json
+*.television.json
+*.radio.json
+
+# Film and cinema data (various film regulations)
+film-data/
+*.film.json
+*.cinema.json
+*.movie.json
+
+# Music and audio data (various music regulations)
+music-data/
+*.music.json
+*.audio.json
+*.song.json
+
+# Gaming and esports data (various gaming regulations)
+gaming-data/
+*.gaming.json
+*.esports.json
+*.game.json
+
+# Sports and recreation data (various sports regulations)
+sports-data/
+*.sports.json
+*.recreation.json
+*.fitness.json
+
+# Tourism and hospitality data (various tourism regulations)
+tourism-data/
+*.tourism.json
+*.hospitality.json
+*.travel.json
+
+# Event and conference data (various event regulations)
+event-data/
+*.event.json
+*.conference.json
+*.festival.json
+
+# Restaurant and food service data (various food service regulations)
+restaurant-data/
+*.restaurant.json
+*.food-service.json
+*.catering.json
+
+# Hotel and accommodation data (various accommodation regulations)
+hotel-data/
+*.hotel.json
+*.accommodation.json
+*.lodging.json
+
+# Shopping and retail data (various retail regulations)
+shopping-data/
+*.shopping.json
+*.retail.json
+*.store.json
+
+# Transportation and mobility data (various transportation regulations)
+transportation-data/
+*.transportation.json
+*.mobility.json
+*.transit.json
+
+# Parking and vehicle storage data (various parking regulations)
+parking-data/
+*.parking.json
+*.vehicle-storage.json
+*.garage.json
+
+# Delivery and logistics data (various delivery regulations)
+delivery-data/
+*.delivery.json
+*.logistics.json
+*.courier.json
+
+# Moving and relocation data (various moving regulations)
+moving-data/
+*.moving.json
+*.relocation.json
+*.storage.json
+
+# Storage and warehousing data (various storage regulations)
+storage-data/
+*.storage.json
+*.warehousing.json
+*.warehouse.json
+
+# Cleaning and maintenance data (various cleaning regulations)
+cleaning-data/
+*.cleaning.json
+*.maintenance.json
+*.janitorial.json
+
+# Security and surveillance data (various security regulations)
+security-data/
+*.security.json
+*.surveillance.json
+*.guarding.json
+
+# Landscaping and groundskeeping data (various landscaping regulations)
+landscaping-data/
+*.landscaping.json
+*.groundskeeping.json
+*.gardening.json
+
+# Pest control and extermination data (various pest control regulations)
+pest-control/
+*.pest-control.json
+*.extermination.json
+*.pesticide.json
+
+# HVAC and climate control data (various HVAC regulations)
+hvac-data/
+*.hvac.json
+*.climate-control.json
+*.heating.json
+
+# Electrical and lighting data (various electrical regulations)
+electrical-data/
+*.electrical.json
+*.lighting.json
+*.electricity.json
+
+# Plumbing and water systems data (various plumbing regulations)
+plumbing-data/
+*.plumbing.json
+*.water-systems.json
+*.sewage.json
+
+# Fire safety and suppression data (various fire safety regulations)
+fire-safety/
+*.fire-safety.json
+*.suppression.json
+*.sprinkler.json
+
+# Elevator and lift data (various elevator regulations)
+elevator-data/
+*.elevator.json
+*.lift.json
+*.escalator.json
+
+# Escalator and moving walkway data (various escalator regulations)
+escalator-data/
+*.escalator.json
+*.moving-walkway.json
+*.conveyor.json
+
+# Signage and wayfinding data (various signage regulations)
+signage-data/
+*.signage.json
+*.wayfinding.json
+*.sign.json
+
+# Window and door data (various window and door regulations)
+window-door-data/
+*.window.json
+*.door.json
+*.entrance.json
+
+# Roofing and exterior data (various roofing regulations)
+roofing-data/
+*.roofing.json
+*.exterior.json
+*.roof.json
+
+# Flooring and interior data (various flooring regulations)
+flooring-data/
+*.flooring.json
+*.interior.json
+*.floor.json
+
+# Wall and partition data (various wall regulations)
+wall-data/
+*.wall.json
+*.partition.json
+*.divider.json
+
+# Ceiling and overhead data (various ceiling regulations)
+ceiling-data/
+*.ceiling.json
+*.overhead.json
+*.ceiling-tile.json
+
+# Furniture and fixture data (various furniture regulations)
+furniture-data/
+*.furniture.json
+*.fixture.json
+*.furnishing.json
+
+# Equipment and appliance data (various equipment regulations)
+equipment-data/
+*.equipment.json
+*.appliance.json
+*.machinery.json
+
+# Tool and hardware data (various tool regulations)
+tool-data/
+*.tool.json
+*.hardware.json
+*.implement.json
+
+# Supply and material data (various supply regulations)
+supply-data/
+*.supply.json
+*.material.json
+*.resource.json
+
+# Inventory and stock data (various inventory regulations)
+inventory-data/
+*.inventory.json
+*.stock.json
+*.warehouse.json
+
+# Procurement and purchasing data (various procurement regulations)
+procurement-data/
+*.procurement.json
+*.purchasing.json
+*.buying.json
+
+# Vendor and supplier data (various vendor regulations)
+vendor-data/
+*.vendor.json
+*.supplier.json
+*.contractor.json
+
+# Contract and agreement data (various contract regulations)
+contract-data/
+*.contract.json
+*.agreement.json
+*.legal-document.json
+
+# Invoice and billing data (various billing regulations)
+invoice-data/
+*.invoice.json
+*.billing.json
+*.payment.json
+
+# Payment and transaction data (various payment regulations)
+payment-data/
+*.payment.json
+*.transaction.json
+*.financial-transaction.json
+
+# Accounting and bookkeeping data (various accounting regulations)
+accounting-data/
+*.accounting.json
+*.bookkeeping.json
+*.ledger.json
+
+# Tax and compliance data (various tax regulations)
+tax-data/
+*.tax.json
+*.compliance.json
+*.tax-return.json
+
+# Audit and inspection data (various audit regulations)
+audit-data/
+*.audit.json
+*.inspection.json
+*.review.json
+
+# Quality assurance and control data (various quality regulations)
+quality-data/
+*.quality.json
+*.assurance.json
+*.control.json
+
+# Certification and accreditation data (various certification regulations)
+certification-data/
+*.certification.json
+*.accreditation.json
+*.license.json
+
+# Training and education data (various training regulations)
+training-data/
+*.training.json
+*.education.json
+*.course.json
+
+# Performance and evaluation data (various performance regulations)
+performance-data/
+*.performance.json
+*.evaluation.json
+*.assessment.json
+
+# Time and attendance data (various timekeeping regulations)
+time-data/
+*.time.json
+*.attendance.json
+*.timesheet.json
+
+# Payroll and compensation data (various payroll regulations)
+payroll-data/
+*.payroll.json
+*.compensation.json
+*.salary.json
+
+# Benefits and insurance data (various benefits regulations)
+benefits-data/
+*.benefits.json
+*.insurance.json
+*.coverage.json
+
+# Retirement and pension data (various retirement regulations)
+retirement-data/
+*.retirement.json
+*.pension.json
+*.401k.json
+
+# Health and safety data (various health and safety regulations)
+health-safety/
+*.health.json
+*.safety.json
+*.osha.json
+
+# Workers compensation and disability data (various workers comp regulations)
+workers-comp/
+*.workers-comp.json
+*.disability.json
+*.injury.json
+
+# Unemployment and welfare data (various unemployment regulations)
+unemployment-data/
+*.unemployment.json
+*.welfare.json
+*.assistance.json
+
+# Social security and government benefits data (various social security regulations)
+social-security/
+*.social-security.json
+*.government-benefits.json
+*.ssi.json
+
+# Immigration and visa data (various immigration regulations)
+immigration-data/
+*.immigration.json
+*.visa.json
+*.green-card.json
+
+# Citizenship and naturalization data (various citizenship regulations)
+citizenship-data/
+*.citizenship.json
+*.naturalization.json
+*.passport.json
+
+# Passport and travel document data (various passport regulations)
+passport-data/
+*.passport.json
+*.travel-document.json
+*.visa.json
+
+# Driver license and motor vehicle data (various DMV regulations)
+driver-license/
+*.driver-license.json
+*.motor-vehicle.json
+*.dmv.json
+
+# Vehicle registration and title data (various vehicle registration regulations)
+vehicle-registration/
+*.vehicle-registration.json
+*.title.json
+*.registration.json
+
+# Professional license and permit data (various professional licensing regulations)
+professional-license/
+*.professional-license.json
+*.permit.json
+*.certification.json
+
+# Business license and permit data (various business licensing regulations)
+business-license/
+*.business-license.json
+*.business-permit.json
+*.license.json
+
+# Zoning and land use data (various zoning regulations)
+zoning-data/
+*.zoning.json
+*.land-use.json
+*.permit.json
+
+# Building permit and inspection data (various building permit regulations)
+building-permit/
+*.building-permit.json
+*.inspection.json
+*.permit.json
+
+# Environmental permit and compliance data (various environmental permit regulations)
+environmental-permit/
+*.environmental-permit.json
+*.compliance.json
+*.epa.json
+
+# Health permit and inspection data (various health permit regulations)
+health-permit/
+*.health-permit.json
+*.inspection.json
+*.health-department.json
+
+# Fire permit and inspection data (various fire permit regulations)
+fire-permit/
+*.fire-permit.json
+*.inspection.json
+*.fire-marshal.json
+
+# Police permit and background check data (various police permit regulations)
+police-permit/
+*.police-permit.json
+*.background-check.json
+*.clearance.json
+
+# Court and legal document data (various court regulations)
+court-data/
+*.court.json
+*.legal-document.json
+*.lawsuit.json
+
+# Prison and correctional data (various correctional regulations)
+prison-data/
+*.prison.json
+*.correctional.json
+*.inmate.json
+
+# Probation and parole data (various probation regulations)
+probation-data/
+*.probation.json
+*.parole.json
+*.supervision.json
+
+# Juvenile and family court data (various juvenile regulations)
+juvenile-data/
+*.juvenile.json
+*.family-court.json
+*.dependency.json
+
+# Adoption and foster care data (various adoption regulations)
+adoption-data/
+*.adoption.json
+*.foster-care.json
+*.child-welfare.json
+
+# Child protective services data (various CPS regulations)
+cps-data/
+*.cps.json
+*.child-protective.json
+*.abuse.json
+
+# Domestic violence and abuse data (various domestic violence regulations)
+domestic-violence/
+*.domestic-violence.json
+*.abuse.json
+*.shelter.json
+
+# Sex offender and registry data (various sex offender regulations)
+sex-offender/
+*.sex-offender.json
+*.registry.json
+*.megans-law.json
+
+# Mental health and counseling data (various mental health regulations)
+mental-health/
+*.mental-health.json
+*.counseling.json
+*.therapy.json
+
+# Substance abuse and treatment data (various substance abuse regulations)
+substance-abuse/
+*.substance-abuse.json
+*.treatment.json
+*.rehabilitation.json
+
+# Disability and special needs data (various disability regulations)
+disability-data/
+*.disability.json
+*.special-needs.json
+*.accessibility.json
+
+# Aging and elder care data (various aging regulations)
+aging-data/
+*.aging.json
+*.elder-care.json
+*.senior.json
+
+# Veterans and military service data (various veterans regulations)
+veterans-data/
+*.veterans.json
+*.military-service.json
+*.va.json
+
+# Homeless and housing assistance data (various homeless regulations)
+homeless-data/
+*.homeless.json
+*.housing-assistance.json
+*.shelter.json
+
+# Low income and poverty data (various poverty regulations)
+low-income/
+*.low-income.json
+*.poverty.json
+*.assistance.json
+
+# Food assistance and nutrition data (various food assistance regulations)
+food-assistance/
+*.food-assistance.json
+*.nutrition.json
+*.snap.json
+
+# Healthcare and medical assistance data (various healthcare assistance regulations)
+healthcare-assistance/
+*.healthcare-assistance.json
+*.medical-assistance.json
+*.medicaid.json
+
+# Educational assistance and scholarship data (various educational assistance regulations)
+educational-assistance/
+*.educational-assistance.json
+*.scholarship.json
+*.financial-aid.json
+
+# Employment and job training data (various employment assistance regulations)
+employment-assistance/
+*.employment-assistance.json
+*.job-training.json
+*.workforce.json
+
+# Small business and entrepreneurship data (various small business regulations)
+small-business/
+*.small-business.json
+*.entrepreneurship.json
+*.sba.json
+
+# Economic development and revitalization data (various economic development regulations)
+economic-development/
+*.economic-development.json
+*.revitalization.json
+*.redevelopment.json
+
+# Community development and block grant data (various community development regulations)
+community-development/
+*.community-development.json
+*.block-grant.json
+*.cdbg.json
+
+# Rural development and agriculture data (various rural development regulations)
+rural-development/
+*.rural-development.json
+*.agriculture.json
+*.usda.json
+
+# Urban development and planning data (various urban development regulations)
+urban-development/
+*.urban-development.json
+*.planning.json
+*.city-planning.json
+
+# Transportation planning and infrastructure data (various transportation planning regulations)
+transportation-planning/
+*.transportation-planning.json
+*.infrastructure.json
+*.dot.json
+
+# Housing and urban development data (various HUD regulations)
+housing-development/
+*.housing-development.json
+*.urban-development.json
+*.hud.json
+
+# Public housing and section 8 data (various public housing regulations)
+public-housing/
+*.public-housing.json
+*.section-8.json
+*.housing-authority.json
+
+# Community facilities and services data (various community facility regulations)
+community-facilities/
+*.community-facilities.json
+*.services.json
+*.community-center.json
+
+# Parks and recreation facilities data (various parks and recreation regulations)
+parks-recreation/
+*.parks-recreation.json
+*.parks.json
+*.recreation.json
+
+# Public works and infrastructure data (various public works regulations)
+public-works/
+*.public-works.json
+*.infrastructure.json
+*.utilities.json
+
+# Water and sewer infrastructure data (various water and sewer regulations)
+water-sewer/
+*.water-sewer.json
+*.infrastructure.json
+*.utilities.json
+
+# Solid waste and recycling facilities data (various waste facility regulations)
+waste-facilities/
+*.waste-facilities.json
+*.recycling.json
+*.landfill.json
+
+# Storm water and drainage data (various storm water regulations)
+storm-water/
+*.storm-water.json
+*.drainage.json
+*.flood-control.json
+
+# Electric and gas utilities data (various utility regulations)
+electric-gas/
+*.electric-gas.json
+*.utilities.json
+*.power.json
+
+# Telecommunications and broadband data (various telecom regulations)
+telecom-broadband/
+*.telecom-broadband.json
+*.communications.json
+*.broadband.json
+
+# Public safety and emergency services data (various public safety regulations)
+public-safety-services/
+*.public-safety-services.json
+*.emergency-services.json
+*.police-fire.json
+
+# Schools and educational facilities data (various school regulations)
+schools-education/
+*.schools-education.json
+*.schools.json
+*.education.json
+
+# Libraries and cultural facilities data (various library regulations)
+libraries-culture/
+*.libraries-culture.json
+*.libraries.json
+*.cultural.json
+
+# Hospitals and healthcare facilities data (various healthcare facility regulations)
+hospitals-healthcare/
+*.hospitals-healthcare.json
+*.hospitals.json
+*.healthcare.json
+
+# Social services and welfare facilities data (various social service regulations)
+social-services/
+*.social-services.json
+*.welfare.json
+*.assistance.json

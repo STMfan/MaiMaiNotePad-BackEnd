@@ -1,0 +1,175 @@
+name = "maimai-notepad-workers"
+main = "src/workers/index.js"
+build_command = ""
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[env.production.vars]
+ENVIRONMENT = "production"
+NODE_ENV = "production"
+API_BASE_URL = "https://api.maimainotepad.com"
+FRONTEND_URL = "https://maimainotepad.com"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+NODE_ENV = "staging"
+API_BASE_URL = "https://api-staging.maimainotepad.com"
+FRONTEND_URL = "https://staging.maimainotepad.com"
+
+[env.development.vars]
+ENVIRONMENT = "development"
+NODE_ENV = "development"
+API_BASE_URL = "http://localhost:8787"
+FRONTEND_URL = "http://localhost:3000"
+
+# D1 Database Configuration
+[[d1_databases]]
+binding = "DB"
+database_name = "maimai-notepad-db"
+database_id = "your-d1-database-id"
+preview_database_id = "your-preview-d1-database-id"
+
+# R2 Storage Configuration
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "maimai-notepad-storage"
+
+# KV Storage Configuration
+[[kv_namespaces]]
+binding = "KV"
+id = "your-kv-namespace-id"
+preview_id = "your-preview-kv-namespace-id"
+
+# Durable Objects Configuration
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiterDurableObject"
+script_name = "maimai-notepad-workers"
+
+# Environment Variables (add your actual values in .env file)
+[vars]
+# JWT Configuration
+JWT_SECRET = "your-jwt-secret-key"
+JWT_EXPIRES_IN = "24h"
+JWT_REFRESH_EXPIRES_IN = "7d"
+
+# API Configuration
+API_VERSION = "v1"
+API_RATE_LIMIT = "100"
+API_RATE_LIMIT_WINDOW = "900"
+
+# Security Configuration
+BCRYPT_ROUNDS = "12"
+CORS_ORIGIN = "https://maimainotepad.com,https://staging.maimainotepad.com,http://localhost:3000"
+CORS_METHODS = "GET,POST,PUT,DELETE,OPTIONS"
+CORS_HEADERS = "Content-Type,Authorization,X-Requested-With"
+
+# File Upload Configuration
+MAX_FILE_SIZE = "52428800"  # 50MB
+ALLOWED_FILE_TYPES = "image/jpeg,image/png,image/gif,application/pdf,text/plain,text/markdown"
+UPLOAD_RATE_LIMIT = "10"
+UPLOAD_RATE_LIMIT_WINDOW = "3600"
+
+# Storage Configuration
+STORAGE_REGION = "auto"
+STORAGE_ENDPOINT = "https://your-r2-endpoint.r2.cloudflarestorage.com"
+
+# Email Configuration
+EMAIL_ENABLED = "false"
+EMAIL_PROVIDER = "sendgrid"
+EMAIL_FROM = "noreply@maimainotepad.com"
+
+# Analytics Configuration
+ANALYTICS_ENABLED = "false"
+ANALYTICS_PROVIDER = "cloudflare"
+
+# Backup Configuration
+BACKUP_ENABLED = "false"
+BACKUP_RETENTION_DAYS = "7"
+BACKUP_SCHEDULE = "0 2 * * *"  # Daily at 2 AM UTC
+
+# Logging Configuration
+LOG_LEVEL = "info"
+LOG_RETENTION_DAYS = "30"
+
+# Rate Limiting Configuration
+RATE_LIMIT_ENABLED = "true"
+RATE_LIMIT_STORE = "kv"  # kv or durable_objects
+RATE_LIMIT_CLEANUP_INTERVAL = "3600"
+
+# Cache Configuration
+CACHE_ENABLED = "true"
+CACHE_TTL = "3600"
+CACHE_MAX_SIZE = "1000"
+
+# Webhook Configuration
+WEBHOOK_ENABLED = "false"
+WEBHOOK_SECRET = "your-webhook-secret"
+WEBHOOK_RETRY_ATTEMPTS = "3"
+WEBHOOK_RETRY_DELAY = "60"
+
+# Maintenance Configuration
+MAINTENANCE_MODE = "false"
+MAINTENANCE_MESSAGE = "System is under maintenance. Please check back later."
+
+[[migrations]]
+tag = "v1"
+directory = "src/database/migrations"
+
+# Custom build configuration
+[build]
+command = "npm run build"
+watch_dir = "src"
+cwd = "."
+
+# Minification and optimization
+[miniflare]
+port = 8787
+host = "127.0.0.1"
+https = false
+kv_persist = true
+d1_persist = true
+r2_persist = true
+cache_persist = true
+durable_objects_persist = true
+
+# Development-specific configuration
+[env.development]
+port = 8787
+host = "127.0.0.1"
+https = false
+log_level = "debug"
+
+# Staging-specific configuration
+[env.staging]
+log_level = "info"
+
+# Production-specific configuration
+[env.production]
+log_level = "warn"
+
+# Health check configuration
+[env.production.unsafe]
+upload_source_maps = true
+fail_open = false
+
+# Cron triggers for scheduled tasks
+[[triggers]]
+crons = ["0 2 * * *"]  # Daily at 2 AM UTC
+
+# Routes configuration
+[[routes]]
+pattern = "api.maimainotepad.com/*"
+zone_name = "maimainotepad.com"
+
+[[routes]]
+pattern = "api-staging.maimainotepad.com/*"
+zone_name = "maimainotepad.com"
+
+# Custom headers
+[headers]
+X-Frame-Options = "DENY"
+X-Content-Type-Options = "nosniff"
+X-XSS-Protection = "1; mode=block"
+Referrer-Policy = "strict-origin-when-cross-origin"
+Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:;"
