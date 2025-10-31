@@ -28,19 +28,19 @@ jobs:
         run: npm install
       
       - name: Debug environment variables
-      run: |
-        echo "Checking required secrets..."
-        echo "CLOUDFLARE_API_TOKEN is set: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}"
-        echo "CLOUDFLARE_ACCOUNT_ID is set: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' }}"
-        echo "JWT_SECRET is set: ${{ secrets.JWT_SECRET != '' }}"
-        echo ""
-        echo "Checking repository permissions..."
-        echo "Repository: ${{ github.repository }}"
-        echo "Actor: ${{ github.actor }}"
-        echo "Ref: ${{ github.ref }}"
-        echo ""
-        echo "Checking all available secrets (names only)..."
-        echo "Available secrets: ${{ toJSON(secrets) }}"
+        run: |
+          echo "Checking required secrets..."
+          echo "CLOUDFLARE_API_TOKEN is set: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}"
+          echo "CLOUDFLARE_ACCOUNT_ID is set: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' }}"
+          echo "JWT_SECRET is set: ${{ secrets.JWT_SECRET != '' }}"
+          echo ""
+          echo "Checking repository permissions..."
+          echo "Repository: ${{ github.repository }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Ref: ${{ github.ref }}"
+          echo ""
+          echo "Checking all available secrets (names only)..."
+          echo "Available secrets: ${{ toJSON(secrets) }}"
       
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
