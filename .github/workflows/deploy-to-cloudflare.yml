@@ -1,0 +1,76 @@
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Cloudflare Workers
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --minify
+        env:
+          # 传递环境变量到部署环境
+          NODE_ENV: production
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_EXPIRE: ${{ secrets.JWT_EXPIRE }}
+          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
+          EMAIL_ENABLED: ${{ secrets.EMAIL_ENABLED }}
+          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          ANALYTICS_ENABLED: ${{ secrets.ANALYTICS_ENABLED }}
+          ANALYTICS_PROVIDER: ${{ secrets.ANALYTICS_PROVIDER }}
+          BACKUP_ENABLED: ${{ secrets.BACKUP_ENABLED }}
+          RATE_LIMIT_ENABLED: ${{ secrets.RATE_LIMIT_ENABLED }}
+          CACHE_ENABLED: ${{ secrets.CACHE_ENABLED }}
+          CACHE_TTL: ${{ secrets.CACHE_TTL }}
+          # Cloudflare 特定配置
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # 存储配置
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          # D1 数据库配置
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          # KV 存储配置
+          KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
+          
+      - name: Deployment notification
+        if: success()
+        run: |
+          echo "🚀 Deployment to Cloudflare Workers successful!"
+          echo "📅 $(date)"
+          echo "🔀 Branch: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+          
+      - name: Deployment failure notification
+        if: failure()
+        run: |
+          echo "❌ Deployment to Cloudflare Workers failed!"
+          echo "📅 $(date)"
+          echo "🔀 Branch: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+          exit 1

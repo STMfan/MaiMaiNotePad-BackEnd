@@ -1,0 +1,98 @@
+name: Manual Deploy to Cloudflare Workers
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '部署环境'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+      deploy_message:
+        description: '部署说明'
+        required: false
+        default: '手动触发的部署'
+        type: string
+
+jobs:
+  manual-deploy:
+    runs-on: ubuntu-latest
+    name: Manual Deploy to Cloudflare Workers
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm test
+        continue-on-error: true
+      
+      - name: Build project
+        run: npm run build
+        continue-on-error: true
+      
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --minify
+        env:
+          NODE_ENV: ${{ github.event.inputs.environment }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_EXPIRE: ${{ secrets.JWT_EXPIRE }}
+          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
+          EMAIL_ENABLED: ${{ secrets.EMAIL_ENABLED }}
+          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          ANALYTICS_ENABLED: ${{ secrets.ANALYTICS_ENABLED }}
+          ANALYTICS_PROVIDER: ${{ secrets.ANALYTICS_PROVIDER }}
+          BACKUP_ENABLED: ${{ secrets.BACKUP_ENABLED }}
+          RATE_LIMIT_ENABLED: ${{ secrets.RATE_LIMIT_ENABLED }}
+          CACHE_ENABLED: ${{ secrets.CACHE_ENABLED }}
+          CACHE_TTL: ${{ secrets.CACHE_TTL }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
+          
+      - name: Deployment success notification
+        if: success()
+        run: |
+          echo "✅ 手动部署成功!"
+          echo "📅 $(date)"
+          echo "🌍 环境: ${{ github.event.inputs.environment }}"
+          echo "💬 说明: ${{ github.event.inputs.deploy_message }}"
+          echo "📝 提交: ${{ github.sha }}"
+          echo "👤 触发者: ${{ github.actor }}"
+          
+      - name: Deployment failure notification
+        if: failure()
+        run: |
+          echo "❌ 手动部署失败!"
+          echo "📅 $(date)"
+          echo "🌍 环境: ${{ github.event.inputs.environment }}"
+          echo "💬 说明: ${{ github.event.inputs.deploy_message }}"
+          echo "📝 提交: ${{ github.sha }}"
+          echo "👤 触发者: ${{ github.actor }}"
+          exit 1

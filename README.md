@@ -248,7 +248,37 @@ npm run create-test-user
 # 打开 test-character-api.http 文件，使用REST客户端执行测试用例
 ```
 
-## 部署指南
+## 自动部署设置
+
+### GitHub Actions 自动部署
+
+本项目已配置GitHub Actions工作流，支持以下自动化功能：
+
+- **自动部署**: 推送到 `main` 分支时自动部署到Cloudflare Workers
+- **手动部署**: 支持手动触发部署到不同环境
+- **测试和构建**: 自动运行测试、代码检查和构建
+
+详细设置指南请参考: [GitHub Actions 设置指南](docs/GITHUB_ACTIONS_SETUP.md)
+
+### 快速开始自动部署
+
+1. **配置Cloudflare API令牌**
+   - 登录Cloudflare控制台创建API令牌
+   - 确保包含Workers、R2、D1、KV等相关权限
+
+2. **设置GitHub Secrets**
+   ```bash
+   # 必需的Secrets
+   CLOUDFLARE_API_TOKEN=你的API令牌
+   CLOUDFLARE_ACCOUNT_ID=你的账户ID
+   JWT_SECRET=你的JWT密钥
+   ALLOWED_ORIGINS=https://maimnp.tech,https://www.maimnp.tech
+   ```
+
+3. **测试自动部署**
+   - 推送代码到main分支
+   - 查看GitHub Actions运行状态
+   - 访问部署的Workers服务
 
 ### Cloudflare Workers 部署（推荐）
 

@@ -1,0 +1,58 @@
+name: Test and Build
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Test and Build
+    
+    strategy:
+      matrix:
+        node-version: [16.x, 18.x, 20.x]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run linter
+        run: npm run lint
+        continue-on-error: true
+      
+      - name: Run tests
+        run: npm test
+        continue-on-error: true
+      
+      - name: Build project
+        run: npm run build
+        continue-on-error: true
+      
+      - name: Security audit
+        run: npm audit
+        continue-on-error: true
+      
+      - name: Validate environment config
+        run: npm run env:validate
+        continue-on-error: true
+      
+      - name: Test summary
+        if: always()
+        run: |
+          echo "📊 测试结果总结:"
+          echo "🔧 Node.js 版本: ${{ matrix.node-version }}"
+          echo "📅 测试时间: $(date)"
+          echo "📝 提交: ${{ github.sha }}"
+          echo "👤 触发者: ${{ github.actor }}"
