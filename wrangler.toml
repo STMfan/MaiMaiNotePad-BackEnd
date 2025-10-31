@@ -45,8 +45,8 @@ preview_id = "8d395aee13504c009d8a166cbb4de5d7"
 # KV文件存储配置（用于R2存储的替代方案）
 [[kv_namespaces]]
 binding = "FILE_KV"
-id = "file-storage-kv-namespace-id"
-preview_id = "file-storage-kv-preview-id"
+id = "befce612a91c42e081d70e12029a2b76"
+preview_id = "8d395aee13504c009d8a166cbb4de5d7"
 
 # Durable Objects Configuration
 # 注意：需要在代码中定义相应的Durable Object类
