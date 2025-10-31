@@ -30,8 +30,6 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --minify
         env:
-          # 确保wrangler能够访问API token
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           # 传递环境变量到部署环境
           NODE_ENV: production
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
