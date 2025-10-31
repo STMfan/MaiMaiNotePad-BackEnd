@@ -1,0 +1,101 @@
+### 人设卡API测试
+
+### 1. 获取公开人设卡列表
+GET http://127.0.0.1:8787/api/character/public
+Content-Type: application/json
+
+### 2. 获取单个人设卡详情
+GET http://127.0.0.1:8787/api/character/public/1
+Content-Type: application/json
+
+### 3. 用户注册（用于获取token）
+POST http://127.0.0.1:8787/api/auth/register
+Content-Type: application/json
+
+{
+  "username": "testuser",
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### 4. 用户登录（获取token）
+POST http://127.0.0.1:8787/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### 5. 上传人设卡（需要token）
+POST http://127.0.0.1:8787/api/character/upload
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+  "name": "测试角色",
+  "description": "这是一个测试角色",
+  "content": "角色详细内容...",
+  "category": "测试分类",
+  "tags": ["测试", "角色"],
+  "visibility": "public"
+}
+
+### 6. 获取用户自己的人设卡列表
+GET http://127.0.0.1:8787/api/character/my
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### 7. 更新人设卡（需要token）
+PUT http://127.0.0.1:8787/api/character/1
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+  "name": "更新后的角色名",
+  "description": "更新后的描述"
+}
+
+### 8. 删除人设卡（需要token）
+DELETE http://127.0.0.1:8787/api/character/1
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### 管理员测试
+
+### 9. 管理员获取人设卡列表
+GET http://127.0.0.1:8787/api/admin/characters
+Content-Type: application/json
+Authorization: Bearer ADMIN_TOKEN_HERE
+
+### 10. 管理员获取待审核人设卡
+GET http://127.0.0.1:8787/api/admin/characters/pending
+Content-Type: application/json
+Authorization: Bearer ADMIN_TOKEN_HERE
+
+### 11. 管理员审核人设卡
+PUT http://127.0.0.1:8787/api/admin/characters/1/review
+Content-Type: application/json
+Authorization: Bearer ADMIN_TOKEN_HERE
+
+{
+  "status": "approved",
+  "reviewNotes": "审核通过，角色设定很有趣"
+}
+
+### 12. 管理员删除人设卡
+DELETE http://127.0.0.1:8787/api/admin/characters/1
+Content-Type: application/json
+Authorization: Bearer ADMIN_TOKEN_HERE
+
+### 13. 获取人设卡统计
+GET http://127.0.0.1:8787/api/character/stats
+Content-Type: application/json
+
+### 14. 获取分类列表
+GET http://127.0.0.1:8787/api/character/categories
+Content-Type: application/json
+
+### 15. 获取标签云
+GET http://127.0.0.1:8787/api/character/tags
+Content-Type: application/json

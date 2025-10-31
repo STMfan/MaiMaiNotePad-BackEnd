@@ -39,7 +39,7 @@ const DEFAULT_CONFIG = {
   JWT_ALGORITHM: 'HS256',
   
   // CORS
-  ALLOWED_ORIGINS: ['https://maimainote.com', 'https://app.maimainote.com', 'http://localhost:3000'],
+  ALLOWED_ORIGINS: ['https://maimnp.tech', 'https://app.maimnp.tech', 'http://localhost:3000'],
   
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: 15 * 60 * 1000, // 15 minutes
@@ -75,7 +75,7 @@ const DEFAULT_CONFIG = {
   
   // Analytics
   ENABLE_ANALYTICS: false,
-  ANALYTICS_ENDPOINT: 'https://analytics.maimainote.com',
+  ANALYTICS_ENDPOINT: 'https://analytics.maimnp.tech',
   ANALYTICS_BATCH_SIZE: 100,
   ANALYTICS_FLUSH_INTERVAL_MS: 60 * 1000, // 1 minute
   
@@ -111,18 +111,18 @@ const DEFAULT_CONFIG = {
   PASSWORD_REQUIRE_SPECIAL_CHARS: true,
   
   // API
-  API_BASE_URL: 'https://api.maimainote.com',
+  API_BASE_URL: 'https://api.maimnp.tech',
   API_VERSION: 'v1',
   API_TIMEOUT_MS: 30 * 1000, // 30 seconds
   
   // Email (if using email services)
   EMAIL_ENABLED: false,
-  EMAIL_FROM: 'noreply@maimainote.com',
+  EMAIL_FROM: 'official@maimnp.tech',
   EMAIL_VERIFICATION_REQUIRED: false,
   
   // File storage
   R2_BUCKET_NAME: 'maimai-files',
-  R2_PUBLIC_URL: 'https://files.maimainote.com',
+  R2_PUBLIC_URL: 'https://files.maimnp.tech',
   R2_CACHE_CONTROL: 'public, max-age=31536000',
   
   // Error handling
@@ -358,8 +358,8 @@ compatibility_flags = ["nodejs_compat"]
 # Environment variables
 [vars]
 ENVIRONMENT = "development"
-API_BASE_URL = "https://api.maimainote.com"
-ALLOWED_ORIGINS = "https://maimainote.com,https://app.maimainote.com"
+API_BASE_URL = "https://api.maimnp.tech"
+ALLOWED_ORIGINS = "https://maimnp.tech,https://app.maimnp.tech"
 RATE_LIMIT_WINDOW_MS = "900000"
 RATE_LIMIT_MAX_REQUESTS = "100"
 MAX_FILE_SIZE = "52428800"
@@ -405,8 +405,8 @@ ENABLE_ANALYTICS = "true"
 
 # Custom domains
 [env.production.routes]
-pattern = "api.maimainote.com/*"
-zone_name = "maimainote.com"
+pattern = "api.maimnp.tech/*"
+zone_name = "maimnp.tech"
 
 # Scheduled triggers
 [triggers]

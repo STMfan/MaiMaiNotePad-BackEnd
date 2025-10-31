@@ -8,6 +8,7 @@ const adminRoutes = require('./admin');
 const uploadRoutes = require('./upload');
 const backupRoutes = require('./backup');
 const systemRoutes = require('./system');
+const characterRoutes = require('./character-workers');
 
 // 路由中间件
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
@@ -17,6 +18,7 @@ router.use('/auth', authRoutes);
 router.use('/knowledge', knowledgeRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/system', systemRoutes);
+router.use('/character', characterRoutes);
 
 // 需要认证的路由
 router.use('/admin', authMiddleware, adminMiddleware, adminRoutes);

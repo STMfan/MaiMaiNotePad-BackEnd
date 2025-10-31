@@ -7,14 +7,14 @@ compatibility_flags = ["nodejs_compat"]
 [env.production.vars]
 ENVIRONMENT = "production"
 NODE_ENV = "production"
-API_BASE_URL = "https://api.maimainotepad.com"
-FRONTEND_URL = "https://maimainotepad.com"
+API_BASE_URL = "https://api.maimnp.tech"
+FRONTEND_URL = "https://maimnp.tech"
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
 NODE_ENV = "staging"
-API_BASE_URL = "https://api-staging.maimainotepad.com"
-FRONTEND_URL = "https://staging.maimainotepad.com"
+API_BASE_URL = "https://api-staging.maimnp.tech"
+FRONTEND_URL = "https://staging.maimnp.tech"
 
 [env.development.vars]
 ENVIRONMENT = "development"
@@ -23,28 +23,37 @@ API_BASE_URL = "http://localhost:8787"
 FRONTEND_URL = "http://localhost:3000"
 
 # D1 Database Configuration
-[[d1_databases]]
-binding = "DB"
-database_name = "maimai-notepad-db"
-database_id = "your-d1-database-id"
-preview_database_id = "your-preview-d1-database-id"
+# 注意：需要先创建D1数据库
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "maimai-notepad-db"
+# database_id = "your-d1-database-id"
+# preview_database_id = "your-preview-d1-database-id"
 
 # R2 Storage Configuration
-[[r2_buckets]]
-binding = "STORAGE"
-bucket_name = "maimai-notepad-storage"
+# 注意：需要在Cloudflare控制台中启用R2服务
+# [[r2_buckets]]
+# binding = "STORAGE"
+# bucket_name = "maimai-notepad-storage"
 
 # KV Storage Configuration
 [[kv_namespaces]]
 binding = "KV"
-id = "your-kv-namespace-id"
-preview_id = "your-preview-kv-namespace-id"
+id = "befce612a91c42e081d70e12029a2b76"
+preview_id = "8d395aee13504c009d8a166cbb4de5d7"
+
+# KV文件存储配置（用于R2存储的替代方案）
+[[kv_namespaces]]
+binding = "FILE_KV"
+id = "file-storage-kv-namespace-id"
+preview_id = "file-storage-kv-preview-id"
 
 # Durable Objects Configuration
-[[durable_objects.bindings]]
-name = "RATE_LIMITER"
-class_name = "RateLimiterDurableObject"
-script_name = "maimai-notepad-workers"
+# 注意：需要在代码中定义相应的Durable Object类
+# [[durable_objects.bindings]]
+# name = "RATE_LIMITER"
+# class_name = "RateLimiterDurableObject"
+# script_name = "maimai-notepad-workers"
 
 # Environment Variables (add your actual values in .env file)
 [vars]
@@ -60,7 +69,7 @@ API_RATE_LIMIT_WINDOW = "900"
 
 # Security Configuration
 BCRYPT_ROUNDS = "12"
-CORS_ORIGIN = "https://maimainotepad.com,https://staging.maimainotepad.com,http://localhost:3000"
+CORS_ORIGIN = "https://maimnp.tech,https://staging.maimnp.tech,http://localhost:3000"
 CORS_METHODS = "GET,POST,PUT,DELETE,OPTIONS"
 CORS_HEADERS = "Content-Type,Authorization,X-Requested-With"
 
@@ -77,7 +86,7 @@ STORAGE_ENDPOINT = "https://your-r2-endpoint.r2.cloudflarestorage.com"
 # Email Configuration
 EMAIL_ENABLED = "false"
 EMAIL_PROVIDER = "sendgrid"
-EMAIL_FROM = "noreply@maimainotepad.com"
+EMAIL_FROM = "official@maimnp.tech"
 
 # Analytics Configuration
 ANALYTICS_ENABLED = "false"
@@ -158,13 +167,14 @@ fail_open = false
 crons = ["0 2 * * *"]  # Daily at 2 AM UTC
 
 # Routes configuration
-[[routes]]
-pattern = "api.maimainotepad.com/*"
-zone_name = "maimainotepad.com"
+# 注意：需要在Cloudflare控制台中添加域名后才能使用自定义路由
+# [[routes]]
+# pattern = "api.maimnp.tech/*"
+# zone_name = "maimnp.tech"
 
-[[routes]]
-pattern = "api-staging.maimainotepad.com/*"
-zone_name = "maimainotepad.com"
+# [[routes]]
+# pattern = "api-staging.maimnp.tech/*"
+# zone_name = "maimnp.tech"
 
 # Custom headers
 [headers]

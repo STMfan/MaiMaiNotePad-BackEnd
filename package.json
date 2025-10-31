@@ -1,7 +1,7 @@
 {
-  "name": "maimainotepad-backend",
+  "name": "maimnp-backend",
   "version": "2.0.0",
-  "description": "MaiMaiNotePad backend API - Cloudflare Workers Edition",
+  "description": "MaiMaiNotePad (maimnp.tech) backend API - Cloudflare Workers Edition",
   "main": "src/workers/index.js",
   "type": "module",
   "scripts": {
@@ -24,7 +24,8 @@
     "env:validate": "node src/scripts/validate-environment.js",
     "security:audit": "npm audit && node src/scripts/security-audit.js",
     "docs:generate": "node src/scripts/generate-docs.js",
-    "performance:analyze": "node src/scripts/performance-analyze.js"
+    "performance:analyze": "node src/scripts/performance-analyze.js",
+    "setup": "node setup-env.js"
   },
   "keywords": [
     "maimainotepad",
@@ -117,12 +118,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/maimainotepad/maimainotepad-backend.git"
+    "url": "https://github.com/maimnp/maimnp-backend.git"
   },
   "bugs": {
-    "url": "https://github.com/maimainotepad/maimainotepad-backend/issues"
+    "url": "https://github.com/maimnp/maimnp-backend/issues"
   },
-  "homepage": "https://maimainote.com",
+  "homepage": "https://maimnp.tech",
   "workspaces": [
     "src/*"
   ],

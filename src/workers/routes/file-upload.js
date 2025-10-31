@@ -1,3 +1,6 @@
+import { logger } from '../../utils/logger.js';
+import { StorageAdapter } from '../../services/storage-adapter.js';
+
 /**
  * Cloudflare Workers File Upload Routes - Native Implementation
  * Handles file uploads, R2 storage integration, and file management
@@ -116,6 +119,7 @@ export async function handleFileUpload(request, env, userId) {
     const tags = formData.get('tags') ? JSON.parse(formData.get('tags')) : [];
     const isPublic = formData.get('isPublic') === 'true';
     const expiresAt = formData.get('expiresAt') || null;
+    const useKVStorage = formData.get('useKVStorage') === 'true'; // 新增：使用KV存储选项
     
     // Validate file
     if (!file || !(file instanceof File)) {
@@ -159,23 +163,33 @@ export async function handleFileUpload(request, env, userId) {
     const fileName = FileUploadUtils.generateFileName(file.name, userId);
     const metadata = FileUploadUtils.getFileMetadata(file, userId);
     
-    // Upload to R2
-    const r2Key = `${UPLOAD_CONFIG.R2_BUCKET_PATH}/${fileName}`;
-    await env.STORAGE.put(r2Key, buffer, {
-      httpMetadata: {
-        contentType: file.type,
-        cacheControl: 'public, max-age=31536000'
-      },
-      customMetadata: {
+    // 使用存储适配器选择存储方式
+    const shouldUseKV = useKVStorage || (file.size < 1024 * 1024) || !env.R2_BUCKET; // 小于1MB或R2不可用时使用KV
+    
+    // 创建存储适配器（使用简化KV存储）
+    const storage = new StorageAdapter(env, {
+      useSimpleKV: shouldUseKV,
+      simpleKVOptions: {
+        maxFileSize: UPLOAD_CONFIG.MAX_FILE_SIZE,
+        defaultTTL: 30 * 24 * 60 * 60 // 30天
+      }
+    });
+    
+    // 创建文件对象
+    const fileObject = new File([buffer], fileName, { type: file.type });
+    
+    // 上传文件
+    const uploadResult = await storage.uploadFile(fileObject, {
+      metadata: {
         userId: userId,
         originalName: file.name,
         fileHash: fileHash,
-        uploadedAt: metadata.uploadedAt,
         folderId: folderId || '',
         tags: JSON.stringify(tags),
         isPublic: isPublic.toString(),
         expiresAt: expiresAt || ''
-      }
+      },
+      isPublic: isPublic
     });
     
     // Generate file record for database (simplified)
@@ -184,7 +198,7 @@ export async function handleFileUpload(request, env, userId) {
       name: file.name,
       originalName: file.name,
       fileName: fileName,
-      filePath: r2Key,
+      filePath: uploadResult.key, // 使用适配器返回的key
       fileSize: file.size,
       mimeType: file.type,
       extension: metadata.extension,
@@ -195,6 +209,7 @@ export async function handleFileUpload(request, env, userId) {
       tags: tags,
       expiresAt: expiresAt,
       uploadedAt: metadata.uploadedAt,
+      storageType: uploadResult.storageType, // 存储类型
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -234,16 +249,14 @@ export async function handleFileUpload(request, env, userId) {
     return new Response(JSON.stringify({
       success: true,
       message: 'File uploaded successfully',
-      file: {
-        id: fileRecord.id,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        uploadedAt: metadata.uploadedAt,
-        url: `/api/files/${fileRecord.id}`
+      data: {
+        file: fileRecord,
+        url: uploadResult.storageType === 'kv' ? `/api/files/kv/${fileName}` : `/api/files/${fileName}`,
+        metadata: metadata,
+        storageType: uploadResult.storageType // 返回存储类型
       }
     }), {
-      status: 200,
+      status: 201,
       headers: { 'Content-Type': 'application/json' }
     });
     
@@ -283,10 +296,20 @@ export async function handleFileDownload(request, env, fileId) {
       });
     }
     
-    // Get file from R2
-    const object = await env.STORAGE.get(fileRecord.file_path);
+    // 使用存储适配器获取文件
+    const shouldUseKV = fileRecord.storage_type === 'kv';
+    const storage = new StorageAdapter(env, {
+      useSimpleKV: shouldUseKV,
+      simpleKVOptions: {
+        maxFileSize: UPLOAD_CONFIG.MAX_FILE_SIZE,
+        defaultTTL: 30 * 24 * 60 * 60 // 30天
+      }
+    });
     
-    if (!object) {
+    // 获取文件
+    const fileData = await storage.getFile(fileRecord.file_path);
+    
+    if (!fileData) {
       return new Response(JSON.stringify({
         success: false,
         error: 'File not found in storage'
@@ -303,7 +326,7 @@ export async function handleFileDownload(request, env, fileId) {
     headers.set('Content-Disposition', `attachment; filename="${fileRecord.original_name}"`);
     headers.set('Cache-Control', 'public, max-age=31536000');
     
-    return new Response(object.body, {
+    return new Response(fileData.body || fileData, {
       status: 200,
       headers: headers
     });
@@ -428,8 +451,18 @@ export async function handleFileDelete(request, env, fileId, userId) {
       });
     }
     
-    // Delete from R2
-    await env.STORAGE.delete(fileRecord.file_path);
+    // 使用存储适配器删除文件
+    const shouldUseKV = fileRecord.storage_type === 'kv';
+    const storage = new StorageAdapter(env, {
+      useSimpleKV: shouldUseKV,
+      simpleKVOptions: {
+        maxFileSize: UPLOAD_CONFIG.MAX_FILE_SIZE,
+        defaultTTL: 30 * 24 * 60 * 60 // 30天
+      }
+    });
+    
+    // 删除文件
+    await storage.deleteFile(fileRecord.file_path);
     
     // Delete from database
     await env.DB.prepare(`DELETE FROM files WHERE id = ?`).bind(fileId).run();

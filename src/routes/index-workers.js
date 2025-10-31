@@ -23,7 +23,7 @@ const router = new Hono();
 
 // Global middleware
 router.use('*', cors({
-  origin: ['https://maimainp.com', 'https://www.maimainp.com', 'http://localhost:3000'],
+  origin: ['https://maimnp.tech', 'https://www.maimnp.tech', 'http://localhost:3000'],
   credentials: true,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-API-Key'],
@@ -62,7 +62,7 @@ router.get('/api/docs', (c) => {
       analytics: '/api/analytics/*',
       backup: '/api/backup/*'
     },
-    documentation: 'https://docs.maimainp.com'
+    documentation: 'https://docs.maimnp.tech'
   });
 });
 

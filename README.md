@@ -23,14 +23,19 @@ MaiBot的非官方知识库与人设卡分享网站后端服务
 
 - 🔐 **用户认证**: 注册、登录、JWT认证、密码重置
 - 📚 **知识库管理**: 创建、编辑、搜索、分类管理
-- 👤 **角色卡分享**: 角色卡上传、分享、下载、评分
+- 👤 **人设卡系统**: 人设卡上传、分享、审核、管理
+  - 支持多种格式：JSON、Markdown、纯文本、TOML
+  - 完整审核流程：待审核、已通过、已拒绝状态
+  - 文件内容优先：支持文件上传和直接内容输入
+  - 邮件通知：审核结果自动通知用户
+  - 统计分析：审核统计、上传趋势分析
 - 📝 **版本控制**: 知识库版本历史管理
 - 📢 **公告系统**: 管理员发布公告
 - 🔍 **搜索功能**: 全文搜索、标签搜索
 - 📊 **统计分析**: 下载统计、用户行为分析
 - 👮 **权限管理**: 管理员、审核员、普通用户角色
 - 📤 **文件处理**: 支持多种文档格式解析
-- 📧 **邮件通知**: 注册确认、密码重置等
+- 📧 **邮件通知**: 注册确认、密码重置、人设卡审核通知等
 
 ## 快速开始
 
@@ -48,6 +53,13 @@ npm install
 
 ### 环境配置
 
+#### 快速配置（推荐）
+使用交互式配置向导：
+```bash
+npm run setup
+```
+
+#### 手动配置
 1. 复制环境变量示例文件：
 ```bash
 cp .env.example .env
@@ -75,7 +87,7 @@ SMTP_PASS=your-app-password
 
 # 文件上传配置
 UPLOAD_MAX_SIZE=10485760
-ALLOWED_FILE_TYPES=txt,md,pdf,doc,docx
+ALLOWED_FILE_TYPES=txt,md,pdf,doc,docx,json,toml
 
 # Redis配置（可选）
 REDIS_URL=redis://localhost:6379
@@ -96,6 +108,35 @@ npm start
 ## API文档
 
 启动服务后，访问 http://localhost:3001/api-docs 查看完整的API文档
+
+### 人设卡API概览
+
+#### 公开接口
+- `GET /api/character/list` - 获取公开人设卡列表（支持分页、搜索、分类）
+- `GET /api/character/:id` - 获取人设卡详情
+
+#### 用户接口（需要认证）
+- `POST /api/character/upload` - 上传人设卡（支持文件上传和直接内容输入）
+- `PUT /api/character/:id` - 更新人设卡
+- `DELETE /api/character/:id` - 删除人设卡
+- `GET /api/character/user/:userId` - 获取用户的人设卡列表
+
+#### 管理员接口
+- `GET /api/admin/characters` - 获取所有人设卡（支持状态筛选）
+- `GET /api/admin/characters/pending` - 获取待审核人设卡
+- `GET /api/admin/characters/:id` - 获取人设卡详情
+- `PUT /api/admin/characters/:id/review` - 审核人设卡（通过/拒绝）
+- `DELETE /api/admin/characters/:id` - 删除人设卡
+- `GET /api/admin/characters/stats` - 获取人设卡统计信息
+
+#### 支持格式
+- JSON格式：结构化人设卡数据
+- Markdown格式：格式化文本内容
+- 纯文本格式：简单文本内容
+- TOML格式：配置文件格式
+
+#### 文件上传
+支持直接上传文件（.json, .md, .txt, .toml）或直接在请求中提供内容，文件内容优先使用
 
 ## 项目结构
 
@@ -138,10 +179,13 @@ backend/
 │   │   ├── User-workers.js
 │   │   ├── Note-workers.js
 │   │   ├── File-workers.js
+│   │   ├── Character-workers.js  # 人设卡数据模型
 │   │   └── index-workers.js
 │   ├── routes/          # Workers路由处理
 │   │   ├── auth-workers.js
 │   │   ├── knowledge-workers.js
+│   │   ├── character-workers.js  # 人设卡路由
+│   │   ├── admin-workers.js      # 管理员功能（含人设卡管理）
 │   │   └── upload-workers.js
 │   ├── services/        # Workers服务
 │   │   ├── database-workers.js
@@ -153,6 +197,8 @@ backend/
 │       ├── index.js     # Workers主文件
 │       └── routes/
 ├── scripts/             # 构建和部署脚本
+├── setup-env.js         # 环境配置向导
+├── test-character-api.http  # 人设卡API测试文件
 ├── wrangler.toml        # Workers配置文件
 └── package.json
 ```
@@ -193,6 +239,13 @@ npm run cleanup
 
 # 创建测试用户
 npm run create-test-user
+```
+
+### 人设卡功能测试
+
+```bash
+# 使用HTTP测试文件测试人设卡API
+# 打开 test-character-api.http 文件，使用REST客户端执行测试用例
 ```
 
 ## 部署指南
@@ -239,12 +292,12 @@ STORAGE_ENDPOINT = "https://your-r2-endpoint.r2.cloudflarestorage.com"
 
 # 安全配置
 JWT_SECRET = "your-jwt-secret-key"
-ALLOWED_ORIGINS = "https://maimainotepad.com,https://www.maimainotepad.com"
+ALLOWED_ORIGINS = "https://maimnp.tech,https://www.maimnp.tech"
 
 # 邮件配置（可选）
 EMAIL_ENABLED = "true"
 EMAIL_PROVIDER = "sendgrid"
-EMAIL_FROM = "noreply@maimainotepad.com"
+EMAIL_FROM = "official@maimnp.tech"
 ```
 
 #### 部署到 Cloudflare
@@ -319,14 +372,14 @@ pm2 startup
 | STORAGE_ENDPOINT | R2 存储端点 | https://your-r2-endpoint.r2.cloudflarestorage.com |
 | JWT_SECRET | JWT密钥 | 必填 |
 | JWT_EXPIRE | JWT过期时间 | 7d |
-| ALLOWED_ORIGINS | 允许的跨域源 | * |
+| ALLOWED_ORIGINS | 允许的跨域源 | https://maimnp.tech,https://www.maimnp.tech |
 | RATE_LIMIT_ENABLED | 启用速率限制 | true |
 | RATE_LIMIT_STORE | 速率限制存储 (kv/memory) | kv |
 | CACHE_ENABLED | 启用缓存 | true |
 | CACHE_TTL | 缓存过期时间 (秒) | 3600 |
 | EMAIL_ENABLED | 启用邮件服务 | false |
 | EMAIL_PROVIDER | 邮件提供商 (sendgrid/smtp) | sendgrid |
-| EMAIL_FROM | 发件人邮箱 | noreply@maimainotepad.com |
+| EMAIL_FROM | 发件人邮箱 | official@maimnp.tech |
 | ANALYTICS_ENABLED | 启用分析 | false |
 | ANALYTICS_PROVIDER | 分析提供商 | cloudflare |
 | BACKUP_ENABLED | 启用备份 | false |
@@ -354,7 +407,7 @@ pm2 startup
 如果你有任何问题或建议，请通过以下方式联系我们：
 
 - 提交 [Issue](https://github.com/STMfan/MaiMaiNotePad-BackEnd/issues)
-- 发送邮件至: maimainotepad@gmail.com
+- 发送邮件至: official@maimnp.tech
 
 ---
 

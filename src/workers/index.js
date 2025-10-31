@@ -1,6 +1,7 @@
 import { createConfigurationManager } from './config/workers-config.js';
 import { createSecurityMiddleware } from '../middleware/security-workers.js';
 import { handleFileUpload, handleFileDownload, handleFileList, handleFileDelete } from './routes/file-upload.js';
+import { handleKVFileRequest, handleKVFileList, handleKVStorageStats, handleKVFileUpload } from './routes/kv-files.js';
 import { errorHandler } from '../middleware/error-handler.js';
 import { logger } from '../utils/logger.js';
 
@@ -140,7 +141,13 @@ async function handleApiRoutes(context, path, method) {
     { pattern: /^\/api\/upload$/, handler: handleFileUpload, method: 'POST' },
     { pattern: /^\/api\/files\/([^\/]+)$/, handler: handleFileDownload },
     { pattern: /^\/api\/files$/, handler: handleFileList },
-    { pattern: /^\/api\/files\/([^\/]+)$/, handler: handleFileDelete, method: 'DELETE' }
+    { pattern: /^\/api\/files\/([^\/]+)$/, handler: handleFileDelete, method: 'DELETE' },
+    
+    // KV storage routes (R2替代方案)
+    { pattern: /^\/api\/files\/kv\/(.+)$/, handler: handleKVFileRequest },
+    { pattern: /^\/api\/files\/kv$/, handler: handleKVFileList },
+    { pattern: /^\/api\/files\/kv\/stats$/, handler: handleKVStorageStats },
+    { pattern: /^\/api\/upload\/kv$/, handler: handleKVFileUpload, method: 'POST' }
   ];
   
   // Find matching route

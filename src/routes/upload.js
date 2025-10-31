@@ -34,16 +34,22 @@ const fileFilter = (req, file, cb) => {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'text/plain',
     'text/markdown',
+    'application/json',
+    'application/toml',
     'image/jpeg',
     'image/png',
     'image/gif',
     'image/webp'
   ];
 
-  if (allowedTypes.includes(file.mimetype)) {
+  // 检查文件扩展名
+  const allowedExtensions = ['.json', '.md', '.txt', '.toml'];
+  const fileExt = path.extname(file.originalname).toLowerCase();
+  
+  if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExt)) {
     cb(null, true);
   } else {
-    cb(new Error('不支持的文件类型'), false);
+    cb(new Error('不支持的文件类型。支持的格式：PDF、Word、文本文件、Markdown、JSON、TOML、图片文件'), false);
   }
 };
 
