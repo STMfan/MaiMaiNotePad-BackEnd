@@ -28,19 +28,29 @@ jobs:
         run: npm install
       
       - name: Debug environment variables
-        run: |
-          echo "Checking required secrets..."
-          echo "CLOUDFLARE_API_TOKEN is set: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}"
-          echo "CLOUDFLARE_ACCOUNT_ID is set: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' }}"
-          echo "JWT_SECRET is set: ${{ secrets.JWT_SECRET != '' }}"
+      run: |
+        echo "Checking required secrets..."
+        echo "CLOUDFLARE_API_TOKEN is set: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}"
+        echo "CLOUDFLARE_ACCOUNT_ID is set: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' }}"
+        echo "JWT_SECRET is set: ${{ secrets.JWT_SECRET != '' }}"
+        echo ""
+        echo "Checking repository permissions..."
+        echo "Repository: ${{ github.repository }}"
+        echo "Actor: ${{ github.actor }}"
+        echo "Ref: ${{ github.ref }}"
+        echo ""
+        echo "Checking all available secrets (names only)..."
+        echo "Available secrets: ${{ toJSON(secrets) }}"
       
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # 尝试直接使用secrets而不是通过with参数
           command: deploy --minify
         env:
+          # 直接传递所有必需的secrets
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # 传递环境变量到部署环境
           NODE_ENV: production
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -55,9 +65,6 @@ jobs:
           RATE_LIMIT_ENABLED: ${{ secrets.RATE_LIMIT_ENABLED }}
           CACHE_ENABLED: ${{ secrets.CACHE_ENABLED }}
           CACHE_TTL: ${{ secrets.CACHE_TTL }}
-          # Cloudflare 特定配置
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           # 存储配置
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
