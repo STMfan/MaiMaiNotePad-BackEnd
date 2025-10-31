@@ -23,6 +23,13 @@ jobs:
       - name: Install dependencies
         run: npm install
       
+      - name: Debug environment variables
+        run: |
+          echo "Checking required secrets..."
+          echo "CLOUDFLARE_API_TOKEN is set: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}"
+          echo "CLOUDFLARE_ACCOUNT_ID is set: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' }}"
+          echo "JWT_SECRET is set: ${{ secrets.JWT_SECRET != '' }}"
+      
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
