@@ -52,6 +52,16 @@
 - `CLOUDFLARE_API_TOKEN`: Cloudflare API令牌
 - `CLOUDFLARE_ACCOUNT_ID`: Cloudflare账户ID
 
+#### Cloudflare API令牌权限
+
+创建API令牌时需要设置以下权限：
+- **Account**: Account - Read (账户级别读取权限)
+- **Zone**: Zone - Read (可选，用于自定义域名)
+- **Cloudflare Workers**: Workers Scripts - Edit (Workers脚本编辑权限)
+- **Account**: R2 Storage - Edit (如果使用R2存储)
+- **Account**: D1 Database - Edit (如果使用D1数据库)
+- **Account**: KV Storage - Edit (如果使用KV存储)
+
 ### 应用配置
 - `JWT_SECRET`: JWT密钥
 - `JWT_EXPIRE`: JWT过期时间

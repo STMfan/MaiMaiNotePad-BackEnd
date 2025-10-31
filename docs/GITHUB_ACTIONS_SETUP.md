@@ -20,12 +20,20 @@
 
 ### 2. 配置API令牌权限
 设置以下权限：
-- **Account**: Cloudflare Accounts - Read
-- **Cloudflare Workers**: Cloudflare Workers Scripts - Edit
+- **Account**: Account - Read (账户级别读取权限)
 - **Zone**: Zone - Read (如果需要自定义域名)
-- **Account**: R2 - Edit (如果使用R2存储)
-- **Account**: D1 - Edit (如果使用D1数据库)
+- **Cloudflare Workers**: Workers Scripts - Edit (Workers脚本编辑权限)
+- **Account**: R2 Storage - Edit (如果使用R2存储)
+- **Account**: D1 Database - Edit (如果使用D1数据库)
 - **Account**: KV Storage - Edit (如果使用KV存储)
+
+或者使用更简单的自定义权限设置：
+- **Account**: Account:Read
+- **Zone**: Zone:Read (可选，用于自定义域名)
+- **Workers**: Workers Scripts:Edit
+- **R2**: R2 Storage:Edit (如果使用R2)
+- **D1**: D1 Database:Edit (如果使用D1)
+- **KV**: KV Storage:Edit (如果使用KV)
 
 ### 3. 保存API令牌
 - 复制生成的API令牌（只显示一次）
@@ -118,8 +126,12 @@ KV_NAMESPACE_ID=你的KV命名空间ID
 ## 常见问题解决
 
 ### 1. 部署失败：API令牌权限不足
-**错误**: `Authentication error`
-**解决**: 检查Cloudflare API令牌是否具有足够的权限
+**错误**: `Authentication error` 或 `Permission denied`
+**解决**: 
+- 检查Cloudflare API令牌是否具有足够的权限
+- 确保包含 `Account:Read` 和 `Workers Scripts:Edit` 权限
+- 如果使用R2/D1/KV，确保包含相应的存储权限
+- 重新生成API令牌并更新GitHub Secrets
 
 ### 2. 环境变量缺失
 **错误**: `Missing required environment variable`
