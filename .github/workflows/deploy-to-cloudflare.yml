@@ -29,6 +29,8 @@ jobs:
       
       - name: Debug environment variables
         run: |
+          echo "=== GitHub Actions Debug Information ==="
+          echo ""
           echo "Checking required secrets..."
           echo "CLOUDFLARE_API_TOKEN is set: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}"
           echo "CLOUDFLARE_ACCOUNT_ID is set: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' }}"
@@ -38,14 +40,34 @@ jobs:
           echo "Repository: ${{ github.repository }}"
           echo "Actor: ${{ github.actor }}"
           echo "Ref: ${{ github.ref }}"
+          echo "Event name: ${{ github.event_name }}"
+          echo "Base ref: ${{ github.base_ref }}"
+          echo "Head ref: ${{ github.head_ref }}"
           echo "Is fork: ${{ github.event.pull_request.head.repo.fork == 'true' || github.repository != github.event.repository.full_name }}"
           echo ""
           echo "Checking all available secrets (names only)..."
           echo "Available secrets: ${{ toJSON(secrets) }}"
           echo ""
+          echo "Checking environment context..."
+          echo "Environment name: ${{ github.environment }}"
+          echo "Workflow ref: ${{ github.workflow_ref }}"
+          echo "Workflow sha: ${{ github.workflow_sha }}"
+          echo ""
           echo "Trying to use default values for missing secrets..."
           echo "CLOUDFLARE_API_TOKEN length: ${{ secrets.CLOUDFLARE_API_TOKEN && secrets.CLOUDFLARE_API_TOKEN != '' && 'SET' || 'NOT_SET' }}"
           echo "CLOUDFLARE_ACCOUNT_ID length: ${{ secrets.CLOUDFLARE_ACCOUNT_ID && secrets.CLOUDFLARE_ACCOUNT_ID != '' && 'SET' || 'NOT_SET' }}"
+          echo ""
+          echo "Checking if secrets are defined at all..."
+          echo "CLOUDFLARE_API_TOKEN defined: ${{ secrets.CLOUDFLARE_API_TOKEN != null }}"
+          echo "CLOUDFLARE_ACCOUNT_ID defined: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != null }}"
+          echo "JWT_SECRET defined: ${{ secrets.JWT_SECRET != null }}"
+          echo ""
+          echo "Checking secrets length..."
+          echo "CLOUDFLARE_API_TOKEN length: ${{ secrets.CLOUDFLARE_API_TOKEN && secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_API_TOKEN || 'EMPTY' }}"
+          echo "CLOUDFLARE_ACCOUNT_ID length: ${{ secrets.CLOUDFLARE_ACCOUNT_ID && secrets.CLOUDFLARE_ACCOUNT_ID != '' && secrets.CLOUDFLARE_ACCOUNT_ID || 'EMPTY' }}"
+          echo "JWT_SECRET length: ${{ secrets.JWT_SECRET && secrets.JWT_SECRET != '' && secrets.JWT_SECRET || 'EMPTY' }}"
+          echo ""
+          echo "=== End Debug Information ==="
       
       - name: Check if secrets are available
         id: check_secrets
