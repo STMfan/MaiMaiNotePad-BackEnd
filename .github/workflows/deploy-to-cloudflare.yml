@@ -86,12 +86,11 @@ jobs:
         if: steps.check_secrets.outputs.SECRETS_AVAILABLE == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
-          # 尝试直接使用secrets而不是通过with参数
+          # 使用apiToken参数传递API令牌
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --minify
         env:
-          # 直接传递所有必需的secrets
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # 传递环境变量到部署环境
           NODE_ENV: production
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
