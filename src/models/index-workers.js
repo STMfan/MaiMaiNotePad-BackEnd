@@ -113,6 +113,15 @@ export function getModelInstances(env) {
 }
 
 /**
+ * Get models (alias for getModelInstances)
+ * @param {Object} env - Environment variables
+ * @returns {Object} Model instances
+ */
+export function getModels(env) {
+  return getModelInstances(env);
+}
+
+/**
  * Model validation utilities
  */
 export const ModelUtils = {

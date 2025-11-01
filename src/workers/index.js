@@ -1,13 +1,12 @@
 import { createConfigurationManager } from './config/workers-config.js';
 import { createSecurityMiddleware } from '../middleware/security-workers.js';
-import { handleFileUploadRoutes } from './routes/file-upload-workers.js';
-import { handleKVFilesRoutes } from './routes/kv-files.js';
 import { handleAuthRoutes } from './routes/auth-workers.js';
 import { handleUserRoutes } from './routes/user-workers.js';
 import { handleNoteRoutes } from './routes/note-workers.js';
 import { handleSystemRoutes } from './routes/system-workers.js';
 import { errorHandler } from '../middleware/error-handler.js';
 import { logger } from '../utils/logger.js';
+import { handleKVApiRoutes } from './kv-api.js';
 
 /**
  * Main Cloudflare Workers Application
@@ -64,9 +63,14 @@ export default {
       if (path === '/health' && method === 'GET') {
         response = await handleHealthCheck(context);
       }
-      // API routes
-      else if (path.startsWith('/api/')) {
-        response = await handleApiRoutes(context, path, method);
+      // API routes - try KV API first as fallback
+      else if (path.startsWith('/api')) {
+        const kvApiResponse = await handleKVApiRoutes(request, env, config);
+        if (kvApiResponse) {
+          response = kvApiResponse;
+        } else {
+          response = await handleApiRoutes(context, path, method);
+        }
       }
       // Static file serving (if needed)
       else if (path.startsWith('/static/')) {
@@ -266,7 +270,7 @@ async function handleHealthCheck(context) {
     };
     
     // Consider service healthy if at least KV is working (minimum requirement)
-    const isHealthy = kvCheck.status === 'healthy' || kvCheck.status === 'disabled';
+    const isHealthy = kvCheck.status === 'healthy';
     
     return new Response(JSON.stringify(health), {
       status: isHealthy ? 200 : 503,

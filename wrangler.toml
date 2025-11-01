@@ -1,5 +1,6 @@
 name = "maimai-notepad-workers"
 main = "src/workers/index.js"
+account_id = "1528f55e30ba5846354c74141b8cfb16"
 build_command = ""
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
@@ -39,14 +40,14 @@ FRONTEND_URL = "http://localhost:3000"
 # KV Storage Configuration
 [[kv_namespaces]]
 binding = "KV"
-id = "befce612a91c42e081d70e12029a2b76"
-preview_id = "8d395aee13504c009d8a166cbb4de5d7"
+id = "9763594534e742a5962f942d0714d231"
+preview_id = "9763594534e742a5962f942d0714d231"
 
 # KV文件存储配置（用于R2存储的替代方案）
 [[kv_namespaces]]
 binding = "FILE_KV"
-id = "befce612a91c42e081d70e12029a2b76"
-preview_id = "8d395aee13504c009d8a166cbb4de5d7"
+id = "9763594534e742a5962f942d0714d231"
+preview_id = "9763594534e742a5962f942d0714d231"
 
 # Durable Objects Configuration
 # 注意：需要在代码中定义相应的Durable Object类
@@ -148,6 +149,16 @@ port = 8787
 host = "127.0.0.1"
 https = false
 log_level = "debug"
+
+[[env.development.kv_namespaces]]
+binding = "KV"
+id = "9763594534e742a5962f942d0714d231"
+preview_id = "9763594534e742a5962f942d0714d231"
+
+[[env.development.kv_namespaces]]
+binding = "FILE_KV"
+id = "9763594534e742a5962f942d0714d231"
+preview_id = "9763594534e742a5962f942d0714d231"
 
 # Staging-specific configuration
 [env.staging]

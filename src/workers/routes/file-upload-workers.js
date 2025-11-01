@@ -6,9 +6,9 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { bearerAuth } from 'hono/bearer-auth';
-import { getModels } from '../models/index-workers.js';
-import { createAuthMiddleware } from '../middleware/auth-workers.js';
-import { createRateLimitMiddleware } from '../middleware/rate-limit-workers.js';
+import { getModels } from '../../models/index-workers.js';
+import { createAuthMiddleware } from '../../middleware/auth-workers.js';
+import { createRateLimitMiddleware } from '../../middleware/rate-limit-workers.js';
 
 /**
  * File upload configuration
