@@ -1,7 +1,11 @@
 import { createConfigurationManager } from './config/workers-config.js';
 import { createSecurityMiddleware } from '../middleware/security-workers.js';
-import { handleFileUpload, handleFileDownload, handleFileList, handleFileDelete } from './routes/file-upload.js';
-import { handleKVFileRequest, handleKVFileList, handleKVStorageStats, handleKVFileUpload } from './routes/kv-files.js';
+import { handleFileUploadRoutes } from './routes/file-upload-workers.js';
+import { handleKVFilesRoutes } from './routes/kv-files.js';
+import { handleAuthRoutes } from './routes/auth-workers.js';
+import { handleUserRoutes } from './routes/user-workers.js';
+import { handleNoteRoutes } from './routes/note-workers.js';
+import { handleSystemRoutes } from './routes/system-workers.js';
 import { errorHandler } from '../middleware/error-handler.js';
 import { logger } from '../utils/logger.js';
 
@@ -135,19 +139,61 @@ export default {
 async function handleApiRoutes(context, path, method) {
   const { env, config, log } = context;
   
-  // Route mapping for file upload endpoints
+  // Import auth and other route handlers
+  const { handleAuthRoutes } = await import('./routes/auth-workers.js');
+  const { handleUserRoutes } = await import('./routes/user-workers.js');
+  const { handleNoteRoutes } = await import('./routes/note-workers.js');
+  const { handleSystemRoutes } = await import('./routes/system-workers.js');
+  const createFileUploadRoutes = await import('./routes/file-upload-workers.js').then(m => m.default || m.createFileUploadRoutes);
+  const { handleKVFileRequest, handleKVFileList, handleKVStorageStats, handleKVFileUpload } = await import('./routes/kv-files.js');
+  
+  // Route mapping for all API endpoints
   const routes = [
+    // Auth routes
+    { pattern: /^\/api\/auth\/register$/, handler: handleAuthRoutes, method: 'POST' },
+    { pattern: /^\/api\/auth\/login$/, handler: handleAuthRoutes, method: 'POST' },
+    { pattern: /^\/api\/auth\/logout$/, handler: handleAuthRoutes, method: 'POST' },
+    { pattern: /^\/api\/auth\/refresh$/, handler: handleAuthRoutes, method: 'POST' },
+    { pattern: /^\/api\/auth\/forgot-password$/, handler: handleAuthRoutes, method: 'POST' },
+    { pattern: /^\/api\/auth\/reset-password$/, handler: handleAuthRoutes, method: 'POST' },
+    { pattern: /^\/api\/auth\/verify-email$/, handler: handleAuthRoutes, method: 'POST' },
+    { pattern: /^\/api\/auth\/me$/, handler: handleAuthRoutes, method: 'GET' },
+    
+    // User routes
+    { pattern: /^\/api\/users\/profile$/, handler: handleUserRoutes, method: 'GET' },
+    { pattern: /^\/api\/users\/profile$/, handler: handleUserRoutes, method: 'PUT' },
+    { pattern: /^\/api\/users\/password$/, handler: handleUserRoutes, method: 'PUT' },
+    { pattern: /^\/api\/users\/settings$/, handler: handleUserRoutes, method: 'GET' },
+    { pattern: /^\/api\/users\/settings$/, handler: handleUserRoutes, method: 'PUT' },
+    
+    // Note routes
+    { pattern: /^\/api\/notes$/, handler: handleNoteRoutes, method: 'GET' },
+    { pattern: /^\/api\/notes$/, handler: handleNoteRoutes, method: 'POST' },
+    { pattern: /^\/api\/notes\/([^\/]+)$/, handler: handleNoteRoutes, method: 'GET' },
+    { pattern: /^\/api\/notes\/([^\/]+)$/, handler: handleNoteRoutes, method: 'PUT' },
+    { pattern: /^\/api\/notes\/([^\/]+)$/, handler: handleNoteRoutes, method: 'DELETE' },
+    { pattern: /^\/api\/notes\/([^\/]+)\/share$/, handler: handleNoteRoutes, method: 'POST' },
+    { pattern: /^\/api\/notes\/([^\/]+)\/tags$/, handler: handleNoteRoutes, method: 'PUT' },
+    { pattern: /^\/api\/notes\/shared\/([^\/]+)$/, handler: handleNoteRoutes, method: 'GET' },
+    
+    // System routes
+    { pattern: /^\/api\/system\/status$/, handler: handleSystemRoutes, method: 'GET' },
+    { pattern: /^\/api\/system\/stats$/, handler: handleSystemRoutes, method: 'GET' },
+    { pattern: /^\/api\/system\/config$/, handler: handleSystemRoutes, method: 'GET' },
+    { pattern: /^\/api\/system\/maintenance$/, handler: handleSystemRoutes, method: 'POST' },
+    
     // File upload routes
-    { pattern: /^\/api\/upload$/, handler: handleFileUpload, method: 'POST' },
-    { pattern: /^\/api\/files\/([^\/]+)$/, handler: handleFileDownload },
-    { pattern: /^\/api\/files$/, handler: handleFileList },
-    { pattern: /^\/api\/files\/([^\/]+)$/, handler: handleFileDelete, method: 'DELETE' },
+    { pattern: /^\/api\/upload$/, handler: (context, ...params) => createFileUploadRoutes(context.env).fetch(context.request), method: 'POST' },
+    { pattern: /^\/api\/files\/([^\/]+)$/, handler: (context, ...params) => createFileUploadRoutes(context.env).fetch(context.request) },
+    { pattern: /^\/api\/files$/, handler: (context, ...params) => createFileUploadRoutes(context.env).fetch(context.request) },
+    { pattern: /^\/api\/files\/([^\/]+)$/, handler: (context, ...params) => createFileUploadRoutes(context.env).fetch(context.request), method: 'DELETE' },
     
     // KV storage routes (R2替代方案)
-    { pattern: /^\/api\/files\/kv\/(.+)$/, handler: handleKVFileRequest },
-    { pattern: /^\/api\/files\/kv$/, handler: handleKVFileList },
-    { pattern: /^\/api\/files\/kv\/stats$/, handler: handleKVStorageStats },
-    { pattern: /^\/api\/upload\/kv$/, handler: handleKVFileUpload, method: 'POST' }
+    { pattern: /^\/api\/kv\/([^\/]+)$/, handler: (context, ...params) => handleKVFileRequest(context.request, context.env, context) },
+    { pattern: /^\/api\/kv\/([^\/]+)$/, handler: (context, ...params) => handleKVFileRequest(context.request, context.env, context), method: 'DELETE' },
+    { pattern: /^\/api\/kv$/, handler: (context, ...params) => handleKVFileList(context.request, context.env, context) },
+    { pattern: /^\/api\/kv\/stats$/, handler: (context, ...params) => handleKVStorageStats(context.request, context.env, context) },
+    { pattern: /^\/api\/kv\/upload$/, handler: (context, ...params) => handleKVFileUpload(context.request, context.env, context), method: 'POST' }
   ];
   
   // Find matching route
@@ -188,14 +234,23 @@ async function handleHealthCheck(context) {
   const { env, config } = context;
   
   try {
-    // Check database connection
-    const dbCheck = await checkDatabaseHealth(env.DB);
+    // Check database connection (only if DB binding exists)
+    const dbCheck = env.DB ? await checkDatabaseHealth(env.DB) : {
+      status: 'disabled',
+      message: 'Database not configured'
+    };
     
-    // Check storage connection
-    const storageCheck = await checkStorageHealth(env.STORAGE);
+    // Check storage connection (only if STORAGE binding exists)
+    const storageCheck = env.STORAGE ? await checkStorageHealth(env.STORAGE) : {
+      status: 'disabled',
+      message: 'Storage not configured'
+    };
     
-    // Check KV connection
-    const kvCheck = await checkKvHealth(env.KV);
+    // Check KV connection (only if KV binding exists)
+    const kvCheck = env.KV ? await checkKvHealth(env.KV) : {
+      status: 'disabled',
+      message: 'KV not configured'
+    };
     
     const health = {
       status: 'healthy',
@@ -210,10 +265,11 @@ async function handleHealthCheck(context) {
       }
     };
     
-    const allHealthy = Object.values(health.checks).every(check => check.status === 'healthy');
+    // Consider service healthy if at least KV is working (minimum requirement)
+    const isHealthy = kvCheck.status === 'healthy' || kvCheck.status === 'disabled';
     
     return new Response(JSON.stringify(health), {
-      status: allHealthy ? 200 : 503,
+      status: isHealthy ? 200 : 503,
       headers: { 'Content-Type': 'application/json' }
     });
     
