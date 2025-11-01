@@ -58,64 +58,64 @@ jobs:
             echo "SECRETS_AVAILABLE=true" >> $GITHUB_OUTPUT
             echo "✅ All required secrets are available."
           fi
-    
-    - name: Deploy to Cloudflare Workers
-      if: steps.check_secrets.outputs.SECRETS_AVAILABLE == 'true'
-      uses: cloudflare/wrangler-action@v3
-      with:
-        # 尝试直接使用secrets而不是通过with参数
-        command: deploy --minify
-      env:
-        # 直接传递所有必需的secrets
-        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        # 传递环境变量到部署环境
-        NODE_ENV: production
-        JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        JWT_EXPIRE: ${{ secrets.JWT_EXPIRE }}
-        ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
-        EMAIL_ENABLED: ${{ secrets.EMAIL_ENABLED }}
-        EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
-        EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-        ANALYTICS_ENABLED: ${{ secrets.ANALYTICS_ENABLED }}
-        ANALYTICS_PROVIDER: ${{ secrets.ANALYTICS_PROVIDER }}
-        BACKUP_ENABLED: ${{ secrets.BACKUP_ENABLED }}
-        RATE_LIMIT_ENABLED: ${{ secrets.RATE_LIMIT_ENABLED }}
-        CACHE_ENABLED: ${{ secrets.CACHE_ENABLED }}
-        CACHE_TTL: ${{ secrets.CACHE_TTL }}
-        # 存储配置
-        R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-        R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-        R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-        R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-        # D1 数据库配置
-        D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
-        # KV 存储配置
-        KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
+      
+      - name: Deploy to Cloudflare Workers
+        if: steps.check_secrets.outputs.SECRETS_AVAILABLE == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          # 尝试直接使用secrets而不是通过with参数
+          command: deploy --minify
+        env:
+          # 直接传递所有必需的secrets
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # 传递环境变量到部署环境
+          NODE_ENV: production
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_EXPIRE: ${{ secrets.JWT_EXPIRE }}
+          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
+          EMAIL_ENABLED: ${{ secrets.EMAIL_ENABLED }}
+          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          ANALYTICS_ENABLED: ${{ secrets.ANALYTICS_ENABLED }}
+          ANALYTICS_PROVIDER: ${{ secrets.ANALYTICS_PROVIDER }}
+          BACKUP_ENABLED: ${{ secrets.BACKUP_ENABLED }}
+          RATE_LIMIT_ENABLED: ${{ secrets.RATE_LIMIT_ENABLED }}
+          CACHE_ENABLED: ${{ secrets.CACHE_ENABLED }}
+          CACHE_TTL: ${{ secrets.CACHE_TTL }}
+          # 存储配置
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          # D1 数据库配置
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          # KV 存储配置
+          KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
+            
+      - name: Secrets not available - help message
+        if: steps.check_secrets.outputs.SECRETS_AVAILABLE == 'false'
+        run: |
+          echo "❌ Cannot proceed with deployment because required secrets are not available."
+          echo ""
+          echo "This usually happens when:"
+          echo "1. This is a fork of a repository (forks don't inherit secrets)"
+          echo "2. The secrets haven't been configured in the repository settings"
+          echo ""
+          echo "To fix this issue:"
+          echo "1. Go to your GitHub repository settings"
+          echo "2. Navigate to 'Secrets and variables' > 'Actions'"
+          echo "3. Add the following repository secrets:"
+          echo "   - CLOUDFLARE_API_TOKEN"
+          echo "   - CLOUDFLARE_ACCOUNT_ID"
+          echo "   - JWT_SECRET"
+          echo "   - And all other required secrets"
+          echo ""
+          echo "If this is a fork, you'll need to:"
+          echo "1. Create your own repository (not a fork)"
+          echo "2. Or configure the secrets in your forked repository"
+          exit 1
           
-    - name: Secrets not available - help message
-      if: steps.check_secrets.outputs.SECRETS_AVAILABLE == 'false'
-      run: |
-        echo "❌ Cannot proceed with deployment because required secrets are not available."
-        echo ""
-        echo "This usually happens when:"
-        echo "1. This is a fork of a repository (forks don't inherit secrets)"
-        echo "2. The secrets haven't been configured in the repository settings"
-        echo ""
-        echo "To fix this issue:"
-        echo "1. Go to your GitHub repository settings"
-        echo "2. Navigate to 'Secrets and variables' > 'Actions'"
-        echo "3. Add the following repository secrets:"
-        echo "   - CLOUDFLARE_API_TOKEN"
-        echo "   - CLOUDFLARE_ACCOUNT_ID"
-        echo "   - JWT_SECRET"
-        echo "   - And all other required secrets"
-        echo ""
-        echo "If this is a fork, you'll need to:"
-        echo "1. Create your own repository (not a fork)"
-        echo "2. Or configure the secrets in your forked repository"
-        exit 1
-        
       - name: Deployment notification
         if: always()
         run: |
