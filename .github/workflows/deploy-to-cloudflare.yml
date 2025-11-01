@@ -48,8 +48,8 @@ jobs:
           echo "CLOUDFLARE_ACCOUNT_ID length: ${{ secrets.CLOUDFLARE_ACCOUNT_ID && secrets.CLOUDFLARE_ACCOUNT_ID != '' && 'SET' || 'NOT_SET' }}"
       
       - name: Check if secrets are available
-      id: check_secrets
-      run: |
+        id: check_secrets
+        run: |
         if [[ -z "${{ secrets.CLOUDFLARE_API_TOKEN }}" || -z "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" ]]; then
           echo "SECRETS_AVAILABLE=false" >> $GITHUB_OUTPUT
           echo "❌ Required secrets are not available. Cannot proceed with deployment."
