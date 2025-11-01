@@ -50,14 +50,14 @@ jobs:
       - name: Check if secrets are available
         id: check_secrets
         run: |
-        if [[ -z "${{ secrets.CLOUDFLARE_API_TOKEN }}" || -z "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" ]]; then
-          echo "SECRETS_AVAILABLE=false" >> $GITHUB_OUTPUT
-          echo "❌ Required secrets are not available. Cannot proceed with deployment."
-          exit 1
-        else
-          echo "SECRETS_AVAILABLE=true" >> $GITHUB_OUTPUT
-          echo "✅ All required secrets are available."
-        fi
+          if [[ -z "${{ secrets.CLOUDFLARE_API_TOKEN }}" || -z "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" ]]; then
+            echo "SECRETS_AVAILABLE=false" >> $GITHUB_OUTPUT
+            echo "❌ Required secrets are not available. Cannot proceed with deployment."
+            exit 1
+          else
+            echo "SECRETS_AVAILABLE=true" >> $GITHUB_OUTPUT
+            echo "✅ All required secrets are available."
+          fi
     
     - name: Deploy to Cloudflare Workers
       if: steps.check_secrets.outputs.SECRETS_AVAILABLE == 'true'
