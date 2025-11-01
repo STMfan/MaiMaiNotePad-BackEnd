@@ -202,7 +202,7 @@ async function handleHealthCheck(context) {
       timestamp: new Date().toISOString(),
       version: config.get('API_VERSION'),
       environment: config.get('ENVIRONMENT'),
-      uptime: process.uptime ? process.uptime() : 0,
+      uptime: 0, // Cloudflare Workers don't have process.uptime()
       checks: {
         database: dbCheck,
         storage: storageCheck,
