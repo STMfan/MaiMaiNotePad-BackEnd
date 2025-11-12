@@ -1,0 +1,596 @@
+"""
+SQLite数据库模型定义
+包含知识库、人设卡、信箱等数据模型
+"""
+
+from datetime import datetime
+from typing import List, Optional
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey, create_engine, Index
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship, sessionmaker
+import os
+import uuid
+
+# 创建基础模型类
+Base = declarative_base()
+
+
+class User(Base):
+    """用户模型"""
+    __tablename__ = "users"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    username = Column(String, unique=True, nullable=False)
+    email = Column(String, unique=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)
+    is_moderator = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.now)
+    
+    # 添加索引
+    __table_args__ = (
+        Index('idx_user_username', 'username'),
+        Index('idx_user_email', 'email'),
+        Index('idx_user_is_active', 'is_active'),
+        Index('idx_user_is_admin', 'is_admin'),
+        Index('idx_user_is_moderator', 'is_moderator'),
+    )
+    
+    # 关系
+    uploaded_knowledge_bases = relationship("KnowledgeBase", back_populates="uploader")
+    uploaded_persona_cards = relationship("PersonaCard", back_populates="uploader")
+    received_messages = relationship("Message", foreign_keys="Message.recipient_id", back_populates="recipient")
+    sent_messages = relationship("Message", foreign_keys="Message.sender_id", back_populates="sender")
+    star_records = relationship("StarRecord", back_populates="user")
+    
+    def __str__(self):
+        return f'ID: {self.id}, Username: {self.username}, Email: {self.email}, Admin: {self.is_admin}, Moderator: {self.is_moderator}'
+    
+    def to_dict(self):
+        """将用户对象转换为字典"""
+        return {
+            "id": self.id,
+            "username": self.username,
+            "email": self.email,
+            "hashed_password": self.hashed_password,
+            "is_active": self.is_active,
+            "is_admin": self.is_admin,
+            "is_moderator": self.is_moderator,
+            "created_at": self.created_at.isoformat()
+        }
+    
+    @classmethod
+    def from_dict(cls, data):
+        """从字典创建用户对象"""
+        return cls(
+            id=data.get("id", str(uuid.uuid4())),
+            username=data.get("username", ""),
+            email=data.get("email", ""),
+            hashed_password=data.get("hashed_password", ""),
+            is_active=data.get("is_active", True),
+            is_admin=data.get("is_admin", False),
+            is_moderator=data.get("is_moderator", False),
+            created_at=datetime.fromisoformat(data.get("created_at", datetime.now().isoformat()))
+        )
+    
+    def verify_password(self, password):
+        """验证密码"""
+        from passlib.context import CryptContext
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        return pwd_context.verify(password, self.hashed_password)
+    
+    def update_password(self, new_password):
+        """更新密码"""
+        from passlib.context import CryptContext
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        # 确保密码不超过72字节（bcrypt限制）
+        new_password = new_password[:72]
+        self.hashed_password = pwd_context.hash(new_password)
+    
+    def to_admin(self, highest_pwd):
+        """提升用户为管理员"""
+        from passlib.context import CryptContext
+        import os
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        if pwd_context.verify(highest_pwd, os.getenv('HIGHEST_PASSWORD', '')):
+            self.is_admin = True
+            return True
+        else:
+            return False
+    
+    def to_moderator(self, highest_pwd):
+        """提升用户为版主"""
+        from passlib.context import CryptContext
+        import os
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        if pwd_context.verify(highest_pwd, os.getenv('HIGHEST_PASSWORD', '')):
+            self.is_moderator = True
+            return True
+        else:
+            return False
+
+
+class KnowledgeBase(Base):
+    """知识库数据模型"""
+    __tablename__ = "knowledge_bases"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    uploader_id = Column(String, ForeignKey("users.id"), nullable=False)
+    copyright_owner = Column(String, nullable=True)
+    star_count = Column(Integer, default=0)
+    file_paths = Column(Text, default="[]")  # 存储为JSON字符串
+    metadata_path = Column(String, nullable=False)
+    is_public = Column(Boolean, default=False)
+    is_pending = Column(Boolean, default=True)
+    rejection_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # 添加索引
+    __table_args__ = (
+        Index('idx_kb_uploader_id', 'uploader_id'),
+        Index('idx_kb_is_public', 'is_public'),
+        Index('idx_kb_is_pending', 'is_pending'),
+        Index('idx_kb_star_count', 'star_count'),
+        Index('idx_kb_created_at', 'created_at'),
+        Index('idx_kb_updated_at', 'updated_at'),
+    )
+    
+    # 关系
+    uploader = relationship("User", back_populates="uploaded_knowledge_bases")
+    # 移除star_records关系，因为StarRecord没有正确的外键关系
+    # star_records = relationship("StarRecord", back_populates="knowledge_base")
+
+
+class PersonaCard(Base):
+    """人设卡数据模型"""
+    __tablename__ = "persona_cards"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    uploader_id = Column(String, ForeignKey("users.id"), nullable=False)
+    copyright_owner = Column(String, nullable=True)
+    star_count = Column(Integer, default=0)
+    file_path = Column(String, nullable=False)
+    is_public = Column(Boolean, default=False)
+    is_pending = Column(Boolean, default=True)
+    rejection_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # 添加索引
+    __table_args__ = (
+        Index('idx_pc_uploader_id', 'uploader_id'),
+        Index('idx_pc_is_public', 'is_public'),
+        Index('idx_pc_is_pending', 'is_pending'),
+        Index('idx_pc_star_count', 'star_count'),
+        Index('idx_pc_created_at', 'created_at'),
+        Index('idx_pc_updated_at', 'updated_at'),
+    )
+    
+    # 关系
+    uploader = relationship("User", back_populates="uploaded_persona_cards")
+    # 移除star_records关系，因为StarRecord没有正确的外键关系
+    # star_records = relationship("StarRecord", back_populates="persona_card")
+
+
+class Message(Base):
+    """信箱消息模型"""
+    __tablename__ = "messages"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    recipient_id = Column(String, ForeignKey("users.id"), nullable=False)
+    sender_id = Column(String, ForeignKey("users.id"), nullable=False)
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.now)
+    
+    # 添加索引
+    __table_args__ = (
+        Index('idx_message_recipient_id', 'recipient_id'),
+        Index('idx_message_sender_id', 'sender_id'),
+        Index('idx_message_is_read', 'is_read'),
+        Index('idx_message_created_at', 'created_at'),
+        Index('idx_message_recipient_read', 'recipient_id', 'is_read'),
+    )
+    
+    # 关系
+    recipient = relationship("User", foreign_keys=[recipient_id], back_populates="received_messages")
+    sender = relationship("User", foreign_keys=[sender_id], back_populates="sent_messages")
+
+
+class StarRecord(Base):
+    """Star记录模型"""
+    __tablename__ = "star_records"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    target_id = Column(String, nullable=False)
+    target_type = Column(String, nullable=False)  # "knowledge" 或 "persona"
+    created_at = Column(DateTime, default=datetime.now)
+    
+    # 添加索引
+    __table_args__ = (
+        Index('idx_star_user_id', 'user_id'),
+        Index('idx_star_target_id', 'target_id'),
+        Index('idx_star_target_type', 'target_type'),
+        Index('idx_star_created_at', 'created_at'),
+        Index('idx_star_user_target', 'user_id', 'target_id', 'target_type'),  # 复合索引用于检查用户是否已star某个目标
+    )
+    
+    # 关系
+    user = relationship("User", back_populates="star_records")
+    # 移除直接关系，因为target_id不是真正的外键
+    # knowledge_base = relationship("KnowledgeBase", back_populates="star_records", foreign_keys=[target_id])
+    # persona_card = relationship("PersonaCard", back_populates="star_records", foreign_keys=[target_id])
+
+
+class SQLiteDatabaseManager:
+    """SQLite数据库管理器"""
+    
+    def __init__(self, db_path: str = "./data/maimnp.db"):
+        self.db_path = db_path
+        # 确保数据目录存在
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        
+        # 创建数据库引擎
+        self.engine = create_engine(f"sqlite:///{db_path}", echo=False, connect_args={"check_same_thread": False})
+        
+        # 创建会话工厂
+        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        
+        # 创建所有表
+        Base.metadata.create_all(bind=self.engine)
+    
+    def get_session(self):
+        """获取数据库会话"""
+        return self.SessionLocal()
+    
+    # 知识库相关方法
+    def get_all_knowledge_bases(self):
+        """获取所有知识库"""
+        with self.get_session() as session:
+            return session.query(KnowledgeBase).all()
+    
+    def get_knowledge_base_by_id(self, kb_id: str):
+        """根据ID获取知识库"""
+        with self.get_session() as session:
+            return session.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+    
+    def get_pending_knowledge_bases(self):
+        """获取所有待审核的知识库"""
+        with self.get_session() as session:
+            return session.query(KnowledgeBase).filter(KnowledgeBase.is_pending == True).all()
+    
+    def get_public_knowledge_bases(self):
+        """获取所有公开的知识库"""
+        with self.get_session() as session:
+            return session.query(KnowledgeBase).filter(KnowledgeBase.is_public == True).all()
+    
+    def get_knowledge_bases_by_uploader(self, uploader_id: str):
+        """根据上传者ID获取知识库"""
+        with self.get_session() as session:
+            return session.query(KnowledgeBase).filter(KnowledgeBase.uploader_id == uploader_id).all()
+    
+    def save_knowledge_base(self, kb_data: dict) -> bool:
+        """保存知识库"""
+        try:
+            with self.get_session() as session:
+                kb_id = kb_data.get("id")
+                kb = session.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+                
+                if kb:
+                    # 更新现有记录
+                    for key, value in kb_data.items():
+                        if hasattr(kb, key):
+                            setattr(kb, key, value)
+                    kb.updated_at = datetime.now()
+                else:
+                    # 创建新记录
+                    kb = KnowledgeBase(**kb_data)
+                    session.add(kb)
+                
+                session.commit()
+                return True
+        except Exception as e:
+            print(f"保存知识库失败: {str(e)}")
+            return False
+    
+    def delete_knowledge_base(self, kb_id: str) -> bool:
+        """删除知识库"""
+        try:
+            with self.get_session() as session:
+                kb = session.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+                if kb:
+                    session.delete(kb)
+                    session.commit()
+                return True
+        except Exception as e:
+            print(f"删除知识库失败: {str(e)}")
+            return False
+    
+    # 人设卡相关方法
+    def get_all_persona_cards(self):
+        """获取所有人设卡"""
+        with self.get_session() as session:
+            return session.query(PersonaCard).all()
+    
+    def get_persona_card_by_id(self, pc_id: str):
+        """根据ID获取人设卡"""
+        with self.get_session() as session:
+            return session.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
+    
+    def get_pending_persona_cards(self):
+        """获取所有待审核的人设卡"""
+        with self.get_session() as session:
+            return session.query(PersonaCard).filter(PersonaCard.is_pending == True).all()
+    
+    def get_public_persona_cards(self):
+        """获取所有公开的人设卡"""
+        with self.get_session() as session:
+            return session.query(PersonaCard).filter(PersonaCard.is_public == True).all()
+    
+    def get_persona_cards_by_uploader(self, uploader_id: str):
+        """根据上传者ID获取人设卡"""
+        with self.get_session() as session:
+            return session.query(PersonaCard).filter(PersonaCard.uploader_id == uploader_id).all()
+    
+    def save_persona_card(self, pc_data: dict) -> bool:
+        """保存人设卡"""
+        try:
+            with self.get_session() as session:
+                pc_id = pc_data.get("id")
+                pc = session.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
+                
+                if pc:
+                    # 更新现有记录
+                    for key, value in pc_data.items():
+                        if hasattr(pc, key):
+                            setattr(pc, key, value)
+                    pc.updated_at = datetime.now()
+                else:
+                    # 创建新记录
+                    pc = PersonaCard(**pc_data)
+                    session.add(pc)
+                
+                session.commit()
+                return True
+        except Exception as e:
+            print(f"保存人设卡失败: {str(e)}")
+            return False
+    
+    def delete_persona_card(self, pc_id: str) -> bool:
+        """删除人设卡"""
+        try:
+            with self.get_session() as session:
+                pc = session.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
+                if pc:
+                    session.delete(pc)
+                    session.commit()
+                return True
+        except Exception as e:
+            print(f"删除人设卡失败: {str(e)}")
+            return False
+    
+    # 消息相关方法
+    def get_all_messages(self):
+        """获取所有消息"""
+        with self.get_session() as session:
+            return session.query(Message).all()
+    
+    def get_message_by_id(self, message_id: str):
+        """根据ID获取消息"""
+        with self.get_session() as session:
+            return session.query(Message).filter(Message.id == message_id).first()
+    
+    def get_messages_by_recipient(self, recipient_id: str):
+        """根据接收者ID获取消息"""
+        with self.get_session() as session:
+            return session.query(Message).filter(Message.recipient_id == recipient_id).all()
+    
+    def create_message(self, sender_id: str, recipient_id: str, content: str, message_type: str = "text"):
+        """创建消息"""
+        try:
+            with self.get_session() as session:
+                message = Message(
+                    sender_id=sender_id,
+                    recipient_id=recipient_id,
+                    title="新消息",  # 默认标题
+                    content=content
+                )
+                session.add(message)
+                session.commit()
+                return message
+        except Exception as e:
+            print(f"创建消息失败: {str(e)}")
+            return None
+    
+    def get_conversation_messages(self, user_id: str, other_user_id: str, limit: int = 50, offset: int = 0):
+        """获取与特定用户的对话消息"""
+        with self.get_session() as session:
+            return session.query(Message).filter(
+                (Message.sender_id == user_id) & (Message.recipient_id == other_user_id) |
+                (Message.sender_id == other_user_id) & (Message.recipient_id == user_id)
+            ).order_by(Message.created_at.desc()).offset(offset).limit(limit).all()
+    
+    def get_user_messages(self, user_id: str, limit: int = 50, offset: int = 0):
+        """获取用户的所有消息（发送和接收）"""
+        with self.get_session() as session:
+            return session.query(Message).filter(
+                (Message.sender_id == user_id) | (Message.recipient_id == user_id)
+            ).order_by(Message.created_at.desc()).offset(offset).limit(limit).all()
+    
+    def save_message(self, message_data: dict) -> bool:
+        """保存消息"""
+        try:
+            with self.get_session() as session:
+                message = Message(**message_data)
+                session.add(message)
+                session.commit()
+                return True
+        except Exception as e:
+            print(f"保存消息失败: {str(e)}")
+            return False
+    
+    def mark_message_read(self, message_id: str, user_id: str) -> bool:
+        """标记消息为已读"""
+        try:
+            with self.get_session() as session:
+                message = session.query(Message).filter(Message.id == message_id).first()
+                if message and message.recipient_id == user_id:
+                    message.is_read = True
+                    session.commit()
+                    return True
+                return False
+        except Exception as e:
+            print(f"标记消息已读失败: {str(e)}")
+            return False
+    
+    def mark_message_as_read(self, message_id: str) -> bool:
+        """标记消息为已读（兼容旧方法）"""
+        try:
+            with self.get_session() as session:
+                message = session.query(Message).filter(Message.id == message_id).first()
+                if message:
+                    message.is_read = True
+                    session.commit()
+                return True
+        except Exception as e:
+            print(f"标记消息已读失败: {str(e)}")
+            return False
+    
+    # Star记录相关方法
+    def get_all_stars(self):
+        """获取所有Star记录"""
+        with self.get_session() as session:
+            return session.query(StarRecord).all()
+    
+    def get_stars_by_user(self, user_id: str):
+        """根据用户ID获取Star记录"""
+        with self.get_session() as session:
+            return session.query(StarRecord).filter(StarRecord.user_id == user_id).all()
+    
+    def is_starred(self, user_id: str, target_id: str, target_type: str) -> bool:
+        """检查用户是否已star某个目标"""
+        with self.get_session() as session:
+            return session.query(StarRecord).filter(
+                StarRecord.user_id == user_id,
+                StarRecord.target_id == target_id,
+                StarRecord.target_type == target_type
+            ).first() is not None
+    
+    def add_star(self, user_id: str, target_id: str, target_type: str) -> bool:
+        """添加Star记录"""
+        try:
+            with self.get_session() as session:
+                # 检查是否已经star过
+                existing_star = session.query(StarRecord).filter(
+                    StarRecord.user_id == user_id,
+                    StarRecord.target_id == target_id,
+                    StarRecord.target_type == target_type
+                ).first()
+                
+                if existing_star:
+                    return False  # 已经star过了
+                
+                # 添加新star记录
+                star = StarRecord(
+                    user_id=user_id,
+                    target_id=target_id,
+                    target_type=target_type
+                )
+                session.add(star)
+                
+                # 更新目标的star数量
+                if target_type == "knowledge":
+                    kb = session.query(KnowledgeBase).filter(KnowledgeBase.id == target_id).first()
+                    if kb:
+                        kb.star_count += 1
+                elif target_type == "persona":
+                    pc = session.query(PersonaCard).filter(PersonaCard.id == target_id).first()
+                    if pc:
+                        pc.star_count += 1
+                
+                session.commit()
+                return True
+        except Exception as e:
+            print(f"添加Star记录失败: {str(e)}")
+            return False
+    
+    def remove_star(self, user_id: str, target_id: str, target_type: str) -> bool:
+        """移除Star记录"""
+        try:
+            with self.get_session() as session:
+                # 查找并删除star记录
+                star = session.query(StarRecord).filter(
+                    StarRecord.user_id == user_id,
+                    StarRecord.target_id == target_id,
+                    StarRecord.target_type == target_type
+                ).first()
+                
+                if star:
+                    session.delete(star)
+                    
+                    # 更新目标的star数量
+                    if target_type == "knowledge":
+                        kb = session.query(KnowledgeBase).filter(KnowledgeBase.id == target_id).first()
+                        if kb and kb.star_count > 0:
+                            kb.star_count -= 1
+                    elif target_type == "persona":
+                        pc = session.query(PersonaCard).filter(PersonaCard.id == target_id).first()
+                        if pc and pc.star_count > 0:
+                            pc.star_count -= 1
+                
+                session.commit()
+                return True
+        except Exception as e:
+            print(f"移除Star记录失败: {str(e)}")
+            return False
+    
+    # 用户相关方法
+    def get_user_by_username(self, username: str):
+        """根据用户名获取用户"""
+        with self.get_session() as session:
+            return session.query(User).filter(User.username == username).first()
+    
+    def get_user_by_id(self, user_id: str):
+        """根据ID获取用户"""
+        with self.get_session() as session:
+            return session.query(User).filter(User.id == user_id).first()
+    
+    def save_user(self, user_data: dict) -> bool:
+        """保存用户"""
+        try:
+            with self.get_session() as session:
+                user_id = user_data.get("id")
+                user = session.query(User).filter(User.id == user_id).first()
+                
+                if user:
+                    # 更新现有记录
+                    for key, value in user_data.items():
+                        if hasattr(user, key):
+                            setattr(user, key, value)
+                else:
+                    # 创建新记录
+                    user = User(**user_data)
+                    session.add(user)
+                
+                session.commit()
+                return True
+        except Exception as e:
+            print(f"保存用户失败: {str(e)}")
+            return False
+    
+    def get_all_users(self):
+        """获取所有用户"""
+        with self.get_session() as session:
+            return session.query(User).all()
+
+
+# 创建全局SQLite数据库管理器实例
+sqlite_db_manager = SQLiteDatabaseManager()

@@ -1,0 +1,111 @@
+"""
+模型导出模块
+为应用提供统一的数据模型导入接口
+"""
+
+from pydantic import BaseModel, EmailStr
+from typing import List, Optional, Dict, Any
+from datetime import datetime
+
+# 从 database_models 导入SQLAlchemy模型
+from database_models import (
+    User, KnowledgeBase, PersonaCard, Message, StarRecord, Base
+)
+
+# Pydantic模型用于API请求和响应
+
+class UserCreate(BaseModel):
+    """用户创建请求模型"""
+    username: str
+    email: EmailStr
+    password: str
+
+class UserResponse(BaseModel):
+    """用户响应模型"""
+    id: str
+    username: str
+    email: str
+    is_active: bool
+    is_admin: bool
+    is_moderator: bool
+    created_at: datetime
+
+class KnowledgeBaseCreate(BaseModel):
+    """知识库创建请求模型"""
+    name: str
+    description: str
+    copyright_owner: Optional[str] = None
+
+class KnowledgeBaseResponse(BaseModel):
+    """知识库响应模型"""
+    id: str
+    name: str
+    description: str
+    uploader_id: str
+    copyright_owner: Optional[str]
+    star_count: int
+    is_public: bool
+    is_pending: bool
+    created_at: datetime
+    updated_at: datetime
+
+class PersonaCardCreate(BaseModel):
+    """人设卡创建请求模型"""
+    name: str
+    description: str
+    copyright_owner: Optional[str] = None
+
+class PersonaCardResponse(BaseModel):
+    """人设卡响应模型"""
+    id: str
+    name: str
+    description: str
+    uploader_id: str
+    copyright_owner: Optional[str]
+    star_count: int
+    is_public: bool
+    is_pending: bool
+    created_at: datetime
+    updated_at: datetime
+
+class MessageCreate(BaseModel):
+    """消息创建请求模型"""
+    recipient_id: str
+    title: str
+    content: str
+
+class MessageResponse(BaseModel):
+    """消息响应模型"""
+    id: str
+    sender_id: str
+    recipient_id: str
+    title: str
+    content: str
+    is_read: bool
+    created_at: datetime
+
+class StarRecordCreate(BaseModel):
+    """Star记录创建请求模型"""
+    target_id: str
+    target_type: str
+
+class StarResponse(BaseModel):
+    """Star响应模型"""
+    id: str
+    user_id: str
+    target_id: str
+    target_type: str
+    created_at: datetime
+
+# 导出所有模型
+__all__ = [
+    # SQLAlchemy模型
+    'Base', 'User', 'KnowledgeBase', 'PersonaCard', 'Message', 'StarRecord',
+    
+    # Pydantic模型
+    'UserCreate', 'UserResponse',
+    'KnowledgeBaseCreate', 'KnowledgeBaseResponse',
+    'PersonaCardCreate', 'PersonaCardResponse',
+    'MessageCreate', 'MessageResponse',
+    'StarRecordCreate', 'StarResponse',
+]
