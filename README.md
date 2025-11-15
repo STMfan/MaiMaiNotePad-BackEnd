@@ -29,6 +29,11 @@
 - **用户管理**: 管理员可以管理用户权限
 - **数据统计**: 查看系统使用情况和统计数据
 
+### 📧 邮件服务
+- **邮件发送**: 支持发送邮件通知
+- **SMTP配置**: 可配置的SMTP服务器设置
+- **邮箱认证**: 支持QQ邮箱等主流邮箱服务
+
 ## 🏗️ 技术栈
 
 - **后端框架**: FastAPI (Python)
@@ -49,11 +54,14 @@ backend-python-remake/
 ├── database_manager.py  # 数据库管理器
 ├── file_upload.py       # 文件上传服务
 ├── user_management.py   # 用户管理模块
+├── email_service.py     # 邮件服务模块
 ├── logger.py           # 日志记录模块
 ├── requirements.txt    # Python依赖
 ├── README.md          # 项目文档
 ├── TODO.md           # 待办事项
 ├── .gitignore        # Git忽略配置
+├── .env               # 环境变量配置
+├── .env.template      # 环境变量模板
 └── data/             # 数据存储目录
     └── mainnp.db     # SQLite数据库文件
 ```
@@ -142,6 +150,11 @@ docker run -p 9278:9278 mainnp-backend
 - `GET /api/messages` - 获取用户消息
 - `POST /api/messages/{message_id}/read` - 标记消息为已读
 
+### 邮件服务相关
+- `POST /api/email/send` - 发送邮件通知（需要管理员权限）
+- `GET /api/email/config` - 获取邮箱配置信息（需要管理员权限）
+- `PUT /api/email/config` - 更新邮箱配置（需要管理员权限）
+
 ### 用户相关
 - `GET /api/user/stars` - 获取用户Star的知识库和人设卡
 
@@ -183,7 +196,49 @@ uploads/
 
 ## 🔧 配置说明
 
-### 环境变量
+### 环境变量配置
+项目使用 `.env` 文件进行配置管理。首次使用时，请复制 `.env.template` 文件为 `.env` 并根据需要修改配置：
+
+```bash
+cp .env.template .env
+```
+
+#### 主要配置项
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `ADMIN_USERNAME` | 管理员用户名 | STMfan |
+| `ADMIN_PWD` | 管理员密码 | @Stickmanfans0805INMMNP |
+| `HIGHEST_PASSWORD` | 最高权限密码 | 随机字符串 |
+| `EXTERNAL_DOMAIN` | 外部域名 | maimnp.tech |
+| `MAIL_HOST` | SMTP服务器地址 | smtp.qq.com |
+| `MAIL_USER` | 发件邮箱地址 | 1710537557@qq.com |
+| `MAIL_PORT` | SMTP服务器端口 | 465 |
+| `MAIL_PWD` | 邮箱授权码/SMTP密码 | 授权码 |
+| `PORT` | 服务器端口 | 9278 |
+| `HOST` | 服务器主机 | 0.0.0.0 |
+| `DATABASE_URL` | 数据库连接URL | sqlite:///data/mainnp.db |
+| `JWT_SECRET_KEY` | JWT密钥 | 随机字符串 |
+| `JWT_EXPIRATION_HOURS` | JWT过期时间(小时) | 24 |
+| `MAX_FILE_SIZE_MB` | 最大文件上传大小(MB) | 100 |
+| `UPLOAD_DIR` | 文件上传目录 | uploads |
+| `LOG_LEVEL` | 日志级别 | INFO |
+| `LOG_FILE` | 日志文件路径 | logs/app.log |
+
+#### 邮箱配置说明
+邮件服务支持多种邮箱提供商：
+
+**QQ邮箱配置：**
+- 需要在QQ邮箱设置中开启SMTP服务
+- 获取授权码（不是QQ密码）
+- 使用端口465（SSL）或587（TLS）
+
+**其他邮箱配置：**
+- Gmail: smtp.gmail.com, 端口587
+- 163邮箱: smtp.163.com, 端口465
+- Outlook: smtp-mail.outlook.com, 端口587
+
+### 旧版配置（已弃用）
 - 端口配置：默认9278
 - 文件上传限制：可配置
 - 数据存储路径：可配置

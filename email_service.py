@@ -1,12 +1,16 @@
 import smtplib
+import os
 from email.mime.text import MIMEText
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 def send_email(receiver: str, subject: str, content: str):
-    mail_host = "smtp.qq.com"
-    mail_user = "1710537557@qq.com"
-    mail_port = 465
-    # QQ邮箱授权码
-    mail_pwd = "qduqfkqjndujdeed"
+    mail_host = os.getenv("MAIL_HOST", "smtp.qq.com")
+    mail_user = os.getenv("MAIL_USER", "1710537557@qq.com")
+    mail_port = int(os.getenv("MAIL_PORT", "465"))
+    mail_pwd = os.getenv("MAIL_PWD", "qduqfkqjndujdeed")
 
     message = MIMEText(content, "plain", "utf-8")
     message["From"] = mail_user
