@@ -3,7 +3,7 @@ SQLite数据库模型定义
 包含知识库、人设卡、信箱等数据模型
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey, create_engine, Index
 from sqlalchemy.ext.declarative import declarative_base
@@ -57,7 +57,7 @@ class User(Base):
             "is_active": self.is_active,
             "is_admin": self.is_admin,
             "is_moderator": self.is_moderator,
-            "created_at": self.created_at.isoformat()
+            "created_at": self.created_at
         }
     
     @classmethod
@@ -71,7 +71,8 @@ class User(Base):
             is_active=data.get("is_active", True),
             is_admin=data.get("is_admin", False),
             is_moderator=data.get("is_moderator", False),
-            created_at=datetime.fromisoformat(data.get("created_at", datetime.now().isoformat()))
+            # SQLite的DateTime类型只接受 datetime 或 date 对象，这里做修改
+            created_at=data.get("created_at", datetime.now())
         )
     
     def verify_password(self, password):
@@ -228,6 +229,24 @@ class StarRecord(Base):
     # 移除直接关系，因为target_id不是真正的外键
     # knowledge_base = relationship("KnowledgeBase", back_populates="star_records", foreign_keys=[target_id])
     # persona_card = relationship("PersonaCard", back_populates="star_records", foreign_keys=[target_id])
+
+class EmailVerification(Base):
+    """邮箱验证码记录模型"""
+    __tablename__ = "email_verifications"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String, nullable=False)
+    code = Column(String, nullable=False)
+    is_used = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.now)
+    expires_at = Column(DateTime, nullable=False)  # 验证码过期时间
+
+    # 添加索引
+    __table_args__ = (
+        Index('idx_email_verification_email', 'email'),
+        Index('idx_email_verification_code', 'code'),
+        Index('idx_email_verification_expires', 'expires_at'),
+    )
 
 
 class SQLiteDatabaseManager:
@@ -590,6 +609,73 @@ class SQLiteDatabaseManager:
         """获取所有用户"""
         with self.get_session() as session:
             return session.query(User).all()
+
+    def check_user_register_legality(self, user_id: str, email: str) -> str:
+        """检查用户注册合法性"""
+        try:
+            with self.get_session() as session:
+                user = session.query(User).filter(User.id == user_id).first()
+                if user:
+                    return "用户名已存在"
+                user = session.query(User).filter(User.email == email).first()
+                if user:
+                    return "该邮箱已被注册"
+                return "ok"
+        except Exception as e:
+            print(f"检查用户注册合法性失败: {str(e)}")
+            return "系统错误"
+
+    def verify_email_code(self, email: str, code: str) -> bool:
+        """验证邮箱验证码是否有效（未使用且未过期）"""
+        try:
+            with self.get_session() as session:
+                record = session.query(EmailVerification).filter(
+                    EmailVerification.email == email,
+                    EmailVerification.code == code,
+                    EmailVerification.is_used == False,
+                    EmailVerification.expires_at > datetime.now()
+                ).first()
+                if record:
+                    record.is_used = True  # 标记为已使用
+                    session.commit()
+                    return True
+                return False
+        except Exception as e:
+            print(f"验证邮箱验证码失败: {str(e)}")
+            return False
+
+    def check_email_rate_limit(self, email: str) -> bool:
+        """检查同一邮箱1小时内是否超过3次请求"""
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        one_hour_ago = now - timedelta(hours=1)
+
+        with self.get_session() as session:
+            record = session.query(EmailVerification).filter(
+                EmailVerification.email == email,
+                EmailVerification.created_at > one_hour_ago
+            ).count()
+            if record >= 3:
+                return False
+            return True
+
+    def save_verification_code(self, email: str, code: str):
+        """保存邮箱验证码"""
+        try:
+            with self.get_session() as session:
+                verification=EmailVerification(
+                    email=email,
+                    code=code,
+                    is_used=False,
+                    expires_at=datetime.now() + timedelta(minutes=2)
+                )
+                session.add(verification)
+                session.commit()
+                return verification.id
+        except Exception as e:
+            print(f"保存验证码失败: {str(e)}")
+            return None
+
 
 
 # 创建全局SQLite数据库管理器实例

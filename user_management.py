@@ -110,7 +110,8 @@ class User:
                     hashed_password=self.pwdHash,
                     email=self.email,
                     is_admin=(self.role == "admin"),
-                    is_moderator=(self.role == "moderator")
+                    is_moderator=(self.role == "moderator"),
+                    created_at=datetime.now()
                 )
             
             # 保存到数据库
