@@ -10,3 +10,6 @@ aiofiles
 python-multipart
 PyJWT
 werkzeug
+sqlalchemy
+pydantic[email]
+toml
