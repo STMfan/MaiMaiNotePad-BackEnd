@@ -9,3 +9,4 @@ requests
 aiofiles
 python-multipart
 PyJWT
+werkzeug

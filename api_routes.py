@@ -4,6 +4,7 @@ API路由实现
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
+from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
@@ -11,7 +12,8 @@ import os
 from datetime import datetime
 
 from models import (
-    KnowledgeBase, PersonaCard, Message, MessageCreate, StarRecord
+    KnowledgeBase, PersonaCard, Message, MessageCreate, StarRecord,
+    KnowledgeBaseUpdate
 )
 from database_models import sqlite_db_manager
 from file_upload import file_upload_service
@@ -45,8 +47,9 @@ class KnowledgeBaseResponse(BaseModel):
     star_count: int
     is_public: bool
     is_pending: bool
-    created_at: str
-    updated_at: str
+    base_path: Optional[str]
+    created_at: datetime
+    updated_at: datetime
 
 
 class PersonaCardResponse(BaseModel):
@@ -179,6 +182,99 @@ async def send_verification_code(
         log_exception(app_logger, "Send verification code error", exception=e)
         raise APIError("发送验证码失败")
 
+@api_router.post("/send_reset_password_code")
+async def send_reset_password_code(
+        email: str = Form(...),
+):
+    """发送重置密码验证码"""
+    try:
+        app_logger.info(f"Send reset password code: email={email}")
+
+        # 1. 验证邮箱格式
+        if "@" not in email:
+            raise ValidationError("邮箱格式无效")
+
+        # 2. 检查邮箱是否已注册
+        user = db_manager.get_user_by_email(email)
+        if not user:
+            raise ValidationError("该邮箱未注册")
+
+        # 3. 检查频率限制
+        if not db_manager.check_email_rate_limit(email):
+            raise APIError("请求发送验证码过于频繁，请稍后重试")
+
+        # 4. 生成6位随机验证码
+        import random
+        code = "".join(random.choices("0123456789", k=6))
+
+        # 5. 发送邮件
+        email_content = f"mMaiMaiNotePad 重置密码验证码为：{code}，有效期为 2 分钟，请尽快使用哦！"
+        email_title = "MaiMaiNotePad 重置密码"
+
+        from email_service import send_email
+        send_email(
+            receiver=email,
+            subject=email_title,
+            content=email_content
+        )
+        code_id = db_manager.save_verification_code(email, code)
+
+        log_database_operation(
+            app_logger,
+            "create",
+            "reset_password_code",
+            record_id=code_id,
+            success=True
+        )
+
+        return {"message": "重置密码验证码已发送"}
+
+    except Exception as e:
+        log_exception(app_logger, "Send reset password code error", exception=e)
+        raise APIError("发送重置密码验证码失败")
+
+@api_router.post("/reset_password")
+async def reset_password(
+        email: str = Form(...),
+        verification_code: str = Form(...),
+        new_password: str = Form(...)
+):
+    """通过邮箱验证码重置密码"""
+    try:
+        app_logger.info(f"Reset password: email={email}")
+
+        # 1. 验证输入参数
+        if not email or not verification_code or not new_password:
+            raise ValidationError("有未填写的字段")
+
+        # 2. 验证密码长度
+        if len(new_password) < 6:
+            raise ValidationError("密码长度不能少于6位")
+
+        # 3. 验证邮箱验证码
+        if not db_manager.verify_email_code(email, verification_code):
+            raise ValidationError("验证码错误或已失效")
+
+        # 4. 更新密码
+        if not db_manager.update_user_password(email, new_password):
+            raise APIError("重置密码失败，请检查邮箱是否正确")
+
+        log_database_operation(
+            app_logger,
+            "update",
+            "user_password",
+            success=True
+        )
+
+        return {
+            "success": True,
+            "message": "密码重置成功"
+        }
+
+    except Exception as e:
+        log_exception(app_logger, "Reset password error", exception=e)
+        raise APIError("重置密码失败")
+
 @api_router.post("/user/register")
 async def user_register(
         username: str = Form(...),
@@ -190,12 +286,13 @@ async def user_register(
         if not username or not password or not email or not verification_code:
             raise ValidationError("有未填写的字段")
 
-        if not db_manager.verify_email_code(email, verification_code):
-            raise ValidationError("验证码错误或已失效")
-
         message=db_manager.check_user_register_legality(username, email)
         if message != "ok":
             raise ValidationError(message)
+
+        if not db_manager.verify_email_code(email, verification_code):
+            raise ValidationError("验证码错误或已失效")
+
 
         new_user = create_user(username, password, email, role="user")
         if not new_user:
@@ -247,6 +344,7 @@ async def upload_knowledge_base(
 ):
     """上传知识库"""
     user_id = current_user.get("id", "")
+    username = current_user.get("username", "")
     try:
         app_logger.info(f"Upload knowledge base: user_id={user_id}, name={name}")
 
@@ -256,6 +354,16 @@ async def upload_knowledge_base(
 
         if not files:
             raise ValidationError("至少需要上传一个文件")
+
+        # 检查同一用户是否已有同名知识库
+        existing_kbs = db_manager.get_knowledge_bases_by_uploader(user_id)
+        for existing_kb in existing_kbs:
+            if existing_kb.name == name:
+                raise ValidationError("您已经创建过同名的知识库")
+
+        # 如果copyright_owner为空，设置为用户昵称
+        if not copyright_owner:
+            copyright_owner = username
 
         # 上传知识库
         kb = await file_upload_service.upload_knowledge_base(
@@ -285,7 +393,7 @@ async def upload_knowledge_base(
             success=True
         )
         
-        return KnowledgeBaseResponse(**kb.dict())
+        return KnowledgeBaseResponse(**kb.to_dict())
         
     except (ValidationError, FileOperationError, DatabaseError):
         raise
@@ -309,7 +417,7 @@ async def get_public_knowledge_bases():
         app_logger.info("Get public knowledge bases")
 
         kbs = db_manager.get_public_knowledge_bases()
-        return [KnowledgeBaseResponse(**kb.dict()) for kb in kbs]
+        return [KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs]
 
     except Exception as e:
         log_exception(app_logger, "Get public knowledge bases error", exception=e)
@@ -319,6 +427,7 @@ async def get_public_knowledge_bases():
 @api_router.get("/knowledge/{kb_id}", response_model=dict)
 async def get_knowledge_base(kb_id: str):
     """获取知识库内容"""
+    # 这里改成获取知识库基本信息了，下载知识库文件改成其他接口了
     try:
         app_logger.info(f"Get knowledge base content: kb_id={kb_id}")
 
@@ -369,7 +478,7 @@ async def get_user_knowledge_bases(
             raise AuthorizationError("没有权限查看其他用户的上传记录")
 
         kbs = db_manager.get_knowledge_bases_by_uploader(user_id)
-        return [KnowledgeBaseResponse(**kb.dict()) for kb in kbs]
+        return [KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs]
 
     except (AuthorizationError, DatabaseError):
         raise
@@ -390,14 +499,14 @@ async def star_knowledge_base(
 
         # 个人认为原先将Star和取消Star知识库分为两个接口不太合理，故修改为了请求Star接口时，如果已经Star过，则取消Star，否则Star
 
+        operation = "add"
+        message = "Star"
         # 检查知识库是否存在
         kb = db_manager.get_knowledge_base_by_id(kb_id)
         if not kb:
             raise NotFoundError("知识库不存在")
 
         is_star = db_manager.is_starred(user_id, kb_id, "knowledge")
-        operation = "add"
-        message = "Star"
         if not is_star:
             # 添加Star记录
             success = db_manager.add_star(user_id, kb_id, "knowledge")
@@ -483,6 +592,354 @@ async def unstar_knowledge_base(
         raise APIError("取消Star知识库失败")
 
 
+@api_router.put("/knowledge/{kb_id}", response_model=KnowledgeBaseResponse)
+async def update_knowledge_base(
+    kb_id: str,
+    update_data: KnowledgeBaseUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """修改知识库的基本信息"""
+    user_id = current_user.get("id", "")
+    try:
+        app_logger.info(f"Update knowledge base: kb_id={kb_id}, user_id={user_id}")
+
+        # 检查知识库是否存在
+        kb = db_manager.get_knowledge_base_by_id(kb_id)
+        if not kb:
+            raise NotFoundError("知识库不存在")
+
+        # 验证权限：只有上传者和管理员可以修改
+        if kb.uploader_id != user_id and not current_user.get("is_admin", False) and not current_user.get("is_moderator", False):
+            raise AuthorizationError("是你的知识库吗你就改")
+
+        # 更新知识库信息
+        update_dict = update_data.dict(exclude_unset=True)
+        if not update_dict:
+            raise ValidationError("没有提供要更新的字段")
+
+        # 更新数据库记录
+        for key, value in update_dict.items():
+            if hasattr(kb, key):
+                setattr(kb, key, value)
+        
+        kb.updated_at = datetime.now()
+        
+        updated_kb = db_manager.save_knowledge_base(kb.to_dict())
+        if not updated_kb:
+            raise DatabaseError("更新知识库失败")
+
+        # 记录数据库操作成功
+        log_database_operation(
+            app_logger,
+            "update",
+            "knowledge_base",
+            record_id=kb_id,
+            user_id=user_id,
+            success=True
+        )
+
+        return KnowledgeBaseResponse(**updated_kb.to_dict())
+
+    except (NotFoundError, AuthorizationError, ValidationError, DatabaseError):
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Update knowledge base error", exception=e)
+        log_database_operation(
+            app_logger,
+            "update",
+            "knowledge_base",
+            record_id=kb_id,
+            user_id=user_id,
+            success=False,
+            error_message=str(e)
+        )
+        raise APIError("修改知识库失败")
+
+
+@api_router.post("/knowledge/{kb_id}/files")
+async def add_files_to_knowledge_base(
+    kb_id: str,
+    files: List[UploadFile] = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """新增知识库中的文件"""
+    user_id = current_user.get("id", "")
+    try:
+        app_logger.info(f"Add files to knowledge base: kb_id={kb_id}, user_id={user_id}")
+
+        # 检查知识库是否存在
+        kb = db_manager.get_knowledge_base_by_id(kb_id)
+        if not kb:
+            raise NotFoundError("知识库不存在")
+
+        # 验证权限：只有上传者和管理员可以添加文件
+        if kb.uploader_id != user_id and not current_user.get("is_admin", False) and not current_user.get("is_moderator", False):
+            raise AuthorizationError("是你的知识库吗你就加")
+
+        if not files:
+            raise ValidationError("至少需要上传一个文件")
+
+        # 添加文件
+        updated_kb = await file_upload_service.add_files_to_knowledge_base(kb_id, files, user_id)
+        
+        if not updated_kb:
+            raise FileOperationError("添加文件失败")
+
+        # 记录文件操作成功
+        log_file_operation(
+            app_logger,
+            "add_files",
+            f"knowledge_base/{kb_id}",
+            user_id=user_id,
+            success=True
+        )
+
+        # 记录数据库操作成功
+        log_database_operation(
+            app_logger,
+            "update",
+            "knowledge_base",
+            record_id=kb_id,
+            user_id=user_id,
+            success=True
+        )
+
+        return {"message": "文件添加成功"}
+
+    except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError):
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Add files to knowledge base error", exception=e)
+        log_file_operation(
+            app_logger,
+            "add_files",
+            f"knowledge_base/{kb_id}",
+            user_id=user_id,
+            success=False,
+            error_message=str(e)
+        )
+        raise APIError("添加文件失败")
+
+
+@api_router.delete("/knowledge/{kb_id}/{file_id}")
+async def delete_files_from_knowledge_base(
+    kb_id: str,
+    file_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """删除知识库中的文件"""
+    user_id = current_user.get("id", "")
+    try:
+        app_logger.info(f"Delete files from knowledge base: kb_id={kb_id}, user_id={user_id}")
+
+        # 检查知识库是否存在
+        kb = db_manager.get_knowledge_base_by_id(kb_id)
+        if not kb:
+            raise NotFoundError("知识库不存在")
+
+        # 验证权限：只有上传者和管理员可以删除文件
+        if kb.uploader_id != user_id and not current_user.get("is_admin", False) and not current_user.get("is_moderator", False):
+            raise AuthorizationError("是你的知识库吗你就删")
+
+        if not file_id:
+            return {"message": "文件删除成功"}
+
+        # 删除文件
+        success = await file_upload_service.delete_files_from_knowledge_base(kb_id, file_id, user_id)
+        
+        if not success:
+            raise FileOperationError("删除文件失败")
+
+        # 记录文件操作成功
+        log_file_operation(
+            app_logger,
+            "delete_files",
+            f"knowledge_base/{kb_id}",
+            user_id=user_id,
+            success=True
+        )
+
+        # 记录数据库操作成功
+        log_database_operation(
+            app_logger,
+            "update",
+            "knowledge_base",
+            record_id=kb_id,
+            user_id=user_id,
+            success=True
+        )
+
+        return {"message": "文件删除成功"}
+
+    except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError):
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Delete files from knowledge base error", exception=e)
+        log_file_operation(
+            app_logger,
+            "delete_files",
+            f"knowledge_base/{kb_id}",
+            user_id=user_id,
+            success=False,
+            error_message=str(e)
+        )
+        raise APIError("删除文件失败")
+
+
+@api_router.get("/knowledge/{kb_id}/download")
+async def download_knowledge_base_files(
+    kb_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """下载知识库的所有文件压缩包"""
+    try:
+        # 创建ZIP文件
+        zip_result = await file_upload_service.create_knowledge_base_zip(kb_id)
+        zip_path = zip_result["zip_path"]
+        zip_filename = zip_result["zip_filename"]
+        
+        # 返回文件下载响应
+        return FileResponse(
+            path=zip_path,
+            filename=zip_filename,
+            media_type='application/zip'
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"下载失败: {str(e)}"
+        )
+
+
+@api_router.get("/knowledge/{kb_id}/file/{file_id}")
+async def download_knowledge_base_file(
+    kb_id: str,
+    file_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """下载知识库中的单个文件"""
+    user_id = current_user.get("id", "")
+    try:
+        app_logger.info(f"Download knowledge base file: kb_id={kb_id}, file_id={file_id}, user_id={user_id}")
+
+        # 检查知识库是否存在
+        kb = db_manager.get_knowledge_base_by_id(kb_id)
+        if not kb:
+            raise NotFoundError("知识库不存在")
+
+        # 验证权限：公开知识库任何人都可以下载，私有知识库只有上传者和管理员可以下载
+        if not kb.is_public and kb.uploader_id != user_id and not current_user.get("is_admin", False):
+            raise AuthorizationError("没有权限下载此知识库")
+
+        # 获取文件信息
+        file_info = await file_upload_service.get_knowledge_base_file_path(kb_id, file_id)
+        if not file_info:
+            raise NotFoundError("文件不存在")
+        
+        # 构建完整的文件路径
+        file_full_path = os.path.join(kb.base_path, file_info.get("file_path"))
+        if not os.path.exists(file_full_path):
+            raise NotFoundError("文件不存在")
+
+        # 记录文件操作成功
+        log_file_operation(
+            app_logger,
+            "download",
+            f"knowledge_base/{kb_id}/file/{file_id}",
+            user_id=user_id,
+            success=True
+        )
+
+        # 返回文件响应，使用原始文件名
+        return FileResponse(
+            path=file_full_path,
+            filename=file_info.get("file_name"),
+            media_type="application/octet-stream"
+        )
+
+    except (NotFoundError, AuthorizationError, FileOperationError):
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Download knowledge base file error", exception=e)
+        log_file_operation(
+            app_logger,
+            "download",
+            f"knowledge_base/{kb_id}/file/{file_id}",
+            user_id=user_id,
+            success=False,
+            error_message=str(e)
+        )
+        raise APIError("下载文件失败")
+
+
+@api_router.delete("/knowledge/{kb_id}")
+async def delete_knowledge_base(
+    kb_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """删除整个知识库"""
+    user_id = current_user.get("id", "")
+    try:
+        app_logger.info(f"Delete knowledge base: kb_id={kb_id}, user_id={user_id}")
+
+        # 检查知识库是否存在
+        kb = db_manager.get_knowledge_base_by_id(kb_id)
+        if not kb:
+            raise NotFoundError("知识库不存在")
+
+        # 验证权限：只有上传者和管理员可以删除知识库
+        if kb.uploader_id != user_id and not current_user.get("is_admin", False):
+            raise AuthorizationError("没有权限删除此知识库")
+
+        # 删除知识库文件和目录
+        success = await file_upload_service.delete_knowledge_base(kb_id, user_id)
+        
+        if not success:
+            raise FileOperationError("删除知识库文件失败")
+
+        # 删除数据库记录
+        if not db_manager.delete_knowledge_base(kb_id):
+            raise DatabaseError("删除知识库记录失败")
+
+        # 记录文件操作成功
+        log_file_operation(
+            app_logger,
+            "delete",
+            f"knowledge_base/{kb_id}",
+            user_id=user_id,
+            success=True
+        )
+
+        # 记录数据库操作成功
+        log_database_operation(
+            app_logger,
+            "delete",
+            "knowledge_base",
+            record_id=kb_id,
+            user_id=user_id,
+            success=True
+        )
+
+        return {"message": "知识库删除成功"}
+
+    except (NotFoundError, AuthorizationError, FileOperationError, DatabaseError):
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Delete knowledge base error", exception=e)
+        log_file_operation(
+            app_logger,
+            "delete",
+            f"knowledge_base/{kb_id}",
+            user_id=user_id,
+            success=False,
+            error_message=str(e)
+        )
+        raise APIError("删除知识库失败")
+
+
 # 人设卡相关路由
 @api_router.post("/persona/upload", response_model=PersonaCardResponse)
 async def upload_persona_card(
@@ -532,7 +989,7 @@ async def upload_persona_card(
             success=True
         )
 
-        return PersonaCardResponse(**pc.dict())
+        return PersonaCardResponse(**pc.to_dict())
 
     except (ValidationError, FileOperationError, DatabaseError):
         raise
@@ -556,7 +1013,7 @@ async def get_public_persona_cards():
         app_logger.info("Get public persona cards")
 
         pcs = db_manager.get_public_persona_cards()
-        return [PersonaCardResponse(**pc.dict()) for pc in pcs]
+        return [PersonaCardResponse(**pc.to_dict()) for pc in pcs]
 
     except Exception as e:
         log_exception(app_logger, "Get public persona cards error", exception=e)
@@ -616,7 +1073,7 @@ async def get_user_persona_cards(
             raise AuthorizationError("没有权限查看其他用户的上传记录")
 
         pcs = db_manager.get_persona_cards_by_uploader(user_id)
-        return [PersonaCardResponse(**pc.dict()) for pc in pcs]
+        return [PersonaCardResponse(**pc.to_dict()) for pc in pcs]
 
     except (AuthorizationError, DatabaseError):
         raise
@@ -807,7 +1264,7 @@ async def get_pending_knowledge_bases(current_user: dict = Depends(get_current_u
 
     try:
         kbs = db_manager.get_pending_knowledge_bases()
-        return [KnowledgeBaseResponse(**kb.dict()) for kb in kbs]
+        return [KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs]
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -827,7 +1284,7 @@ async def get_pending_persona_cards(current_user: dict = Depends(get_current_use
 
     try:
         pcs = db_manager.get_pending_persona_cards()
-        return [PersonaCardResponse(**pc.dict()) for pc in pcs]
+        return [PersonaCardResponse(**pc.to_dict()) for pc in pcs]
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -861,8 +1318,8 @@ async def approve_knowledge_base(
         kb.is_pending = False
         kb.rejection_reason = None
 
-        success = db_manager.save_knowledge_base(kb)
-        if not success:
+        updated_kb = db_manager.save_knowledge_base(kb)
+        if not updated_kb:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="更新知识库状态失败"
@@ -905,8 +1362,8 @@ async def reject_knowledge_base(
         kb.is_pending = False
         kb.rejection_reason = reason
 
-        success = db_manager.save_knowledge_base(kb)
-        if not success:
+        updated_kb = db_manager.save_knowledge_base(kb)
+        if not updated_kb:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="更新知识库状态失败"
@@ -958,8 +1415,8 @@ async def approve_persona_card(
         pc.is_pending = False
         pc.rejection_reason = None
 
-        success = db_manager.save_persona_card(pc)
-        if not success:
+        updated_pc = db_manager.save_persona_card(pc)
+        if not updated_pc:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="更新人设卡状态失败"
@@ -1002,8 +1459,8 @@ async def reject_persona_card(
         pc.is_pending = False
         pc.rejection_reason = reason
 
-        success = db_manager.save_persona_card(pc)
-        if not success:
+        updated_pc = db_manager.save_persona_card(pc)
+        if not updated_pc:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="更新人设卡状态失败"
@@ -1123,7 +1580,7 @@ async def get_messages(
                 offset=offset
             )
 
-        return [MessageResponse(**msg.dict()) for msg in messages]
+        return [MessageResponse(**msg.to_dict()) for msg in messages]
 
     except (ValidationError, DatabaseError):
         raise

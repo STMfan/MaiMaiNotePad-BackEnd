@@ -9,7 +9,7 @@ from datetime import datetime
 
 # 从 database_models 导入SQLAlchemy模型
 from database_models import (
-    User, KnowledgeBase, PersonaCard, Message, StarRecord, Base
+    User, KnowledgeBase, KnowledgeBaseFile, PersonaCard, Message, StarRecord, Base
 )
 
 # Pydantic模型用于API请求和响应
@@ -36,6 +36,12 @@ class KnowledgeBaseCreate(BaseModel):
     description: str
     copyright_owner: Optional[str] = None
 
+class KnowledgeBaseUpdate(BaseModel):
+    """知识库更新请求模型"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    copyright_owner: Optional[str] = None
+
 class KnowledgeBaseResponse(BaseModel):
     """知识库响应模型"""
     id: str
@@ -46,6 +52,7 @@ class KnowledgeBaseResponse(BaseModel):
     star_count: int
     is_public: bool
     is_pending: bool
+    base_path: Optional[str]
     created_at: datetime
     updated_at: datetime
 
@@ -100,11 +107,11 @@ class StarResponse(BaseModel):
 # 导出所有模型
 __all__ = [
     # SQLAlchemy模型
-    'Base', 'User', 'KnowledgeBase', 'PersonaCard', 'Message', 'StarRecord',
+    'Base', 'User', 'KnowledgeBase', 'KnowledgeBaseFile', 'PersonaCard', 'Message', 'StarRecord',
     
     # Pydantic模型
     'UserCreate', 'UserResponse',
-    'KnowledgeBaseCreate', 'KnowledgeBaseResponse',
+    'KnowledgeBaseCreate', 'KnowledgeBaseUpdate', 'KnowledgeBaseResponse',
     'PersonaCardCreate', 'PersonaCardResponse',
     'MessageCreate', 'MessageResponse',
     'StarRecordCreate', 'StarResponse',
