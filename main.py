@@ -17,8 +17,10 @@ from fastapi import FastAPI
 import uvicorn
 from logger import log
 import os
+import sys
 import json
 import uuid
+import traceback
 from datetime import datetime
 from passlib.context import CryptContext
 from dotenv import load_dotenv
@@ -28,78 +30,90 @@ from logging_config import setup_logger, app_logger, log_exception, log_api_requ
 from error_handlers import ErrorHandlerMiddleware, setup_exception_handlers, AuthenticationError, APIError
 
 # 加载环境变量
+log("加载环境变量", importance='info')
 load_dotenv()
 
-# 创建数据目录
-os.makedirs('data', exist_ok=True)
-
-# 初始化密码加密上下文
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# 导入必要的库
-
-# 导入自定义模块
-
-# 配置日志
-# 使用新的日志系统，替换原有的简单日志配置
-# logging.basicConfig(level=logging.INFO)
-# logger = logging.getLogger(__name__)
-
-# 创建日志目录
-os.makedirs('logs', exist_ok=True)
-
-# 配置密码哈希
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# 初始化FastAPI应用
-app = FastAPI(title="MaiMNP Backend",
-              description="MaiMNP后端服务", version="1.0.0")
-
-# 添加错误处理中间件
-app.add_middleware(ErrorHandlerMiddleware)
-
-# 添加CORS中间件
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 设置异常处理器
-setup_exception_handlers(app)
-
-# 包含API路由，添加/api前缀
-app.include_router(api_router, prefix="/api")
-
-# 加载用户数据
-userList = load_users()
-app_logger.info(f"Loaded {len(userList)} users")
-
-# 初始化数据库管理器
-db_manager = sqlite_db_manager
-app_logger.info("SQLite database manager initialized")
-
-# 安全认证
-security = HTTPBearer()
-
-# 根路径
-
-
-@app.get("/")
-async def root():
-    return {"message": "MaiMNP Backend API"}
-
-# 健康检查
-
-
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
-
-# 认证路由已在api_routes.py中定义，无需重复定义
+host = os.getenv("HOST", "0.0.0.0")
+port = int(os.getenv("PORT", "9278"))
 
 if __name__ == '__main__':
-    app_logger.info('Server started')
-    uvicorn.run(app, host='0.0.0.0', port=9278, log_level="critical")
+    exit_code = 0  # 用于记录程序最终的退出状态
+    try:    
+        # 创建数据目录
+        os.makedirs('data', exist_ok=True)
+
+        # 初始化密码加密上下文
+        # pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+        # 导入必要的库
+
+        # 导入自定义模块
+
+        # 配置日志
+        # 使用新的日志系统，替换原有的简单日志配置
+        # logging.basicConfig(level=logging.INFO)
+        # logger = logging.getLogger(__name__)
+
+        # 创建日志目录
+        os.makedirs('logs', exist_ok=True)
+
+        # 配置密码哈希
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+        # 初始化FastAPI应用
+        app = FastAPI(title="MaiMNP Backend",
+                    description="MaiMNP后端服务", version="1.0.0")
+
+        # 添加错误处理中间件
+        app.add_middleware(ErrorHandlerMiddleware)
+
+        # 添加CORS中间件
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+        # 设置异常处理器
+        setup_exception_handlers(app)
+
+        # 包含API路由，添加/api前缀
+        app.include_router(api_router, prefix="/api")
+
+        # 加载用户数据
+        userList = load_users()
+        app_logger.info(f"Loaded {len(userList)} users")
+
+        # 初始化数据库管理器
+        db_manager = sqlite_db_manager
+        app_logger.info("SQLite database manager initialized")
+
+        # 安全认证
+        security = HTTPBearer()
+
+        # 根路径
+
+
+        @app.get("/")
+        async def root():
+            return {"message": "MaiMNP Backend API"}
+
+        # 健康检查
+
+
+        @app.get("/health")
+        async def health_check():
+            return {"status": "healthy"}
+
+        # 认证路由已在api_routes.py中定义，无需重复定义
+
+        app_logger.info('Server started')
+        app_logger.info(f'🌐 访问地址: http://{host}:{port}')
+        uvicorn.run(app, host=host, port=port, log_level="critical")
+    except Exception as e:
+        app_logger.error(f"主程序发生异常: {str(e)} {str(traceback.format_exc())}")
+        exit_code = 1  # 标记发生错误
+    finally:
+        sys.exit(exit_code)  # <--- 使用记录的退出码
