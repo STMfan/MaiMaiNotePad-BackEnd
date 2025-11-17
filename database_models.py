@@ -2,7 +2,7 @@
 SQLite数据库模型定义
 包含知识库、人设卡、信箱等数据模型
 """
-
+import json
 from datetime import datetime, timedelta
 from typing import List, Optional
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey, create_engine, Index
@@ -122,7 +122,7 @@ class KnowledgeBase(Base):
     uploader_id = Column(String, ForeignKey("users.id"), nullable=False)
     copyright_owner = Column(String, nullable=True)
     star_count = Column(Integer, default=0)
-    file_paths = Column(Text, default="[]")  # 存储为JSON字符串
+    base_path = Column(Text, default="[]") 
     metadata_path = Column(String, nullable=False)
     is_public = Column(Boolean, default=False)
     is_pending = Column(Boolean, default=True)
@@ -145,6 +145,80 @@ class KnowledgeBase(Base):
     # 移除star_records关系，因为StarRecord没有正确的外键关系
     # star_records = relationship("StarRecord", back_populates="knowledge_base")
 
+    def to_dict(self):
+        """将知识库对象转换为字典"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "uploader_id": self.uploader_id,
+            "copyright_owner": self.copyright_owner,
+            "star_count": self.star_count or 0,
+            "base_path": self.base_path or "[]",
+            "metadata_path": self.metadata_path or "",
+            "is_public": self.is_public,
+            "is_pending": self.is_pending if self.is_pending is not None else True,
+            "rejection_reason": self.rejection_reason,
+            "created_at": self.created_at if self.created_at else datetime.now(),
+            "updated_at": self.updated_at if self.updated_at else datetime.now()
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        """从字典创建知识库对象"""
+        return cls(
+            id=data.get("id", str(uuid.uuid4())),
+            name=data.get("name", ""),
+            description=data.get("description", ""),
+            uploader_id=data.get("uploader_id", ""),
+            copyright_owner=data.get("copyright_owner", None),
+            star_count=data.get("star_count", 0),
+            base_path=data.get("bast_path", "[]"),
+            metadata_path=data.get("metadata_path", ""),
+            is_public=data.get("is_public", False),
+            is_pending=data.get("is_pending", True),
+            rejection_reason=data.get("rejection_reason", None),
+            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(),
+            updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else datetime.now()
+        )
+
+
+class KnowledgeBaseFile(Base):
+    """知识库文件数据模型"""
+    __tablename__ = "knowledge_base_files"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    knowledge_base_id = Column(String, nullable=False)
+    file_name = Column(String, nullable=False)
+    original_name = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    file_type = Column(String, nullable=False)
+    file_size = Column(Integer, default=0)  # 文件大小，单位为B
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    # 添加索引
+    __table_args__ = (
+        Index('idx_kb_file_knowledge_base_id', 'knowledge_base_id'),
+        Index('idx_kb_file_file_type', 'file_type'),
+        Index('idx_kb_file_file_size', 'file_size'),
+        Index('idx_kb_file_created_at', 'created_at'),
+        Index('idx_kb_file_updated_at', 'updated_at'),
+    )
+
+    def to_dict(self):
+        """将知识库文件对象转换为字典"""
+        return {
+            "id": self.id,
+            "knowledge_base_id": self.knowledge_base_id,
+            "file_name": self.file_name,
+            "original_name": self.original_name,
+            "file_path": self.file_path,
+            "file_type": self.file_type,
+            "file_size": self.file_size or 0,
+            "created_at": self.created_at.isoformat() if self.created_at else datetime.now().isoformat(),
+            "updated_at": self.updated_at.isoformat() if self.updated_at else datetime.now().isoformat()
+        }
 
 class PersonaCard(Base):
     """人设卡数据模型"""
@@ -178,6 +252,23 @@ class PersonaCard(Base):
     # 移除star_records关系，因为StarRecord没有正确的外键关系
     # star_records = relationship("StarRecord", back_populates="persona_card")
 
+    def to_dict(self):
+        """将人设卡对象转换为字典"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "uploader_id": self.uploader_id,
+            "copyright_owner": self.copyright_owner,
+            "star_count": self.star_count or 0,
+            "file_path": self.file_path or "",
+            "is_public": self.is_public,
+            "is_pending": self.is_pending if self.is_pending is not None else True,
+            "rejection_reason": self.rejection_reason,
+            "created_at": self.created_at.isoformat() if self.created_at else datetime.now().isoformat(),
+            "updated_at": self.updated_at.isoformat() if self.updated_at else datetime.now().isoformat()
+        }
+
 
 class Message(Base):
     """信箱消息模型"""
@@ -203,6 +294,18 @@ class Message(Base):
     # 关系
     recipient = relationship("User", foreign_keys=[recipient_id], back_populates="received_messages")
     sender = relationship("User", foreign_keys=[sender_id], back_populates="sent_messages")
+
+    def to_dict(self):
+        """将消息对象转换为字典"""
+        return {
+            "id": self.id,
+            "recipient_id": self.recipient_id,
+            "sender_id": self.sender_id,
+            "title": self.title,
+            "content": self.content,
+            "is_read": self.is_read or False,
+            "created_at": self.created_at.isoformat() if self.created_at else datetime.now().isoformat()
+        }
 
 
 class StarRecord(Base):
@@ -230,6 +333,16 @@ class StarRecord(Base):
     # knowledge_base = relationship("KnowledgeBase", back_populates="star_records", foreign_keys=[target_id])
     # persona_card = relationship("PersonaCard", back_populates="star_records", foreign_keys=[target_id])
 
+    def to_dict(self):
+        """将Star记录对象转换为字典"""
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "target_id": self.target_id,
+            "target_type": self.target_type,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
 class EmailVerification(Base):
     """邮箱验证码记录模型"""
     __tablename__ = "email_verifications"
@@ -247,6 +360,17 @@ class EmailVerification(Base):
         Index('idx_email_verification_code', 'code'),
         Index('idx_email_verification_expires', 'expires_at'),
     )
+
+    def to_dict(self):
+        """将邮箱验证对象转换为字典"""
+        return {
+            "id": self.id,
+            "email": self.email,
+            "code": self.code,
+            "is_used": self.is_used,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None
+        }
 
 
 class SQLiteDatabaseManager:
@@ -296,12 +420,14 @@ class SQLiteDatabaseManager:
         with self.get_session() as session:
             return session.query(KnowledgeBase).filter(KnowledgeBase.uploader_id == uploader_id).all()
     
-    def save_knowledge_base(self, kb_data: dict) -> bool:
-        """保存知识库"""
+    def save_knowledge_base(self, kb_data: dict) -> KnowledgeBase:
+        """保存知识库并返回保存后的对象"""
         try:
             with self.get_session() as session:
                 kb_id = kb_data.get("id")
-                kb = session.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+                kb = None
+                if kb_id:
+                    kb = session.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
                 
                 if kb:
                     # 更新现有记录
@@ -310,15 +436,19 @@ class SQLiteDatabaseManager:
                             setattr(kb, key, value)
                     kb.updated_at = datetime.now()
                 else:
+                    if not kb_data.get("metadata_path"):
+                        kb_data["metadata_path"] = "default_metadata_path"  # 设置默认值
                     # 创建新记录
                     kb = KnowledgeBase(**kb_data)
+                    # 确保file_paths是字符串格式
                     session.add(kb)
                 
                 session.commit()
-                return True
+                session.refresh(kb)  # 刷新对象以获取数据库生成的值
+                return kb
         except Exception as e:
             print(f"保存知识库失败: {str(e)}")
-            return False
+            return None
     
     def delete_knowledge_base(self, kb_id: str) -> bool:
         """删除知识库"""
@@ -327,10 +457,74 @@ class SQLiteDatabaseManager:
                 kb = session.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
                 if kb:
                     session.delete(kb)
-                    session.commit()
+                # 同时删除相关的文件记录
+                session.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == kb_id).delete()
+                session.commit()
                 return True
         except Exception as e:
             print(f"删除知识库失败: {str(e)}")
+            return False
+    
+    # KnowledgeBaseFile 相关方法
+    def get_files_by_knowledge_base_id(self, knowledge_base_id: str):
+        """根据知识库ID获取所有文件"""
+        with self.get_session() as session:
+            return session.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == knowledge_base_id).all()
+    
+    def get_knowledge_base_file_by_id(self, file_id: str):
+        """根据文件ID获取知识库文件"""
+        with self.get_session() as session:
+            return session.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.id == file_id).first()
+    
+    def save_knowledge_base_file(self, file_data: dict) -> KnowledgeBaseFile:
+        """保存知识库文件并返回保存后的对象"""
+        try:
+            with self.get_session() as session:
+                file_id = file_data.get("id")
+                kb_file = None
+                if file_id:
+                    kb_file = session.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.id == file_id).first()
+                
+                if kb_file:
+                    # 更新现有记录
+                    for key, value in file_data.items():
+                        if hasattr(kb_file, key):
+                            setattr(kb_file, key, value)
+                    kb_file.updated_at = datetime.now()
+                else:
+                    # 创建新记录
+                    kb_file = KnowledgeBaseFile(**file_data)
+                    session.add(kb_file)
+                
+                session.commit()
+                session.refresh(kb_file)
+                return kb_file
+        except Exception as e:
+            print(f"保存知识库文件失败: {str(e)}")
+            return None
+    
+    def delete_knowledge_base_file(self, file_id: str) -> bool:
+        """删除知识库文件"""
+        try:
+            with self.get_session() as session:
+                kb_file = session.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.id == file_id).first()
+                if kb_file:
+                    session.delete(kb_file)
+                    session.commit()
+                return True
+        except Exception as e:
+            print(f"删除知识库文件失败: {str(e)}")
+            return False
+    
+    def delete_files_by_knowledge_base_id(self, knowledge_base_id: str) -> bool:
+        """根据知识库ID删除所有相关文件"""
+        try:
+            with self.get_session() as session:
+                session.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == knowledge_base_id).delete()
+                session.commit()
+                return True
+        except Exception as e:
+            print(f"删除知识库文件失败: {str(e)}")
             return False
     
     # 人设卡相关方法
@@ -359,8 +553,8 @@ class SQLiteDatabaseManager:
         with self.get_session() as session:
             return session.query(PersonaCard).filter(PersonaCard.uploader_id == uploader_id).all()
     
-    def save_persona_card(self, pc_data: dict) -> bool:
-        """保存人设卡"""
+    def save_persona_card(self, pc_data: dict) -> PersonaCard:
+        """保存人设卡并返回保存后的对象"""
         try:
             with self.get_session() as session:
                 pc_id = pc_data.get("id")
@@ -378,10 +572,11 @@ class SQLiteDatabaseManager:
                     session.add(pc)
                 
                 session.commit()
-                return True
+                session.refresh(pc)  # 刷新对象以获取数据库生成的值
+                return pc
         except Exception as e:
             print(f"保存人设卡失败: {str(e)}")
-            return False
+            return None
     
     def delete_persona_card(self, pc_id: str) -> bool:
         """删除人设卡"""
@@ -577,6 +772,11 @@ class SQLiteDatabaseManager:
         with self.get_session() as session:
             return session.query(User).filter(User.username == username).first()
     
+    def get_user_by_email(self, email: str):
+        """根据邮箱获取用户"""
+        with self.get_session() as session:
+            return session.query(User).filter(User.email == email).first()
+
     def get_user_by_id(self, user_id: str):
         """根据ID获取用户"""
         with self.get_session() as session:
@@ -610,13 +810,15 @@ class SQLiteDatabaseManager:
         with self.get_session() as session:
             return session.query(User).all()
 
-    def check_user_register_legality(self, user_id: str, email: str) -> str:
+    def check_user_register_legality(self, username: str, email: str) -> str:
         """检查用户注册合法性"""
         try:
             with self.get_session() as session:
-                user = session.query(User).filter(User.id == user_id).first()
+                # 检查用户名是否已存在
+                user = session.query(User).filter(User.username == username).first()
                 if user:
                     return "用户名已存在"
+                # 检查邮箱是否已被注册
                 user = session.query(User).filter(User.email == email).first()
                 if user:
                     return "该邮箱已被注册"
@@ -658,6 +860,26 @@ class SQLiteDatabaseManager:
             if record >= 3:
                 return False
             return True
+
+    def update_user_password(self, email: str, new_password: str) -> bool:
+        """通过邮箱更新用户密码"""
+        try:
+            from passlib.context import CryptContext
+            pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+            
+            with self.get_session() as session:
+                user = session.query(User).filter(User.email == email).first()
+                if not user:
+                    return False
+                
+                # 确保密码不超过72字节（bcrypt限制）
+                new_password = new_password[:72]
+                user.hashed_password = pwd_context.hash(new_password)
+                session.commit()
+                return True
+        except Exception as e:
+            print(f"更新用户密码失败: {str(e)}")
+            return False
 
     def save_verification_code(self, email: str, code: str):
         """保存邮箱验证码"""
