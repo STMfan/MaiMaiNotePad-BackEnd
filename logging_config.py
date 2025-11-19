@@ -11,7 +11,10 @@ from pathlib import Path
 import sys
 import traceback
 from typing import Optional
+from dotenv import load_dotenv
 
+# 加载环境变量
+load_dotenv()
 
 class ColoredFormatter(logging.Formatter):
     """带颜色的日志格式化器"""
@@ -227,4 +230,7 @@ def log_database_operation(
 
 
 # 创建全局日志记录器
-app_logger = setup_logger("maimnp", level="INFO")
+level = os.getenv("LOG_LEVEL", "INFO")
+app_logger = setup_logger("maimnp", level=level)
+app_logger.info("日志系统初始化完成")
+app_logger.info(f"设置日志级别 {level}")
