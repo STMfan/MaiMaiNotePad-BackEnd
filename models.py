@@ -9,7 +9,7 @@ from datetime import datetime
 
 # 从 database_models 导入SQLAlchemy模型
 from database_models import (
-    User, KnowledgeBase, KnowledgeBaseFile, PersonaCard, Message, StarRecord, Base
+    User, KnowledgeBase, KnowledgeBaseFile, PersonaCard, PersonaCardFile, Message, StarRecord, Base
 )
 
 # Pydantic模型用于API请求和响应

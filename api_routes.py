@@ -61,8 +61,8 @@ class PersonaCardResponse(BaseModel):
     star_count: int
     is_public: bool
     is_pending: bool
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class MessageResponse(BaseModel):
@@ -361,17 +361,13 @@ async def upload_knowledge_base(
             if existing_kb.name == name:
                 raise ValidationError("您已经创建过同名的知识库")
 
-        # 如果copyright_owner为空，设置为用户昵称
-        if not copyright_owner:
-            copyright_owner = username
-
         # 上传知识库
         kb = await file_upload_service.upload_knowledge_base(
             files=files,
             name=name,
             description=description,
             uploader_id=user_id,
-            copyright_owner=copyright_owner
+            copyright_owner=copyright_owner if copyright_owner else username
         )
 
         # 记录文件操作成功
@@ -951,6 +947,7 @@ async def upload_persona_card(
 ):
     """上传人设卡"""
     user_id = current_user.get("id", "")
+    username = current_user.get("username", "")
     try:
         app_logger.info(f"Upload persona card: user_id={user_id}, name={name}")
 
@@ -961,13 +958,19 @@ async def upload_persona_card(
         if not files:
             raise ValidationError("至少需要上传一个文件")
 
+        # 检查同一用户是否已有同名人设卡
+        existing_pcs = db_manager.get_persona_cards_by_user_id(user_id)
+        for existing_pc in existing_pcs:
+            if existing_pc.name == name:
+                raise ValidationError("人设卡名称不可以重复哦")
+
         # 上传人设卡
         pc = await file_upload_service.upload_persona_card(
             files=files,
             name=name,
             description=description,
             uploader_id=user_id,
-            copyright_owner=copyright_owner
+            copyright_owner=copyright_owner if copyright_owner else username
         )
 
         # 记录文件操作成功
@@ -991,7 +994,7 @@ async def upload_persona_card(
 
         return PersonaCardResponse(**pc.to_dict())
 
-    except (ValidationError, FileOperationError, DatabaseError):
+    except (ValidationError, FileOperationError, DatabaseError, HTTPException):
         raise
     except Exception as e:
         log_exception(app_logger, "Upload persona card error", exception=e)
@@ -1080,6 +1083,73 @@ async def get_user_persona_cards(
     except Exception as e:
         log_exception(app_logger, "Get user persona cards error", exception=e)
         raise APIError("获取用户人设卡失败")
+
+
+@api_router.put("/persona/{pc_id}", response_model=PersonaCardResponse)
+async def update_persona_card(
+    pc_id: str,
+    name: str = Form(...),
+    description: str = Form(...),
+    copyright_owner: Optional[str] = Form(None),
+    current_user: dict = Depends(get_current_user)
+):
+    """修改人设卡信息"""
+    user_id = current_user.get("id", "")
+    try:
+        app_logger.info(f"Update persona card: pc_id={pc_id}, user_id={user_id}")
+
+        # 检查人设卡是否存在
+        pc = db_manager.get_persona_card_by_id(pc_id)
+        if not pc:
+            raise NotFoundError("人设卡不存在")
+
+        # 验证权限：只有上传者和管理员可以修改人设卡
+        if pc.uploader_id != user_id and not current_user.get("is_admin", False) and not current_user.get("is_moderator", False):
+            raise AuthorizationError("没有权限修改此人设卡")
+
+        # 验证输入参数
+        if not name or not description:
+            raise ValidationError("名称和描述不能为空")
+
+        # 更新人设卡信息
+        pc_data = pc.to_dict()
+        pc_data.update({
+            "name": name,
+            "description": description,
+            "copyright_owner": copyright_owner,
+            "updated_at": datetime.now()
+        })
+        
+        updated_pc = db_manager.save_persona_card(pc_data)
+        if not updated_pc:
+            raise DatabaseError("更新人设卡失败")
+
+        # 记录数据库操作成功
+        log_database_operation(
+            app_logger,
+            "update",
+            "persona_card",
+            record_id=pc_id,
+            user_id=user_id,
+            success=True
+        )
+
+        return PersonaCardResponse(**updated_pc.to_dict())
+
+    except (NotFoundError, AuthorizationError, ValidationError, DatabaseError):
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Update persona card error", exception=e)
+        log_database_operation(
+            app_logger,
+            "update",
+            "persona_card",
+            record_id=pc_id,
+            user_id=user_id,
+            success=False,
+            error_message=str(e)
+        )
+        raise APIError("修改人设卡失败")
 
 
 @api_router.post("/persona/{pc_id}/star")
@@ -1187,6 +1257,280 @@ async def unstar_persona_card(
             error_message=str(e)
         )
         raise APIError("取消Star人设卡失败")
+
+
+@api_router.delete("/persona/{pc_id}")
+async def delete_persona_card(
+    pc_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """删除人设卡"""
+    user_id = current_user.get("id", "")
+    try:
+        app_logger.info(f"Delete persona card: pc_id={pc_id}, user_id={user_id}")
+
+        # 检查人设卡是否存在
+        pc = db_manager.get_persona_card_by_id(pc_id)
+        if not pc:
+            raise ValidationError("人设卡不存在")
+
+        # 验证权限：只有上传者和管理员可以删除人设卡
+        if pc.uploader_id != user_id and not current_user.get("is_admin", False) and not current_user.get("is_moderator", False):
+            raise AuthorizationError("没有权限删除此人设卡")
+
+        # 删除关联的文件
+        file_delete_success = db_manager.delete_files_by_persona_card_id(pc_id)
+        if not file_delete_success:
+            app_logger.warning(f"Failed to delete associated files for persona card: pc_id={pc_id}")
+
+        # 删除人设卡本身
+        success = db_manager.delete_persona_card(pc_id)
+        if not success:
+            raise DatabaseError("删除人设卡失败")
+
+        # 记录数据库操作成功
+        log_database_operation(
+            app_logger,
+            "delete",
+            "persona_card",
+            record_id=pc_id,
+            user_id=user_id,
+            success=True
+        )
+
+        return {"message": "人设卡删除成功"}
+
+    except (NotFoundError, AuthorizationError, DatabaseError):
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Delete persona card error", exception=e)
+        log_database_operation(
+            app_logger,
+            "delete",
+            "persona_card",
+            record_id=pc_id,
+            user_id=user_id,
+            success=False,
+            error_message=str(e)
+        )
+        raise APIError("删除人设卡失败")
+
+
+@api_router.post("/persona/{pc_id}/files")
+async def add_files_to_persona_card(
+    pc_id: str,
+    files: List[UploadFile] = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """向人设卡添加文件"""
+    user_id = current_user.get("id", "")
+    try:
+        app_logger.info(f"Add files to persona card: pc_id={pc_id}, user_id={user_id}")
+
+        # 检查人设卡是否存在
+        pc = db_manager.get_persona_card_by_id(pc_id)
+        if not pc:
+            raise ValidationError("人设卡不存在")
+
+        # 验证权限：只有上传者和管理员可以添加文件
+        if pc.uploader_id != user_id and not current_user.get("is_admin", False) and not current_user.get("is_moderator", False):
+            raise AuthorizationError("没有权限向此人设卡添加文件")
+
+        if not files:
+            raise ValidationError("至少需要上传一个文件")
+
+        # 添加文件
+        updated_pc = await file_upload_service.add_files_to_persona_card(pc_id, files)
+        
+        if not updated_pc:
+            raise FileOperationError("添加文件失败")
+
+        # 记录文件操作成功
+        log_file_operation(
+            app_logger,
+            "add_files",
+            f"persona_card/{pc_id}",
+            user_id=user_id,
+            success=True
+        )
+
+        # 记录数据库操作成功
+        log_database_operation(
+            app_logger,
+            "update",
+            "persona_card",
+            record_id=pc_id,
+            user_id=user_id,
+            success=True
+        )
+
+        return {"message": "文件添加成功"}
+    except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError, HTTPException):
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Add files to persona card error", exception=e)
+        log_file_operation(
+            app_logger,
+            "add_files",
+            f"persona_card/{pc_id}",
+            user_id=user_id,
+            success=False,
+            error_message=str(e)
+        )
+        raise APIError("添加文件失败")
+
+
+@api_router.delete("/persona/{pc_id}/{file_id}")
+async def delete_files_from_persona_card(
+    pc_id: str,
+    file_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """从人设卡删除文件"""
+    user_id = current_user.get("id", "")
+    try:
+        app_logger.info(f"Delete files from persona card: pc_id={pc_id}, user_id={user_id}")
+
+        # 检查人设卡是否存在
+        pc = db_manager.get_persona_card_by_id(pc_id)
+        if not pc:
+            raise NotFoundError("人设卡不存在")
+
+        # 验证权限：只有上传者和管理员可以删除文件
+        if pc.uploader_id != user_id and not current_user.get("is_admin", False) and not current_user.get("is_moderator", False):
+            raise AuthorizationError("没有权限从此人设卡删除文件")
+
+        if not file_id:
+            return {"message": "文件删除成功"}
+
+        # 删除文件
+        success = await file_upload_service.delete_files_from_persona_card(pc_id, file_id, user_id)
+        
+        if not success:
+            raise FileOperationError("删除文件失败")
+
+        # 记录文件操作成功
+        log_file_operation(
+            app_logger,
+            "delete_files",
+            f"persona_card/{pc_id}",
+            user_id=user_id,
+            success=True
+        )
+
+        # 记录数据库操作成功
+        log_database_operation(
+            app_logger,
+            "update",
+            "persona_card",
+            record_id=pc_id,
+            user_id=user_id,
+            success=True
+        )
+
+        return {"message": "文件删除成功"}
+
+    except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError):
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Delete files from persona card error", exception=e)
+        log_file_operation(
+            app_logger,
+            "delete_files",
+            f"persona_card/{pc_id}",
+            user_id=user_id,
+            success=False,
+            error_message=str(e)
+        )
+        raise APIError("删除文件失败")
+
+
+@api_router.get("/persona/{pc_id}/download")
+async def download_persona_card_files(
+    pc_id: str,
+):
+    """下载人设卡的所有文件压缩包"""
+    try:
+        # 创建ZIP文件
+        zip_result = await file_upload_service.create_persona_card_zip(pc_id)
+        zip_path = zip_result["zip_path"]
+        zip_filename = zip_result["zip_filename"]
+        
+        # 返回文件下载响应
+        return FileResponse(
+            path=zip_path,
+            filename=zip_filename,
+            media_type='application/zip'
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"下载失败: {str(e)}"
+        )
+
+
+@api_router.get("/persona/{pc_id}/file/{file_id}")
+async def download_persona_card_file(
+    pc_id: str,
+    file_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """下载人设卡中的单个文件"""
+    user_id = current_user.get("id", "")
+    try:
+        app_logger.info(f"Download persona card file: pc_id={pc_id}, file_id={file_id}, user_id={user_id}")
+
+        # 检查人设卡是否存在
+        pc = db_manager.get_persona_card_by_id(pc_id)
+        if not pc:
+            raise NotFoundError("人设卡不存在")
+
+        # 验证权限：公开人设卡任何人都可以下载，私有人设卡只有上传者和管理员可以下载
+        if not pc.is_public and pc.uploader_id != user_id and not current_user.get("is_admin", False):
+            raise AuthorizationError("没有权限下载此人设卡")
+
+        # 获取文件信息
+        file_info = await file_upload_service.get_persona_card_file_path(pc_id, file_id)
+        if not file_info:
+            raise NotFoundError("文件不存在")
+        
+        # 构建完整的文件路径
+        file_full_path = os.path.join(pc.base_path, file_info.get("file_path"))
+        if not os.path.exists(file_full_path):
+            raise NotFoundError("文件不存在")
+
+        # 记录文件操作成功
+        log_file_operation(
+            app_logger,
+            "download",
+            f"persona_card/{pc_id}/file/{file_id}",
+            user_id=user_id,
+            success=True
+        )
+
+        # 返回文件响应，使用原始文件名
+        return FileResponse(
+            path=file_full_path,
+            filename=file_info.get("file_name"),
+            media_type="application/octet-stream"
+        )
+
+    except (NotFoundError, AuthorizationError, FileOperationError):
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Download persona card file error", exception=e)
+        log_file_operation(
+            app_logger,
+            "download",
+            f"persona_card/{pc_id}/file/{file_id}",
+            user_id=user_id,
+            success=False,
+            error_message=str(e)
+        )
+        raise APIError("下载文件失败")
 
 
 # 用户Star记录相关路由

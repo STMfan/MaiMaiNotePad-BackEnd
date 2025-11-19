@@ -155,7 +155,6 @@ class KnowledgeBase(Base):
             "copyright_owner": self.copyright_owner,
             "star_count": self.star_count or 0,
             "base_path": self.base_path or "[]",
-            "metadata_path": self.metadata_path or "",
             "is_public": self.is_public,
             "is_pending": self.is_pending if self.is_pending is not None else True,
             "rejection_reason": self.rejection_reason,
@@ -220,6 +219,45 @@ class KnowledgeBaseFile(Base):
             "updated_at": self.updated_at.isoformat() if self.updated_at else datetime.now().isoformat()
         }
 
+
+class PersonaCardFile(Base):
+    """人设卡文件数据模型"""
+    __tablename__ = "persona_card_files"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    persona_card_id = Column(String, nullable=False)
+    file_name = Column(String, nullable=False)
+    original_name = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    file_type = Column(String, nullable=False)
+    file_size = Column(Integer, default=0)  # 文件大小，单位为B
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    # 添加索引
+    __table_args__ = (
+        Index('idx_pc_file_persona_card_id', 'persona_card_id'),
+        Index('idx_pc_file_file_type', 'file_type'),
+        Index('idx_pc_file_file_size', 'file_size'),
+        Index('idx_pc_file_created_at', 'created_at'),
+        Index('idx_pc_file_updated_at', 'updated_at'),
+    )
+
+    def to_dict(self):
+        """将人设卡文件对象转换为字典"""
+        return {
+            "id": self.id,
+            "persona_card_id": self.persona_card_id,
+            "file_name": self.file_name,
+            "original_name": self.original_name,
+            "file_path": self.file_path,
+            "file_type": self.file_type,
+            "file_size": self.file_size or 0,
+            "created_at": self.created_at.isoformat() if self.created_at else datetime.now().isoformat(),
+            "updated_at": self.updated_at.isoformat() if self.updated_at else datetime.now().isoformat()
+        }
+
+
 class PersonaCard(Base):
     """人设卡数据模型"""
     __tablename__ = "persona_cards"
@@ -230,7 +268,7 @@ class PersonaCard(Base):
     uploader_id = Column(String, ForeignKey("users.id"), nullable=False)
     copyright_owner = Column(String, nullable=True)
     star_count = Column(Integer, default=0)
-    file_path = Column(String, nullable=False)
+    base_path = Column(String, nullable=False)
     is_public = Column(Boolean, default=False)
     is_pending = Column(Boolean, default=True)
     rejection_reason = Column(Text, nullable=True)
@@ -261,12 +299,12 @@ class PersonaCard(Base):
             "uploader_id": self.uploader_id,
             "copyright_owner": self.copyright_owner,
             "star_count": self.star_count or 0,
-            "file_path": self.file_path or "",
+            "base_path": self.base_path,
             "is_public": self.is_public,
             "is_pending": self.is_pending if self.is_pending is not None else True,
             "rejection_reason": self.rejection_reason,
-            "created_at": self.created_at.isoformat() if self.created_at else datetime.now().isoformat(),
-            "updated_at": self.updated_at.isoformat() if self.updated_at else datetime.now().isoformat()
+            "created_at": self.created_at if self.created_at else datetime.now(),
+            "updated_at": self.updated_at if self.updated_at else datetime.now()
         }
 
 
@@ -764,6 +802,82 @@ class SQLiteDatabaseManager:
                 return True
         except Exception as e:
             print(f"移除Star记录失败: {str(e)}")
+            return False
+
+    # 人设卡相关方法
+    def get_persona_cards_by_user_id(self, user_id: str):
+        """根据用户ID获取所有人设卡"""
+        with self.get_session() as session:
+            return session.query(PersonaCard).filter(PersonaCard.uploader_id == user_id).all()
+
+    # 人设卡文件相关方法
+    def get_persona_card_files_by_persona_card_id(self, persona_card_id: str):
+        """根据人设卡ID获取所有相关文件"""
+        with self.get_session() as session:
+            return session.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == persona_card_id).all()
+    
+    def get_persona_card_file_by_id(self, file_id: str):
+        """根据文件ID获取人设卡文件"""
+        with self.get_session() as session:
+            return session.query(PersonaCardFile).filter(PersonaCardFile.id == file_id).first()
+    
+    def save_persona_card_file(self, file_data: dict) -> PersonaCardFile:
+        """保存人设卡文件并返回保存后的对象"""
+        try:
+            with self.get_session() as session:
+                file_id = file_data.get("id")
+                pc_file = None
+                if file_id:
+                    pc_file = session.query(PersonaCardFile).filter(PersonaCardFile.id == file_id).first()
+                
+                if pc_file:
+                    # 更新现有记录
+                    for key, value in file_data.items():
+                        if hasattr(pc_file, key):
+                            setattr(pc_file, key, value)
+                    pc_file.updated_at = datetime.now()
+                else:
+                    # 创建新记录
+                    pc_file = PersonaCardFile(**file_data)
+                    session.add(pc_file)
+                
+                session.commit()
+                session.refresh(pc_file)
+                return pc_file
+        except Exception as e:
+            print(f"保存人设卡文件失败: {str(e)}")
+            # 打印更详细的错误信息
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def get_files_by_persona_card_id(self, persona_card_id: str):
+        """根据人设卡ID获取所有相关文件"""
+        with self.get_session() as session:
+            return session.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == persona_card_id).all()
+    
+    def delete_persona_card_file(self, file_id: str) -> bool:
+        """删除人设卡文件"""
+        try:
+            with self.get_session() as session:
+                pc_file = session.query(PersonaCardFile).filter(PersonaCardFile.id == file_id).first()
+                if pc_file:
+                    session.delete(pc_file)
+                    session.commit()
+                return True
+        except Exception as e:
+            print(f"删除人设卡文件失败: {str(e)}")
+            return False
+    
+    def delete_files_by_persona_card_id(self, persona_card_id: str) -> bool:
+        """根据人设卡ID删除所有相关文件"""
+        try:
+            with self.get_session() as session:
+                session.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == persona_card_id).delete()
+                session.commit()
+                return True
+        except Exception as e:
+            print(f"删除人设卡文件失败: {str(e)}")
             return False
     
     # 用户相关方法
