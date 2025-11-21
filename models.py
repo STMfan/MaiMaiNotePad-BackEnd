@@ -3,8 +3,8 @@
 为应用提供统一的数据模型导入接口
 """
 
-from pydantic import BaseModel, EmailStr
-from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, EmailStr, model_validator
+from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
 
 # 从 database_models 导入SQLAlchemy模型
@@ -77,9 +77,32 @@ class PersonaCardResponse(BaseModel):
 
 class MessageCreate(BaseModel):
     """消息创建请求模型"""
-    recipient_id: str
     title: str
     content: str
+    recipient_id: Optional[str] = None
+    recipient_ids: Optional[List[str]] = None
+    message_type: Literal["direct", "announcement"] = "direct"
+    broadcast_scope: Optional[Literal["all_users"]] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def validate_recipients(cls, values):
+        if isinstance(values, dict):
+            message_type = values.get("message_type", "direct")
+            recipient_id = values.get("recipient_id")
+            recipient_ids = values.get("recipient_ids") or []
+            broadcast_scope = values.get("broadcast_scope")
+
+            if message_type == "direct":
+                if not recipient_id:
+                    raise ValueError("私信必须指定recipient_id")
+            else:
+                if not recipient_id and not recipient_ids and broadcast_scope != "all_users":
+                    raise ValueError("公告必须指定接收者列表或broadcast_scope=all_users")
+            # 去重
+            if recipient_ids:
+                values["recipient_ids"] = list(dict.fromkeys([rid for rid in recipient_ids if rid]))
+        return values
 
 class MessageResponse(BaseModel):
     """消息响应模型"""
@@ -88,6 +111,8 @@ class MessageResponse(BaseModel):
     recipient_id: str
     title: str
     content: str
+    message_type: Literal["direct", "announcement"]
+    broadcast_scope: Optional[str]
     is_read: bool
     created_at: datetime
 

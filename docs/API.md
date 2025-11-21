@@ -126,6 +126,58 @@ Authorization: Bearer {token}
 - `401`: 未授权访问
 - `500`: 获取用户信息失败
 
+### 发送重置密码验证码
+向指定邮箱发送重置密码验证码。
+
+```http
+POST /api/send_reset_password_code
+Content-Type: application/x-www-form-urlencoded
+
+email=user@example.com
+```
+
+**参数说明**:
+- `email` (必填): 接收验证码的邮箱地址（必须是已注册的邮箱）
+
+**响应示例**:
+```json
+{
+  "message": "重置密码验证码已发送"
+}
+```
+
+**错误响应**:
+- `400`: 邮箱格式无效、该邮箱未注册
+- `429`: 请求发送验证码过于频繁
+- `500`: 发送验证码失败
+
+### 重置密码
+通过邮箱验证码重置密码。
+
+```http
+POST /api/reset_password
+Content-Type: application/x-www-form-urlencoded
+
+email=user@example.com&verification_code=123456&new_password=newpass123
+```
+
+**参数说明**:
+- `email` (必填): 邮箱地址
+- `verification_code` (必填): 邮箱验证码
+- `new_password` (必填): 新密码（长度不能少于6位）
+
+**响应示例**:
+```json
+{
+  "success": true,
+  "message": "密码重置成功"
+}
+```
+
+**错误响应**:
+- `400`: 有未填写的字段、密码长度不能少于6位、验证码错误或已失效
+- `500`: 重置密码失败
+
 ## 知识库管理接口
 
 ### 上传知识库
@@ -159,8 +211,8 @@ copyright_owner: 版权所有者（可选）
   "star_count": 0,
   "is_public": false,
   "is_pending": true,
-  "created_at": "2024-01-01T00:00:00",
-  "updated_at": "2024-01-01T00:00:00"
+  "created_at": "2025-11-22T00:00:00",
+  "updated_at": "2025-11-22T00:00:00"
 }
 ```
 
@@ -188,8 +240,8 @@ GET /api/knowledge/public
     "star_count": 10,
     "is_public": true,
     "is_pending": false,
-    "created_at": "2024-01-01T00:00:00",
-    "updated_at": "2024-01-01T00:00:00"
+    "created_at": "2025-11-22T00:00:00",
+    "updated_at": "2025-11-22T00:00:00"
   }
 ]
 ```
@@ -245,8 +297,8 @@ Authorization: Bearer {token}
     "star_count": 5,
     "is_public": false,
     "is_pending": true,
-    "created_at": "2024-01-01T00:00:00",
-    "updated_at": "2024-01-01T00:00:00"
+    "created_at": "2025-11-22T00:00:00",
+    "updated_at": "2025-11-22T00:00:00"
   }
 ]
 ```
@@ -311,6 +363,168 @@ Authorization: Bearer {token}
 - `401`: 未授权访问
 - `500`: 取消Star知识库失败
 
+### 更新知识库信息
+修改知识库的基本信息（名称、描述、版权所有者等）。
+
+```http
+PUT /api/knowledge/{kb_id}
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "更新后的知识库名称",
+  "description": "更新后的描述",
+  "copyright_owner": "版权所有者"
+}
+```
+
+**参数说明**:
+- `kb_id` (路径参数): 知识库ID
+- `name` (可选): 知识库名称
+- `description` (可选): 知识库描述
+- `copyright_owner` (可选): 版权所有者
+
+**响应示例**:
+```json
+{
+  "id": "kb123",
+  "name": "更新后的知识库名称",
+  "description": "更新后的描述",
+  "uploader_id": "user123",
+  "copyright_owner": "版权所有者",
+  "star_count": 5,
+  "is_public": true,
+  "is_pending": false,
+  "created_at": "2025-11-22T00:00:00",
+  "updated_at": "2025-11-22T01:00:00"
+}
+```
+
+**错误响应**:
+- `400`: 没有提供要更新的字段
+- `401`: 未授权访问
+- `403`: 没有权限修改此知识库（只有上传者和管理员可以修改）
+- `404`: 知识库不存在
+- `500`: 修改知识库失败
+
+### 添加知识库文件
+向已存在的知识库添加新文件。
+
+```http
+POST /api/knowledge/{kb_id}/files
+Authorization: Bearer {token}
+Content-Type: multipart/form-data
+
+files: [文件1, 文件2, ...]
+```
+
+**参数说明**:
+- `kb_id` (路径参数): 知识库ID
+- `files` (必填): 要添加的文件列表，至少需要上传一个文件
+
+**响应示例**:
+```json
+{
+  "message": "文件添加成功"
+}
+```
+
+**错误响应**:
+- `400`: 至少需要上传一个文件
+- `401`: 未授权访问
+- `403`: 没有权限向此知识库添加文件（只有上传者和管理员可以添加）
+- `404`: 知识库不存在
+- `500`: 添加文件失败
+
+### 删除知识库文件
+删除知识库中的指定文件。
+
+```http
+DELETE /api/knowledge/{kb_id}/{file_id}
+Authorization: Bearer {token}
+```
+
+**参数说明**:
+- `kb_id` (路径参数): 知识库ID
+- `file_id` (路径参数): 要删除的文件ID
+
+**响应示例**:
+```json
+{
+  "message": "文件删除成功"
+}
+```
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 没有权限删除此知识库的文件（只有上传者和管理员可以删除）
+- `404`: 知识库不存在
+- `500`: 删除文件失败
+
+### 下载知识库压缩包
+下载知识库的所有文件压缩包（ZIP格式）。
+
+```http
+GET /api/knowledge/{kb_id}/download
+Authorization: Bearer {token}
+```
+
+**参数说明**:
+- `kb_id` (路径参数): 知识库ID
+
+**响应**:
+- 返回ZIP文件流，Content-Type: `application/zip`
+
+**错误响应**:
+- `401`: 未授权访问
+- `404`: 知识库不存在
+- `500`: 下载失败
+
+### 下载知识库单个文件
+下载知识库中的指定文件。
+
+```http
+GET /api/knowledge/{kb_id}/file/{file_id}
+Authorization: Bearer {token}
+```
+
+**参数说明**:
+- `kb_id` (路径参数): 知识库ID
+- `file_id` (路径参数): 文件ID
+
+**响应**:
+- 返回文件流，Content-Type: `application/octet-stream`
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 没有权限下载此知识库（私有知识库只有上传者和管理员可以下载）
+- `404`: 知识库或文件不存在
+- `500`: 下载文件失败
+
+### 删除知识库
+删除整个知识库及其所有文件。
+
+```http
+DELETE /api/knowledge/{kb_id}
+Authorization: Bearer {token}
+```
+
+**参数说明**:
+- `kb_id` (路径参数): 知识库ID
+
+**响应示例**:
+```json
+{
+  "message": "知识库删除成功"
+}
+```
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 没有权限删除此知识库（只有上传者和管理员可以删除）
+- `404`: 知识库不存在
+- `500`: 删除知识库失败
+
 ## 人设卡管理接口
 
 ### 上传人设卡
@@ -344,8 +558,8 @@ copyright_owner: 版权所有者（可选）
   "star_count": 0,
   "is_public": false,
   "is_pending": true,
-  "created_at": "2024-01-01T00:00:00",
-  "updated_at": "2024-01-01T00:00:00"
+  "created_at": "2025-11-22T00:00:00",
+  "updated_at": "2025-11-22T00:00:00"
 }
 ```
 
@@ -373,8 +587,8 @@ GET /api/persona/public
     "star_count": 8,
     "is_public": true,
     "is_pending": false,
-    "created_at": "2024-01-01T00:00:00",
-    "updated_at": "2024-01-01T00:00:00"
+    "created_at": "2025-11-22T00:00:00",
+    "updated_at": "2025-11-22T00:00:00"
   }
 ]
 ```
@@ -430,8 +644,8 @@ Authorization: Bearer {token}
     "star_count": 3,
     "is_public": false,
     "is_pending": true,
-    "created_at": "2024-01-01T00:00:00",
-    "updated_at": "2024-01-01T00:00:00"
+    "created_at": "2025-11-22T00:00:00",
+    "updated_at": "2025-11-22T00:00:00"
   }
 ]
 ```
@@ -496,6 +710,162 @@ Authorization: Bearer {token}
 - `401`: 未授权访问
 - `500`: 取消Star人设卡失败
 
+### 更新人设卡信息
+修改人设卡的基本信息（名称、描述、版权所有者等）。
+
+```http
+PUT /api/persona/{pc_id}
+Authorization: Bearer {token}
+Content-Type: application/x-www-form-urlencoded
+
+name=更新后的人设卡名称&description=更新后的描述&copyright_owner=版权所有者
+```
+
+**参数说明**:
+- `pc_id` (路径参数): 人设卡ID
+- `name` (必填): 人设卡名称
+- `description` (必填): 人设卡描述
+- `copyright_owner` (可选): 版权所有者
+
+**响应示例**:
+```json
+{
+  "id": "pc123",
+  "name": "更新后的人设卡名称",
+  "description": "更新后的描述",
+  "uploader_id": "user123",
+  "copyright_owner": "版权所有者",
+  "star_count": 3,
+  "is_public": true,
+  "is_pending": false,
+  "created_at": "2025-11-22T00:00:00",
+  "updated_at": "2025-11-22T01:00:00"
+}
+```
+
+**错误响应**:
+- `400`: 名称和描述不能为空
+- `401`: 未授权访问
+- `403`: 没有权限修改此人设卡（只有上传者和管理员可以修改）
+- `404`: 人设卡不存在
+- `500`: 修改人设卡失败
+
+### 添加人设卡文件
+向已存在的人设卡添加新文件。
+
+```http
+POST /api/persona/{pc_id}/files
+Authorization: Bearer {token}
+Content-Type: multipart/form-data
+
+files: [文件1, 文件2, ...]
+```
+
+**参数说明**:
+- `pc_id` (路径参数): 人设卡ID
+- `files` (必填): 要添加的文件列表，至少需要上传一个文件
+
+**响应示例**:
+```json
+{
+  "message": "文件添加成功"
+}
+```
+
+**错误响应**:
+- `400`: 至少需要上传一个文件
+- `401`: 未授权访问
+- `403`: 没有权限向此人设卡添加文件（只有上传者和管理员可以添加）
+- `404`: 人设卡不存在
+- `500`: 添加文件失败
+
+### 删除人设卡文件
+删除人设卡中的指定文件。
+
+```http
+DELETE /api/persona/{pc_id}/{file_id}
+Authorization: Bearer {token}
+```
+
+**参数说明**:
+- `pc_id` (路径参数): 人设卡ID
+- `file_id` (路径参数): 要删除的文件ID
+
+**响应示例**:
+```json
+{
+  "message": "文件删除成功"
+}
+```
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 没有权限从此人设卡删除文件（只有上传者和管理员可以删除）
+- `404`: 人设卡不存在
+- `500`: 删除文件失败
+
+### 下载人设卡压缩包
+下载人设卡的所有文件压缩包（ZIP格式）。
+
+```http
+GET /api/persona/{pc_id}/download
+```
+
+**参数说明**:
+- `pc_id` (路径参数): 人设卡ID
+
+**响应**:
+- 返回ZIP文件流，Content-Type: `application/zip`
+
+**错误响应**:
+- `404`: 人设卡不存在
+- `500`: 下载失败
+
+### 下载人设卡单个文件
+下载人设卡中的指定文件。
+
+```http
+GET /api/persona/{pc_id}/file/{file_id}
+Authorization: Bearer {token}
+```
+
+**参数说明**:
+- `pc_id` (路径参数): 人设卡ID
+- `file_id` (路径参数): 文件ID
+
+**响应**:
+- 返回文件流，Content-Type: `application/octet-stream`
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 没有权限下载此人设卡（私有人设卡只有上传者和管理员可以下载）
+- `404`: 人设卡或文件不存在
+- `500`: 下载文件失败
+
+### 删除人设卡
+删除整个人设卡及其所有文件。
+
+```http
+DELETE /api/persona/{pc_id}
+Authorization: Bearer {token}
+```
+
+**参数说明**:
+- `pc_id` (路径参数): 人设卡ID
+
+**响应示例**:
+```json
+{
+  "message": "人设卡删除成功"
+}
+```
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 没有权限删除此人设卡（只有上传者和管理员可以删除）
+- `404`: 人设卡不存在
+- `500`: 删除人设卡失败
+
 ## 用户Star记录接口
 
 ### 获取用户Star的知识库和人设卡
@@ -516,7 +886,7 @@ Authorization: Bearer {token}
     "name": "我的知识库",
     "description": "知识库描述",
     "star_count": 10,
-    "created_at": "2024-01-01T00:00:00"
+    "created_at": "2025-11-22T00:00:00"
   },
   {
     "id": "star456",
@@ -525,7 +895,7 @@ Authorization: Bearer {token}
     "name": "我的人设卡",
     "description": "人设卡描述",
     "star_count": 5,
-    "created_at": "2024-01-01T00:00:00"
+    "created_at": "2025-11-22T00:00:00"
   }
 ]
 ```
@@ -556,8 +926,8 @@ Authorization: Bearer {token}
     "star_count": 0,
     "is_public": false,
     "is_pending": true,
-    "created_at": "2024-01-01T00:00:00",
-    "updated_at": "2024-01-01T00:00:00"
+    "created_at": "2025-11-22T00:00:00",
+    "updated_at": "2025-11-22T00:00:00"
   }
 ]
 ```
@@ -587,8 +957,8 @@ Authorization: Bearer {token}
     "star_count": 0,
     "is_public": false,
     "is_pending": true,
-    "created_at": "2024-01-01T00:00:00",
-    "updated_at": "2024-01-01T00:00:00"
+    "created_at": "2025-11-22T00:00:00",
+    "updated_at": "2025-11-22T00:00:00"
   }
 ]
 ```
@@ -764,7 +1134,7 @@ Authorization: Bearer {token}
     "title": "",
     "content": "你好，这是一条测试消息",
     "is_read": false,
-    "created_at": "2024-01-01T00:00:00"
+    "created_at": "2025-11-22T00:00:00"
   }
 ]
 ```

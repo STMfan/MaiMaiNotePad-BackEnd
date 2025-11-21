@@ -1,0 +1,353 @@
+# 修改日志 (CHANGELOG)
+
+## 2025-11-22 - API Bug修复和优化
+
+### 修复内容
+
+主要解决了多个API的问题和优化：
+
+#### 1. 审核API修复（知识库和人设卡审批失败）
+
+**问题描述：**
+- `approve_knowledge_base`、`reject_knowledge_base`、`approve_persona_card` 和 `reject_persona_card` 四个审核API在调用 `save_knowledge_base` 和 `save_persona_card` 时传的是对象，但这两个方法期望字典参。
+
+**修复位置：**
+- 文件：`api_routes.py`
+- 行号：
+  - `approve_knowledge_base`: 第1656行
+  - `reject_knowledge_base`: 第1700行
+  - `approve_persona_card`: 第1753行
+  - `reject_persona_card`: 第1797行
+
+**修复方法：**
+在调用 `save_knowledge_base` 和 `save_persona_card` 之前，用 `to_dict()` 把对象转成字典。
+
+**修改前：**
+```python
+updated_kb = db_manager.save_knowledge_base(kb)
+```
+
+**修改后：**
+```python
+updated_kb = db_manager.save_knowledge_base(kb.to_dict())
+```
+
+---
+
+#### 1.1. 审核拒绝API参数传递方式优化
+
+**问题描述：**
+- `reject_knowledge_base` 和 `reject_persona_card` 接口的 `reason` 参数原本使用查询参数（Query），不符合RESTful最佳实践，且对于较长的拒绝原因不够友好。
+
+**修复位置：**
+- 文件：`api_routes.py`
+- 行号：
+  - `reject_knowledge_base`: 第1694行
+  - `reject_persona_card`: 第1791行
+
+**修复方法：**
+将 `reason` 参数从查询参数改为请求体（Body），使用 `Body(..., embed=True)` 接收JSON格式的请求体。
+
+**修改前：**
+```python
+@api_router.post("/review/knowledge/{kb_id}/reject")
+async def reject_knowledge_base(
+    kb_id: str,
+    reason: str = Query(...),  # 查询参数
+    current_user: dict = Depends(get_current_user)
+):
+    # ...
+```
+
+**修改后：**
+```python
+@api_router.post("/review/knowledge/{kb_id}/reject")
+async def reject_knowledge_base(
+    kb_id: str,
+    reason: str = Body(..., embed=True),  # 请求体
+    current_user: dict = Depends(get_current_user)
+):
+    # ...
+```
+
+**API调用方式变更：**
+
+修改前（查询参数）：
+```bash
+POST /api/review/knowledge/{kb_id}/reject?reason=拒绝原因
+```
+
+修改后（请求体）：
+```bash
+POST /api/review/knowledge/{kb_id}/reject
+Content-Type: application/json
+
+{
+  "reason": "拒绝原因"
+}
+```
+
+**影响：**
+- 客户端需要更新调用方式，将 `reason` 参数从查询字符串改为JSON请求体
+- 更符合RESTful API设计规范
+- 支持更长的拒绝原因文本
+
+---
+
+#### 2. 消息发送API修复（消息创建失败）
+
+**问题描述：**
+- `Message.to_dict()` 方法返回的 `created_at` 字段是 ISO 格式的字符串，但 `MessageResponse` Pydantic模型期望接收 `datetime` 对象（这里的ISO格式字符串我真的没懂含义，若真的要用的话此处修复可换个实现方式）。
+
+**修复位置：**
+- 文件：`database_models.py`
+- 类：`Message`
+- 方法：`to_dict()`
+- 行号：第338-351行
+
+**修复方法：**
+修改 `Message.to_dict()` 方法，确保 `created_at` 字段返回 `datetime` 对象而不是字符串。
+
+**修改前：**
+```python
+def to_dict(self):
+    """将消息对象转换为字典"""
+    data = {
+        ...
+        "created_at": self.created_at.isoformat() if self.created_at else datetime.now().isoformat()
+    }
+    return data
+```
+
+**修改后：**
+```python
+def to_dict(self):
+    """将消息对象转换为字典"""
+    data = {
+        ...
+        "created_at": self.created_at if self.created_at else datetime.now()
+    }
+    return data
+```
+
+---
+
+#### 3. 消息获取API修复（获取消息列表失败）
+
+**问题描述：**
+- `api_routes.py` 中定义了重复的 `MessageResponse` 类，与 `models.py` 中的定义不一致，导致类型验证失败。
+
+**修复位置：**
+- 文件：`api_routes.py`
+- 行号：第14-16行（导入语句），第1934-1942行（删除重复定义）
+
+**修复方法：**
+1. 从 `models.py` 导入 `MessageResponse`
+2. 删除 `api_routes.py` 中重复的 `MessageResponse` 类定义
+
+**修改前：**
+```python
+from models import (
+    KnowledgeBase, PersonaCard, Message, MessageCreate, StarRecord,
+    KnowledgeBaseUpdate
+)
+
+# ... 在文件中某处定义了重复的 MessageResponse
+class MessageResponse(BaseModel):
+    id: str
+    sender_id: str
+    recipient_id: str
+    title: str
+    content: str
+    message_type: str
+    broadcast_scope: Optional[str]
+    is_read: bool
+    created_at: str
+```
+
+**修改后：**
+```python
+from models import (
+    KnowledgeBase, PersonaCard, Message, MessageCreate, StarRecord,
+    KnowledgeBaseUpdate, MessageResponse
+)
+
+# 删除了重复的 MessageResponse 定义
+```
+
+---
+
+#### 4. 消息API进一步修复（批量创建和查询优化）
+
+**问题描述：**
+- `bulk_create_messages` 方法在异常时只打印错误并返回空列表，导致错误信息丢失
+- SQL查询中使用 `&` 和 `|` 运算符时，运算符优先级可能导致查询逻辑错误
+
+**修复位置：**
+- 文件：`database_models.py`
+- 方法：
+  - `bulk_create_messages`: 第681-697行
+  - `get_conversation_messages`: 第699-707行
+  - `get_user_messages`: 第709-714行
+- 文件：`api_routes.py`
+- 方法：`send_message`: 第1886-1888行
+
+**修复方法：**
+
+1. **改进异常处理：** `bulk_create_messages` 现在会抛出异常而不是静默失败
+2. **修复SQL查询：** 使用 `and_()` 和 `or_()` 函数替代 `&` 和 `|` 运算符，确保查询逻辑正确
+3. **改进错误传播：** API路由中捕获并转换异常为 `DatabaseError`
+
+**修改前：**
+```python
+def bulk_create_messages(self, messages: List[dict]) -> List[Message]:
+    try:
+        # ... 创建消息
+        return message_models
+    except Exception as e:
+        print(f"批量创建消息失败: {str(e)}")
+        return []  # 静默失败
+
+def get_conversation_messages(self, user_id: str, other_user_id: str, ...):
+    return session.query(Message).filter(
+        (Message.sender_id == user_id) & (Message.recipient_id == other_user_id) |
+        (Message.sender_id == other_user_id) & (Message.recipient_id == user_id)
+    ).all()  # 运算符优先级可能导致逻辑错误
+```
+
+**修改后：**
+```python
+def bulk_create_messages(self, messages: List[dict]) -> List[Message]:
+    session = None
+    try:
+        with self.get_session() as session:
+            # ... 创建消息
+            return message_models
+    except Exception as e:
+        if session:
+            try:
+                session.rollback()
+            except:
+                pass
+        raise Exception(f"批量创建消息失败: {str(e)}")  # 抛出异常
+
+def get_conversation_messages(self, user_id: str, other_user_id: str, ...):
+    return session.query(Message).filter(
+        or_(
+            and_(Message.sender_id == user_id, Message.recipient_id == other_user_id),
+            and_(Message.sender_id == other_user_id, Message.recipient_id == user_id)
+        )
+    ).all()  # 使用明确的逻辑函数
+```
+
+---
+
+#### 5. 数据库迁移修复（messages表缺少message_type列）
+
+**问题描述：**
+- 数据库表 `messages` 缺少 `message_type` 和 `broadcast_scope` 列，导致消息创建和查询失败
+- 错误信息：`table messages has no column named message_type`
+
+**修复位置：**
+- 文件：`database_models.py`
+- 类：`SQLiteDatabaseManager`
+- 方法：`__init__` 和新增的 `_migrate_database`
+- 行号：第437-463行
+
+**修复方法：**
+添加自动数据库迁移方法，在数据库管理器初始化时检查并添加缺失的列。
+
+**修改前：**
+```python
+def __init__(self, db_path: str = "./data/maimnp.db"):
+    # ...
+    # 创建所有表
+    Base.metadata.create_all(bind=self.engine)
+    # 没有迁移逻辑，如果表已存在但缺少列，会导致错误
+```
+
+**修改后：**
+```python
+def __init__(self, db_path: str = "./data/maimnp.db"):
+    # ...
+    # 创建所有表
+    Base.metadata.create_all(bind=self.engine)
+    
+    # 执行数据库迁移
+    self._migrate_database()
+
+def _migrate_database(self):
+    """执行数据库迁移，添加缺失的列"""
+    try:
+        inspector = inspect(self.engine)
+        if 'messages' in inspector.get_table_names():
+            existing_columns = [col['name'] for col in inspector.get_columns('messages')]
+            
+            if 'message_type' not in existing_columns:
+                with self.engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE messages ADD COLUMN message_type VARCHAR DEFAULT 'direct'"))
+                print("已添加 message_type 列到 messages 表")
+            
+            if 'broadcast_scope' not in existing_columns:
+                with self.engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE messages ADD COLUMN broadcast_scope VARCHAR"))
+                print("已添加 broadcast_scope 列到 messages 表")
+    except Exception as e:
+        print(f"数据库迁移失败: {str(e)}")
+```
+
+**注意事项：**
+- 迁移会在应用启动时自动执行
+- 如果表已存在但缺少列，迁移会自动添加
+- 迁移失败不会阻止应用启动，但会打印错误信息
+
+---
+
+### 影响范围
+
+- **API端点：**
+  - `POST /review/knowledge/{kb_id}/approve` - 审核通过知识库
+  - `POST /review/knowledge/{kb_id}/reject` - 审核拒绝知识库（**参数传递方式变更：从查询参数改为请求体**）
+  - `POST /review/persona/{pc_id}/approve` - 审核通过人设卡
+  - `POST /review/persona/{pc_id}/reject` - 审核拒绝人设卡（**参数传递方式变更：从查询参数改为请求体**）
+  - `POST /api/messages/send` - 发送消息（私信和公告）
+  - `GET /api/messages` - 获取消息列表
+  - `GET /api/messages?other_user_id={id}` - 获取与特定用户的对话
+
+- **数据模型：**
+  - `Message.to_dict()` 方法的返回值格式
+
+- **API调用方式变更：**
+  - `POST /api/review/knowledge/{kb_id}/reject` 和 `POST /api/review/persona/{pc_id}/reject` 接口的调用方式需要更新
+  - 客户端需要将 `reason` 参数从查询字符串改为JSON请求体
+
+---
+
+### 变更总览
+
+**代码逻辑层面的修复：**
+1. 数据类型转换（对象转字典）
+2. 返回格式调整（字符串转datetime对象）
+3. 代码重构（删除重复定义，统一用models.py中的定义）
+4. 异常处理改进（抛出异常而不是静默失败）
+5. SQL查询优化（使用明确的逻辑函数确保查询正确）
+
+**API接口优化：**
+6. 审核拒绝接口参数传递方式优化（从查询参数改为请求体，更符合RESTful规范）
+
+**数据库结构修复：**
+7. 自动数据库迁移（添加缺失的 `message_type` 和 `broadcast_scope` 列）
+
+**数据库迁移说明：**
+- 迁移会在应用启动时自动执行
+- 如果 `messages` 表已存在但缺少列，迁移会自动添加
+- 不需要手动执行SQL脚本，重启应用即可
+
+---
+
+### 相关文件
+
+- `MaiMaiNotePad-BackEnd/api_routes.py` - API路由实现
+- `MaiMaiNotePad-BackEnd/database_models.py` - 数据库模型定义
+- `MaiMaiNotePad-BackEnd/models.py` - Pydantic模型定义
+
