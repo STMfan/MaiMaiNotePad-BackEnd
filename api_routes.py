@@ -3,7 +3,7 @@ API路由实现
 包含知识库、人设卡、用户管理、审核等功能路由
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request, Body
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import List, Optional, Dict, Any
@@ -13,7 +13,7 @@ from datetime import datetime
 
 from models import (
     KnowledgeBase, PersonaCard, Message, MessageCreate, StarRecord,
-    KnowledgeBaseUpdate
+    KnowledgeBaseUpdate, MessageResponse
 )
 from database_models import sqlite_db_manager
 from file_upload import file_upload_service
@@ -63,15 +63,6 @@ class PersonaCardResponse(BaseModel):
     is_pending: bool
     created_at: datetime
     updated_at: datetime
-
-
-class MessageResponse(BaseModel):
-    id: str
-    sender_id: str
-    title: str
-    content: str
-    is_read: bool
-    created_at: str
 
 
 class StarResponse(BaseModel):
@@ -180,7 +171,16 @@ async def send_verification_code(
 
     except Exception as e:
         log_exception(app_logger, "Send verification code error", exception=e)
-        raise APIError("发送验证码失败")
+        error_msg = str(e)
+        # 提取更详细的错误信息
+        if "Connection unexpectedly closed" in error_msg:
+            raise APIError("邮件发送失败: SMTP连接被意外关闭，请检查邮件服务器配置和网络连接")
+        elif "authentication failed" in error_msg.lower() or "login" in error_msg.lower():
+            raise APIError("邮件发送失败: 邮箱认证失败，请检查邮箱账号和授权码")
+        elif "timeout" in error_msg.lower():
+            raise APIError("邮件发送失败: 连接超时，请检查网络连接和邮件服务器地址")
+        else:
+            raise APIError(f"发送验证码失败: {error_msg}")
 
 @api_router.post("/send_reset_password_code")
 async def send_reset_password_code(
@@ -231,7 +231,16 @@ async def send_reset_password_code(
 
     except Exception as e:
         log_exception(app_logger, "Send reset password code error", exception=e)
-        raise APIError("发送重置密码验证码失败")
+        error_msg = str(e)
+        # 提取更详细的错误信息
+        if "Connection unexpectedly closed" in error_msg:
+            raise APIError("邮件发送失败: SMTP连接被意外关闭，请检查邮件服务器配置和网络连接")
+        elif "authentication failed" in error_msg.lower() or "login" in error_msg.lower():
+            raise APIError("邮件发送失败: 邮箱认证失败，请检查邮箱账号和授权码")
+        elif "timeout" in error_msg.lower():
+            raise APIError("邮件发送失败: 连接超时，请检查网络连接和邮件服务器地址")
+        else:
+            raise APIError(f"发送重置密码验证码失败: {error_msg}")
 
 @api_router.post("/reset_password")
 async def reset_password(
@@ -1662,7 +1671,7 @@ async def approve_knowledge_base(
         kb.is_pending = False
         kb.rejection_reason = None
 
-        updated_kb = db_manager.save_knowledge_base(kb)
+        updated_kb = db_manager.save_knowledge_base(kb.to_dict())
         if not updated_kb:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1682,7 +1691,7 @@ async def approve_knowledge_base(
 @api_router.post("/review/knowledge/{kb_id}/reject")
 async def reject_knowledge_base(
     kb_id: str,
-    reason: str,
+    reason: str = Body(..., embed=True),
     current_user: dict = Depends(get_current_user)
 ):
     """审核拒绝知识库（需要admin或moderator权限）"""
@@ -1706,7 +1715,7 @@ async def reject_knowledge_base(
         kb.is_pending = False
         kb.rejection_reason = reason
 
-        updated_kb = db_manager.save_knowledge_base(kb)
+        updated_kb = db_manager.save_knowledge_base(kb.to_dict())
         if not updated_kb:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1759,7 +1768,7 @@ async def approve_persona_card(
         pc.is_pending = False
         pc.rejection_reason = None
 
-        updated_pc = db_manager.save_persona_card(pc)
+        updated_pc = db_manager.save_persona_card(pc.to_dict())
         if not updated_pc:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1779,7 +1788,7 @@ async def approve_persona_card(
 @api_router.post("/review/persona/{pc_id}/reject")
 async def reject_persona_card(
     pc_id: str,
-    reason: str,
+    reason: str = Body(..., embed=True),
     current_user: dict = Depends(get_current_user)
 ):
     """审核拒绝人设卡（需要admin或moderator权限）"""
@@ -1803,7 +1812,7 @@ async def reject_persona_card(
         pc.is_pending = False
         pc.rejection_reason = reason
 
-        updated_pc = db_manager.save_persona_card(pc)
+        updated_pc = db_manager.save_persona_card(pc.to_dict())
         if not updated_pc:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1839,39 +1848,83 @@ async def send_message(
     """发送消息"""
     sender_id = current_user.get("id", "")
     try:
-        app_logger.info(f"Send message: sender={sender_id}, recipient={message.recipient_id}")
+        app_logger.info(
+            f"Send message: sender={sender_id}, type={message.message_type}, "
+            f"recipient={message.recipient_id}, broadcast_scope={message.broadcast_scope}"
+        )
 
-        # 验证输入参数
-        if not message.content or not message.content.strip():
+        title = (message.title or "").strip()
+        content = (message.content or "").strip()
+
+        if not title:
+            raise ValidationError("消息标题不能为空")
+
+        if not content:
             raise ValidationError("消息内容不能为空")
 
-        if not message.recipient_id:
-            raise ValidationError("接收者ID不能为空")
+        recipient_ids = set()
+        if message.recipient_id:
+            recipient_ids.add(message.recipient_id)
+        if message.recipient_ids:
+            recipient_ids.update(message.recipient_ids)
+
+        if message.message_type == "direct":
+            if not recipient_ids:
+                raise ValidationError("接收者ID不能为空")
+        elif message.broadcast_scope == "all_users":
+            all_users = db_manager.get_all_users()
+            recipient_ids.update(user.id for user in all_users if user.id)
+
+        # 移除发送者自身除非显式指定
+        if sender_id in recipient_ids and message.message_type == "announcement" and message.broadcast_scope == "all_users":
+            recipient_ids.discard(sender_id)
+
+        if not recipient_ids:
+            raise ValidationError("没有有效的接收者")
 
         # 检查接收者是否存在
-        recipient = db_manager.get_user_by_id(message.recipient_id)
-        if not recipient:
-            raise NotFoundError("接收者不存在")
+        recipient_objects = db_manager.get_users_by_ids(list(recipient_ids))
+        found_ids = {user.id for user in recipient_objects}
+        missing = recipient_ids - found_ids
+        if missing:
+            raise NotFoundError(f"接收者不存在: {', '.join(missing)}")
 
-        # 创建消息
-        msg = db_manager.create_message(
-            sender_id=sender_id,
-            recipient_id=message.recipient_id,
-            content=message.content,
-            message_type=message.message_type
-        )
+        message_payloads = [
+            {
+                "sender_id": sender_id,
+                "recipient_id": user.id,
+                "title": title,
+                "content": content,
+                "message_type": message.message_type,
+                "broadcast_scope": message.broadcast_scope if message.message_type == "announcement" else None
+            }
+            for user in recipient_objects
+        ]
+
+        try:
+            created_messages = db_manager.bulk_create_messages(message_payloads)
+            if not created_messages:
+                raise DatabaseError("消息创建失败")
+        except Exception as e:
+            # 将数据库异常转换为DatabaseError
+            raise DatabaseError(f"消息创建失败: {str(e)}")
 
         # 记录数据库操作成功
-        log_database_operation(
-            app_logger,
-            "create",
-            "message",
-            record_id=msg.id,
-            user_id=sender_id,
-            success=True
-        )
+        for msg in created_messages:
+            log_database_operation(
+                app_logger,
+                "create",
+                "message",
+                record_id=msg.id,
+                user_id=sender_id,
+                success=True
+            )
 
-        return {"message_id": msg.id, "status": "sent"}
+        return {
+            "message_ids": [msg.id for msg in created_messages],
+            "status": "sent",
+            "count": len(created_messages)
+        }
 
     except (ValidationError, NotFoundError, DatabaseError):
         raise
