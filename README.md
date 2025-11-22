@@ -119,6 +119,10 @@ docker run -p 9278:9278 mainnp-backend
 
 ### 认证相关
 - `POST /api/token` - 用户登录获取token
+- `POST /api/send_verification_code` - 发送注册验证码
+- `POST /api/send_reset_password_code` - 发送重置密码验证码
+- `POST /api/reset_password` - 重置密码
+- `POST /api/user/register` - 用户注册
 - `GET /api/users/me` - 获取当前用户信息
 
 ### 知识库相关
@@ -126,6 +130,12 @@ docker run -p 9278:9278 mainnp-backend
 - `GET /api/knowledge/public` - 获取公开知识库
 - `GET /api/knowledge/{kb_id}` - 获取指定知识库详情
 - `GET /api/knowledge/user/{user_id}` - 获取用户知识库
+- `PUT /api/knowledge/{kb_id}` - 更新知识库信息
+- `POST /api/knowledge/{kb_id}/files` - 添加知识库文件
+- `DELETE /api/knowledge/{kb_id}/{file_id}` - 删除知识库文件
+- `GET /api/knowledge/{kb_id}/download` - 下载知识库全部文件（ZIP）
+- `GET /api/knowledge/{kb_id}/file/{file_id}` - 下载知识库单个文件
+- `DELETE /api/knowledge/{kb_id}` - 删除知识库
 - `POST /api/knowledge/{kb_id}/star` - Star知识库
 - `DELETE /api/knowledge/{kb_id}/star` - 取消Star知识库
 
@@ -134,6 +144,12 @@ docker run -p 9278:9278 mainnp-backend
 - `GET /api/persona/public` - 获取公开人设卡
 - `GET /api/persona/{pc_id}` - 获取指定人设卡详情
 - `GET /api/persona/user/{user_id}` - 获取用户人设卡
+- `PUT /api/persona/{pc_id}` - 更新人设卡信息
+- `POST /api/persona/{pc_id}/files` - 添加人设卡文件
+- `DELETE /api/persona/{pc_id}/{file_id}` - 删除人设卡文件
+- `GET /api/persona/{pc_id}/download` - 下载人设卡全部文件（ZIP）
+- `GET /api/persona/{pc_id}/file/{file_id}` - 下载人设卡单个文件
+- `DELETE /api/persona/{pc_id}` - 删除人设卡
 - `POST /api/persona/{pc_id}/star` - Star人设卡
 - `DELETE /api/persona/{pc_id}/star` - 取消Star人设卡
 
@@ -141,19 +157,21 @@ docker run -p 9278:9278 mainnp-backend
 - `GET /api/review/knowledge/pending` - 获取待审核知识库
 - `GET /api/review/persona/pending` - 获取待审核人设卡
 - `POST /api/review/knowledge/{kb_id}/approve` - 审核通过知识库
-- `POST /api/review/knowledge/{kb_id}/reject` - 审核拒绝知识库
+- `POST /api/review/knowledge/{kb_id}/reject` - 审核拒绝知识库（需在请求体中传递 `{"reason": "拒绝原因"}`）
 - `POST /api/review/persona/{pc_id}/approve` - 审核通过人设卡
-- `POST /api/review/persona/{pc_id}/reject` - 审核拒绝人设卡
+- `POST /api/review/persona/{pc_id}/reject` - 审核拒绝人设卡（需在请求体中传递 `{"reason": "拒绝原因"}`）
 
 ### 消息相关
 - `POST /api/messages/send` - 发送消息
 - `GET /api/messages` - 获取用户消息
 - `POST /api/messages/{message_id}/read` - 标记消息为已读
 
-### 邮件服务相关
-- `POST /api/email/send` - 发送邮件通知（需要管理员权限）
-- `GET /api/email/config` - 获取邮箱配置信息（需要管理员权限）
-- `PUT /api/email/config` - 更新邮箱配置（需要管理员权限）
+### 邮件服务相关（未实现）
+- `POST /api/email/send` - 发送邮件通知（需要管理员权限）**状态：未实现**
+- `GET /api/email/config` - 获取邮箱配置信息（需要管理员权限）**状态：未实现**
+- `PUT /api/email/config` - 更新邮箱配置（需要管理员权限）**状态：未实现**
+
+**注意**：邮件服务API目前未实现，文档仅提供规划信息。系统内部使用邮件服务发送验证码等功能，但未提供公开的API接口。
 
 ### 用户相关
 - `GET /api/user/stars` - 获取用户Star的知识库和人设卡

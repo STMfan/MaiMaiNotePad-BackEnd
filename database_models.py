@@ -5,9 +5,10 @@ SQLite数据库模型定义
 import json
 from datetime import datetime, timedelta
 from typing import List, Optional
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey, create_engine, Index
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey, create_engine, Index, and_, or_, inspect
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy import text
 import os
 import uuid
 
@@ -317,6 +318,8 @@ class Message(Base):
     sender_id = Column(String, ForeignKey("users.id"), nullable=False)
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
+    message_type = Column(String, default="direct")  # 直接声明
+    broadcast_scope = Column(String, nullable=True)  # 比如所有用户
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now)
     
@@ -335,15 +338,18 @@ class Message(Base):
 
     def to_dict(self):
         """将消息对象转换为字典"""
-        return {
+        data = {
             "id": self.id,
             "recipient_id": self.recipient_id,
             "sender_id": self.sender_id,
             "title": self.title,
             "content": self.content,
+            "message_type": self.message_type or "direct",
+            "broadcast_scope": self.broadcast_scope,
             "is_read": self.is_read or False,
-            "created_at": self.created_at.isoformat() if self.created_at else datetime.now().isoformat()
+            "created_at": self.created_at if self.created_at else datetime.now()
         }
+        return data
 
 
 class StarRecord(Base):
@@ -427,6 +433,34 @@ class SQLiteDatabaseManager:
         
         # 创建所有表
         Base.metadata.create_all(bind=self.engine)
+        
+        # 执行数据库迁移
+        self._migrate_database()
+    
+    def _migrate_database(self):
+        """执行数据库迁移，添加缺失的列"""
+        try:
+            inspector = inspect(self.engine)
+            
+            # 检查 messages 表是否存在
+            if 'messages' in inspector.get_table_names():
+                # 获取现有列
+                existing_columns = [col['name'] for col in inspector.get_columns('messages')]
+                
+                # 检查并添加 message_type 列
+                if 'message_type' not in existing_columns:
+                    with self.engine.begin() as conn:
+                        conn.execute(text("ALTER TABLE messages ADD COLUMN message_type VARCHAR DEFAULT 'direct'"))
+                    print("已添加 message_type 列到 messages 表")
+                
+                # 检查并添加 broadcast_scope 列（如果缺失）
+                if 'broadcast_scope' not in existing_columns:
+                    with self.engine.begin() as conn:
+                        conn.execute(text("ALTER TABLE messages ADD COLUMN broadcast_scope VARCHAR"))
+                    print("已添加 broadcast_scope 列到 messages 表")
+        except Exception as e:
+            print(f"数据库迁移失败: {str(e)}")
+            # 不抛出异常，允许应用继续运行
     
     def get_session(self):
         """获取数据库会话"""
@@ -645,44 +679,84 @@ class SQLiteDatabaseManager:
         with self.get_session() as session:
             return session.query(Message).filter(Message.recipient_id == recipient_id).all()
     
-    def create_message(self, sender_id: str, recipient_id: str, content: str, message_type: str = "text"):
+    def create_message(
+        self,
+        sender_id: str,
+        recipient_id: str,
+        title: str,
+        content: str,
+        message_type: str = "direct",
+        broadcast_scope: Optional[str] = None
+    ):
         """创建消息"""
         try:
             with self.get_session() as session:
                 message = Message(
                     sender_id=sender_id,
                     recipient_id=recipient_id,
-                    title="新消息",  # 默认标题
-                    content=content
+                    title=title or "新消息",
+                    content=content,
+                    message_type=message_type or "direct",
+                    broadcast_scope=broadcast_scope
                 )
                 session.add(message)
                 session.commit()
+                session.refresh(message)
                 return message
         except Exception as e:
             print(f"创建消息失败: {str(e)}")
             return None
+
+    def bulk_create_messages(self, messages: List[dict]) -> List[Message]:
+        """批量创建消息"""
+        if not messages:
+            return []
+        session = None
+        try:
+            with self.get_session() as session:
+                message_models = [Message(**msg) for msg in messages]
+                session.add_all(message_models)
+                session.commit()
+                for msg in message_models:
+                    session.refresh(msg)
+                return message_models
+        except Exception as e:
+            # 回滚事务（如果session存在）
+            if session:
+                try:
+                    session.rollback()
+                except:
+                    pass
+            # 重新抛出异常，让调用者知道具体错误
+            raise Exception(f"批量创建消息失败: {str(e)}")
     
     def get_conversation_messages(self, user_id: str, other_user_id: str, limit: int = 50, offset: int = 0):
         """获取与特定用户的对话消息"""
         with self.get_session() as session:
             return session.query(Message).filter(
-                (Message.sender_id == user_id) & (Message.recipient_id == other_user_id) |
-                (Message.sender_id == other_user_id) & (Message.recipient_id == user_id)
+                or_(
+                    and_(Message.sender_id == user_id, Message.recipient_id == other_user_id),
+                    and_(Message.sender_id == other_user_id, Message.recipient_id == user_id)
+                )
             ).order_by(Message.created_at.desc()).offset(offset).limit(limit).all()
     
     def get_user_messages(self, user_id: str, limit: int = 50, offset: int = 0):
         """获取用户的所有消息（发送和接收）"""
         with self.get_session() as session:
             return session.query(Message).filter(
-                (Message.sender_id == user_id) | (Message.recipient_id == user_id)
+                or_(Message.sender_id == user_id, Message.recipient_id == user_id)
             ).order_by(Message.created_at.desc()).offset(offset).limit(limit).all()
     
-    def save_message(self, message_data: dict) -> bool:
-        """保存消息"""
+    def save_message(self, message_data) -> bool:
+        """保存单条消息，支持dict或Message对象"""
         try:
             with self.get_session() as session:
-                message = Message(**message_data)
-                session.add(message)
+                if isinstance(message_data, Message):
+                    session.add(message_data)
+                elif isinstance(message_data, dict):
+                    session.add(Message(**message_data))
+                else:
+                    raise ValueError("message_data必须是dict或Message实例")
                 session.commit()
                 return True
         except Exception as e:
@@ -924,6 +998,13 @@ class SQLiteDatabaseManager:
         with self.get_session() as session:
             return session.query(User).all()
 
+    def get_users_by_ids(self, user_ids: List[str]):
+        """根据ID列表批量获取用户"""
+        if not user_ids:
+            return []
+        with self.get_session() as session:
+            return session.query(User).filter(User.id.in_(user_ids)).all()
+
     def check_user_register_legality(self, username: str, email: str) -> str:
         """检查用户注册合法性"""
         try:
@@ -961,7 +1042,7 @@ class SQLiteDatabaseManager:
             return False
 
     def check_email_rate_limit(self, email: str) -> bool:
-        """检查同一邮箱1小时内是否超过3次请求"""
+        """检查同一邮箱1小时内是否超过5次请求"""
         from datetime import datetime, timedelta
         now = datetime.now()
         one_hour_ago = now - timedelta(hours=1)
@@ -971,7 +1052,7 @@ class SQLiteDatabaseManager:
                 EmailVerification.email == email,
                 EmailVerification.created_at > one_hour_ago
             ).count()
-            if record >= 3:
+            if record >= 5:
                 return False
             return True
 
