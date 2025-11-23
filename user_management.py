@@ -64,7 +64,9 @@ class User:
         user.userID = data.get("userID", str(uuid.uuid4()))
         user.username = data.get("username", "")
         user.pwdHash = data.get("pwdHash", "")
-        user.email = data.get("email", "")
+        # 统一转换为小写
+        email = data.get("email", "")
+        user.email = email.lower() if email else ""
         user.role = data.get("role", "user")
         user.updateContent = data.get("updateContent", [])
         user.created_at = datetime.fromisoformat(data.get("created_at", datetime.now().isoformat()))
@@ -94,12 +96,15 @@ class User:
     def save(self):
         """保存用户数据到数据库"""
         try:
+            # 统一将邮箱转换为小写
+            email_lower = self.email.lower() if self.email else ""
+            
             # 创建或更新数据库用户模型
             if self._db_user:
                 # 更新现有用户
                 self._db_user.username = self.username
                 self._db_user.hashed_password = self.pwdHash
-                self._db_user.email = self.email
+                self._db_user.email = email_lower
                 self._db_user.is_admin = (self.role == "admin")
                 self._db_user.is_moderator = (self.role == "moderator")
             else:
@@ -108,7 +113,7 @@ class User:
                     id=self.userID,
                     username=self.username,
                     hashed_password=self.pwdHash,
-                    email=self.email,
+                    email=email_lower,
                     is_admin=(self.role == "admin"),
                     is_moderator=(self.role == "moderator"),
                     created_at=datetime.now()
@@ -168,7 +173,8 @@ class User:
     def update_email(self, new_email):
         """更新邮箱"""
         try:
-            self.email = new_email
+            # 统一转换为小写存储
+            self.email = new_email.lower()
             self.updated_at = datetime.now()
             return self.save()
         except Exception as e:
@@ -193,7 +199,7 @@ def load_users():
             admin.userID = "111111"
             admin.username = admin_username
             admin.pwdHash = pwd_context.hash(admin_pwd)
-            admin.email = f'official@{external_domain}'
+            admin.email = f'official@{external_domain}'.lower()  # 统一转换为小写
             admin.role = 'admin'
             admin.updateContent = []
             admin.save()
@@ -231,14 +237,106 @@ def get_user_by_username(username: str) -> Optional[User]:
 
 
 def get_user_by_credentials(username: str, password: str) -> Optional[User]:
-    """根据用户名和密码验证用户"""
+    """根据用户名和密码验证用户（防止时间攻击）"""
+    import time
     try:
         db_user = sqlite_db_manager.get_user_by_username(username)
-        if db_user and db_user.verify_password(password):
+        
+        # 使用虚拟密码哈希进行验证（如果用户不存在），防止时间攻击
+        if not db_user:
+            # 使用一个固定的虚拟哈希，确保验证时间一致
+            dummy_hash = "$2b$12$dummy.hash.for.timing.attack.prevention.abcdefghijklmnopqrstuv"
+            try:
+                pwd_context.verify(password, dummy_hash)
+            except:
+                pass  # 忽略验证错误
+            # 添加随机延迟，进一步模糊时间差异
+            time.sleep(0.1)
+            return None
+        
+        # 验证真实密码
+        if db_user.verify_password(password):
+            # 登录成功，重置失败次数
+            reset_failed_login(db_user)
             return User(db_user)
+        
+        # 密码错误时也添加延迟
+        time.sleep(0.1)
+        # 增加失败登录次数
+        increment_failed_login(db_user)
         return None
     except Exception as e:
         logger.error(f'Error verifying user credentials: {str(e)}')
+        return None
+
+
+def check_account_lock(db_user: DBUser) -> bool:
+    """检查账户是否被锁定"""
+    from datetime import datetime
+    if db_user.locked_until and db_user.locked_until > datetime.now():
+        return False  # 账户被锁定
+    return True  # 账户未锁定
+
+
+def increment_failed_login(db_user: DBUser):
+    """增加失败登录次数并可能锁定账户"""
+    from datetime import datetime, timedelta
+    try:
+        with sqlite_db_manager.get_session() as session:
+            # 重新获取用户以确保数据最新
+            user = session.query(DBUser).filter(DBUser.id == db_user.id).first()
+            if not user:
+                return
+            
+            user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+            user.last_failed_login = datetime.now()
+            
+            # 5次失败后锁定30分钟
+            if user.failed_login_attempts >= 5:
+                user.locked_until = datetime.now() + timedelta(minutes=30)
+                logger.warning(f'Account locked: username={user.username}, attempts={user.failed_login_attempts}')
+            
+            session.commit()
+    except Exception as e:
+        logger.error(f'Error incrementing failed login: {str(e)}')
+
+
+def reset_failed_login(db_user: DBUser):
+    """重置失败登录次数"""
+    from datetime import datetime
+    try:
+        with sqlite_db_manager.get_session() as session:
+            # 重新获取用户以确保数据最新
+            user = session.query(DBUser).filter(DBUser.id == db_user.id).first()
+            if not user:
+                return
+            
+            if user.failed_login_attempts > 0 or user.locked_until:
+                user.failed_login_attempts = 0
+                user.locked_until = None
+                session.commit()
+    except Exception as e:
+        logger.error(f'Error resetting failed login: {str(e)}')
+
+
+def get_user_by_credentials_with_lock_check(username: str, password: str) -> Optional[User]:
+    """根据用户名和密码验证用户（带账户锁定检查）"""
+    try:
+        db_user = sqlite_db_manager.get_user_by_username(username)
+        
+        # 如果用户存在，检查是否被锁定
+        if db_user:
+            if not check_account_lock(db_user):
+                from datetime import datetime
+                if db_user.locked_until:
+                    remaining_time = (db_user.locked_until - datetime.now()).total_seconds() / 60
+                    logger.warning(f'Login attempt on locked account: username={db_user.username}, remaining={remaining_time:.1f}min')
+                return None  # 账户被锁定
+        
+        # 使用原有的验证逻辑（已包含时间攻击防护）
+        return get_user_by_credentials(username, password)
+    except Exception as e:
+        logger.error(f'Error verifying user credentials with lock check: {str(e)}')
         return None
 
 
@@ -252,11 +350,11 @@ def create_user(username: str, password: str, email: str, role: str = "user") ->
         # 确保密码不超过72字节（bcrypt限制）
         password = password[:72]
         
-        # 创建新用户
+        # 创建新用户（邮箱统一转换为小写存储）
         new_user = User()
         new_user.username = username
         new_user.pwdHash = pwd_context.hash(password)
-        new_user.email = email
+        new_user.email = email.lower()
         new_user.role = role
         
         if new_user.save():
@@ -322,12 +420,36 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    # 验证密码版本号（如果密码已修改，Token失效）
+    if user._db_user:
+        token_pwd_ver = payload.get("pwd_ver", 0)
+        user_pwd_ver = user._db_user.password_version or 0
+        if token_pwd_ver < user_pwd_ver:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token expired due to password change. Please login again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    
     # 返回用户信息字典
+    # 从数据库模型获取 is_admin 和 is_moderator，如果不存在则从 role 推导
+    is_admin = False
+    is_moderator = False
+    if user._db_user:
+        is_admin = user._db_user.is_admin
+        is_moderator = user._db_user.is_moderator
+    else:
+        # 如果数据库模型不存在，从 role 推导
+        is_admin = user.role == "admin"
+        is_moderator = user.role in ["admin", "moderator"]
+    
     return {
         "id": user.userID,
         "username": user.username,
         "email": user.email,
-        "role": user.role
+        "role": user.role,
+        "is_admin": is_admin,
+        "is_moderator": is_moderator
     }
 
 
@@ -349,3 +471,39 @@ async def get_moderator_user(current_user: dict = Depends(get_current_user)) -> 
             detail="Not enough permissions"
         )
     return current_user
+
+
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))
+) -> Optional[dict]:
+    """获取当前认证用户（可选，如果未提供token则返回None）"""
+    if not credentials:
+        return None
+    
+    token = credentials.credentials
+    
+    # 导入JWT验证工具
+    from jwt_utils import get_user_from_token
+    
+    # 验证JWT令牌
+    payload = get_user_from_token(token)
+    if not payload:
+        return None
+    
+    # 从JWT中获取用户信息
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+    
+    # 从数据库获取用户信息
+    user = get_user_by_id(user_id)
+    if not user:
+        return None
+    
+    # 返回用户信息字典
+    return {
+        "id": user.userID,
+        "username": user.username,
+        "email": user.email,
+        "role": user.role
+    }
