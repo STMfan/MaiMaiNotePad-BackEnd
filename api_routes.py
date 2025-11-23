@@ -14,7 +14,8 @@ from datetime import datetime
 
 from models import (
     KnowledgeBase, PersonaCard, Message, MessageCreate, MessageUpdate, StarRecord,
-    KnowledgeBaseUpdate, MessageResponse
+    KnowledgeBaseUpdate, MessageResponse, KnowledgeBaseResponse, PersonaCardResponse,
+    StarResponse, KnowledgeBasePaginatedResponse, PersonaCardPaginatedResponse
 )
 from database_models import sqlite_db_manager, KnowledgeBase, PersonaCard, UploadRecord
 from file_upload import file_upload_service
@@ -38,62 +39,6 @@ db_manager = sqlite_db_manager
 
 # OAuth2 认证
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-
-# 响应模型
-class KnowledgeBaseResponse(BaseModel):
-    id: str
-    name: str
-    description: str
-    uploader_id: str
-    copyright_owner: Optional[str]
-    star_count: int
-    is_public: bool
-    is_pending: bool
-    base_path: Optional[str]
-    created_at: datetime
-    updated_at: datetime
-    # 新增字段
-    file_names: List[str] = []
-    content: Optional[str] = None
-    tags: List[str] = []
-    downloads: int = 0
-    download_url: Optional[str] = None
-    preview_url: Optional[str] = None
-    version: Optional[str] = None
-    size: Optional[int] = None
-
-
-class PersonaCardResponse(BaseModel):
-    id: str
-    name: str
-    description: str
-    uploader_id: str
-    copyright_owner: Optional[str]
-    star_count: int
-    is_public: bool
-    is_pending: bool
-    created_at: datetime
-    updated_at: datetime
-    # 新增字段
-    file_names: List[str] = []
-    content: Optional[str] = None
-    tags: List[str] = []
-    downloads: int = 0
-    download_url: Optional[str] = None
-    preview_url: Optional[str] = None
-    version: Optional[str] = None
-    size: Optional[int] = None
-    author: Optional[str] = None
-    author_id: Optional[str] = None
-    stars: int = 0
-
-
-class StarResponse(BaseModel):
-    id: str
-    target_id: str
-    target_type: str
-    created_at: str
 
 # 认证相关路由
 @api_router.post("/token")
@@ -787,7 +732,7 @@ async def upload_knowledge_base(
         raise APIError("上传知识库失败")
 
 
-@api_router.get("/knowledge/public", response_model=List[KnowledgeBaseResponse])
+@api_router.get("/knowledge/public", response_model=KnowledgeBasePaginatedResponse)
 async def get_public_knowledge_bases(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
@@ -800,7 +745,7 @@ async def get_public_knowledge_bases(
     try:
         app_logger.info("Get public knowledge bases")
 
-        kbs = db_manager.get_public_knowledge_bases(
+        kbs, total = db_manager.get_public_knowledge_bases(
             page=page,
             page_size=page_size,
             name=name,
@@ -808,7 +753,12 @@ async def get_public_knowledge_bases(
             sort_by=sort_by,
             sort_order=sort_order
         )
-        return [KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs]
+        return KnowledgeBasePaginatedResponse(
+            items=[KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs],
+            total=total,
+            page=page,
+            page_size=page_size
+        )
 
     except Exception as e:
         log_exception(app_logger, "Get public knowledge bases error", exception=e)
@@ -1429,7 +1379,7 @@ async def upload_persona_card(
         raise APIError("上传人设卡失败")
 
 
-@api_router.get("/persona/public", response_model=List[PersonaCardResponse])
+@api_router.get("/persona/public", response_model=PersonaCardPaginatedResponse)
 async def get_public_persona_cards(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
@@ -1442,7 +1392,7 @@ async def get_public_persona_cards(
     try:
         app_logger.info("Get public persona cards")
 
-        pcs = db_manager.get_public_persona_cards(
+        pcs, total = db_manager.get_public_persona_cards(
             page=page,
             page_size=page_size,
             name=name,
@@ -1450,7 +1400,12 @@ async def get_public_persona_cards(
             sort_by=sort_by,
             sort_order=sort_order
         )
-        return [PersonaCardResponse(**pc.to_dict()) for pc in pcs]
+        return PersonaCardPaginatedResponse(
+            items=[PersonaCardResponse(**pc.to_dict()) for pc in pcs],
+            total=total,
+            page=page,
+            page_size=page_size
+        )
 
     except Exception as e:
         log_exception(app_logger, "Get public persona cards error", exception=e)
@@ -2072,7 +2027,7 @@ async def get_user_stars(
 
 
 # 审核相关路由
-@api_router.get("/review/knowledge/pending", response_model=List[KnowledgeBaseResponse])
+@api_router.get("/review/knowledge/pending", response_model=KnowledgeBasePaginatedResponse)
 async def get_pending_knowledge_bases(
     page: int = Query(1, ge=1, description="页码，默认为1"),
     page_size: int = Query(10, ge=1, le=100, description="每页数量，默认为10，最大100"),
@@ -2091,7 +2046,7 @@ async def get_pending_knowledge_bases(
         )
 
     try:
-        kbs = db_manager.get_pending_knowledge_bases(
+        kbs, total = db_manager.get_pending_knowledge_bases(
             page=page,
             page_size=page_size,
             name=name,
@@ -2099,7 +2054,12 @@ async def get_pending_knowledge_bases(
             sort_by=sort_by,
             sort_order=sort_order
         )
-        return [KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs]
+        return KnowledgeBasePaginatedResponse(
+            items=[KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs],
+            total=total,
+            page=page,
+            page_size=page_size
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -2107,7 +2067,7 @@ async def get_pending_knowledge_bases(
         )
 
 
-@api_router.get("/review/persona/pending", response_model=List[PersonaCardResponse])
+@api_router.get("/review/persona/pending", response_model=PersonaCardPaginatedResponse)
 async def get_pending_persona_cards(
     page: int = Query(1, ge=1, description="页码，默认为1"),
     page_size: int = Query(10, ge=1, le=100, description="每页数量，默认为10，最大100"),
@@ -2126,7 +2086,7 @@ async def get_pending_persona_cards(
         )
 
     try:
-        pcs = db_manager.get_pending_persona_cards(
+        pcs, total = db_manager.get_pending_persona_cards(
             page=page,
             page_size=page_size,
             name=name,
@@ -2134,7 +2094,12 @@ async def get_pending_persona_cards(
             sort_by=sort_by,
             sort_order=sort_order
         )
-        return [PersonaCardResponse(**pc.to_dict()) for pc in pcs]
+        return PersonaCardPaginatedResponse(
+            items=[PersonaCardResponse(**pc.to_dict()) for pc in pcs],
+            total=total,
+            page=page,
+            page_size=page_size
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -4141,4 +4106,3 @@ async def reprocess_upload_record(
 
 
 # 导出路由器
-router = api_router

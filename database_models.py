@@ -582,106 +582,52 @@ class SQLiteDatabaseManager:
         # 执行数据库迁移
         self._migrate_database()
     
+    def _add_column_if_not_exists(self, table_name: str, column_name: str, column_definition: str):
+        """为表添加列（如果不存在）"""
+        try:
+            inspector = inspect(self.engine)
+            if table_name not in inspector.get_table_names():
+                return
+            
+            existing_columns = [col['name'] for col in inspector.get_columns(table_name)]
+            if column_name not in existing_columns:
+                with self.engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"))
+                # 使用日志系统记录迁移操作（静默执行，不输出到控制台）
+        except Exception:
+            # 数据库迁移失败时静默处理，不输出到控制台（避免启动时干扰）
+            # 不抛出异常，允许应用继续运行
+            pass
+
     def _migrate_database(self):
         """执行数据库迁移，添加缺失的列"""
-        try:
-            inspector = inspect(self.engine)
-            
-            # 检查 messages 表是否存在
-            if 'messages' in inspector.get_table_names():
-                # 获取现有列
-                existing_columns = [col['name'] for col in inspector.get_columns('messages')]
-                
-                # 检查并添加 message_type 列
-                if 'message_type' not in existing_columns:
-                    with self.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE messages ADD COLUMN message_type VARCHAR DEFAULT 'direct'"))
-                    print("已添加 message_type 列到 messages 表")
-                
-                # 检查并添加 broadcast_scope 列（如果缺失）
-                if 'broadcast_scope' not in existing_columns:
-                    with self.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE messages ADD COLUMN broadcast_scope VARCHAR"))
-                    print("已添加 broadcast_scope 列到 messages 表")
-            
-            # 检查 knowledge_bases 表是否存在，添加 downloads 列
-            if 'knowledge_bases' in inspector.get_table_names():
-                existing_columns = [col['name'] for col in inspector.get_columns('knowledge_bases')]
-                if 'downloads' not in existing_columns:
-                    with self.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE knowledge_bases ADD COLUMN downloads INTEGER DEFAULT 0"))
-                    print("已添加 downloads 列到 knowledge_bases 表")
-            
-            # 检查 persona_cards 表是否存在，添加 downloads 列
-            if 'persona_cards' in inspector.get_table_names():
-                existing_columns = [col['name'] for col in inspector.get_columns('persona_cards')]
-                if 'downloads' not in existing_columns:
-                    with self.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE persona_cards ADD COLUMN downloads INTEGER DEFAULT 0"))
-                    print("已添加 downloads 列到 persona_cards 表")
-        except Exception as e:
-            print(f"数据库迁移失败: {str(e)}")
-            # 不抛出异常，允许应用继续运行
+        # 迁移配置：表名 -> [(列名, 列定义), ...]
+        migrations = [
+            ('messages', [
+                ('message_type', "VARCHAR DEFAULT 'direct'"),
+                ('broadcast_scope', 'VARCHAR'),
+                ('summary', 'TEXT'),
+            ]),
+            ('knowledge_bases', [
+                ('downloads', 'INTEGER DEFAULT 0'),
+            ]),
+            ('persona_cards', [
+                ('downloads', 'INTEGER DEFAULT 0'),
+            ]),
+            ('users', [
+                ('failed_login_attempts', 'INTEGER DEFAULT 0'),
+                ('locked_until', 'DATETIME'),
+                ('last_failed_login', 'DATETIME'),
+                ('avatar_path', 'VARCHAR'),
+                ('avatar_updated_at', 'DATETIME'),
+                ('password_version', 'INTEGER DEFAULT 0'),
+            ]),
+        ]
         
-        # 迁移：为messages表添加summary字段
-        try:
-            inspector = inspect(self.engine)
-            columns = [col['name'] for col in inspector.get_columns('messages')]
-            if 'summary' not in columns:
-                with self.engine.begin() as conn:
-                    conn.execute(text("ALTER TABLE messages ADD COLUMN summary TEXT"))
-                print("已添加 summary 列到 messages 表")
-        except Exception as e:
-            print(f"数据库迁移失败: {str(e)}")
-            # 不抛出异常，允许应用继续运行
-        
-        # 迁移：为users表添加账户锁定相关字段
-        try:
-            inspector = inspect(self.engine)
-            if 'users' in inspector.get_table_names():
-                existing_columns = [col['name'] for col in inspector.get_columns('users')]
-                
-                if 'failed_login_attempts' not in existing_columns:
-                    with self.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER DEFAULT 0"))
-                    print("已添加 failed_login_attempts 列到 users 表")
-                
-                if 'locked_until' not in existing_columns:
-                    with self.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE users ADD COLUMN locked_until DATETIME"))
-                    print("已添加 locked_until 列到 users 表")
-                
-                if 'last_failed_login' not in existing_columns:
-                    with self.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE users ADD COLUMN last_failed_login DATETIME"))
-                    print("已添加 last_failed_login 列到 users 表")
-        except Exception as e:
-            print(f"数据库迁移失败（账户锁定字段）: {str(e)}")
-            # 不抛出异常，允许应用继续运行
-        
-        # 迁移：为users表添加头像相关字段和密码版本号
-        try:
-            inspector = inspect(self.engine)
-            if 'users' in inspector.get_table_names():
-                existing_columns = [col['name'] for col in inspector.get_columns('users')]
-                
-                if 'avatar_path' not in existing_columns:
-                    with self.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE users ADD COLUMN avatar_path VARCHAR"))
-                    print("已添加 avatar_path 列到 users 表")
-                
-                if 'avatar_updated_at' not in existing_columns:
-                    with self.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE users ADD COLUMN avatar_updated_at DATETIME"))
-                    print("已添加 avatar_updated_at 列到 users 表")
-                
-                if 'password_version' not in existing_columns:
-                    with self.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE users ADD COLUMN password_version INTEGER DEFAULT 0"))
-                    print("已添加 password_version 列到 users 表")
-        except Exception as e:
-            print(f"数据库迁移失败（头像和密码版本字段）: {str(e)}")
-            # 不抛出异常，允许应用继续运行
+        # 执行所有迁移
+        for table_name, columns in migrations:
+            for column_name, column_definition in columns:
+                self._add_column_if_not_exists(table_name, column_name, column_definition)
     
     def get_session(self):
         """获取数据库会话"""
@@ -699,7 +645,7 @@ class SQLiteDatabaseManager:
             return session.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
     
     def get_pending_knowledge_bases(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
-        """获取所有待审核的知识库，支持分页、搜索、按上传者筛选和排序"""
+        """获取所有待审核的知识库，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
             query = session.query(KnowledgeBase).filter(KnowledgeBase.is_pending == True)
             
@@ -724,12 +670,17 @@ class SQLiteDatabaseManager:
             else:
                 query = query.order_by(order_column.desc())
             
+            # 在应用分页前计算总数
+            total = query.count()
+            
             # 分页
             offset = (page - 1) * page_size
-            return query.offset(offset).limit(page_size).all()
+            items = query.offset(offset).limit(page_size).all()
+            
+            return items, total
     
     def get_public_knowledge_bases(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
-        """获取所有公开的知识库，支持分页、搜索、按上传者筛选和排序"""
+        """获取所有公开的知识库，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
             query = session.query(KnowledgeBase).filter(KnowledgeBase.is_public == True)
             
@@ -754,9 +705,14 @@ class SQLiteDatabaseManager:
             else:
                 query = query.order_by(order_column.desc())
             
+            # 在应用分页前计算总数
+            total = query.count()
+            
             # 分页
             offset = (page - 1) * page_size
-            return query.offset(offset).limit(page_size).all()
+            items = query.offset(offset).limit(page_size).all()
+            
+            return items, total
     
     def get_knowledge_bases_by_uploader(self, uploader_id: str):
         """根据上传者ID获取知识库"""
@@ -882,7 +838,7 @@ class SQLiteDatabaseManager:
             return session.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
     
     def get_pending_persona_cards(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
-        """获取所有待审核的人设卡，支持分页、搜索、按上传者筛选和排序"""
+        """获取所有待审核的人设卡，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
             query = session.query(PersonaCard).filter(PersonaCard.is_pending == True)
             
@@ -907,12 +863,17 @@ class SQLiteDatabaseManager:
             else:
                 query = query.order_by(order_column.desc())
             
+            # 在应用分页前计算总数
+            total = query.count()
+            
             # 分页
             offset = (page - 1) * page_size
-            return query.offset(offset).limit(page_size).all()
+            items = query.offset(offset).limit(page_size).all()
+            
+            return items, total
     
     def get_public_persona_cards(self, page: int = 1, page_size: int = 19, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
-        """获取所有公开的人设卡，支持分页、搜索、按上传者筛选和排序"""
+        """获取所有公开的人设卡，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
             query = session.query(PersonaCard).filter(PersonaCard.is_public == True)
             
@@ -937,9 +898,14 @@ class SQLiteDatabaseManager:
             else:
                 query = query.order_by(order_column.desc())
             
+            # 在应用分页前计算总数
+            total = query.count()
+            
             # 分页
             offset = (page - 1) * page_size
-            return query.offset(offset).limit(page_size).all()
+            items = query.offset(offset).limit(page_size).all()
+            
+            return items, total
     
     def get_persona_cards_by_uploader(self, uploader_id: str):
         """根据上传者ID获取人设卡"""
