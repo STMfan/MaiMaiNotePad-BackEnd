@@ -3,7 +3,7 @@ API路由实现
 包含知识库、人设卡、用户管理、审核等功能路由
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request, Body
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request, Body, Query
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import List, Optional, Dict, Any
@@ -416,12 +416,26 @@ async def upload_knowledge_base(
 
 
 @api_router.get("/knowledge/public", response_model=List[KnowledgeBaseResponse])
-async def get_public_knowledge_bases():
-    """获取所有公开的知识库"""
+async def get_public_knowledge_bases(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    name: str = Query(None, description="按名称搜索"),
+    uploader_id: str = Query(None, description="按上传者ID筛选"),
+    sort_by: str = Query("created_at", description="排序字段(created_at, updated_at, star_count)"),
+    sort_order: str = Query("desc", description="排序顺序(asc, desc)")
+):
+    """获取所有公开的知识库，支持分页、搜索、按上传者筛选和排序"""
     try:
         app_logger.info("Get public knowledge bases")
 
-        kbs = db_manager.get_public_knowledge_bases()
+        kbs = db_manager.get_public_knowledge_bases(
+            page=page,
+            page_size=page_size,
+            name=name,
+            uploader_id=uploader_id,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
         return [KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs]
 
     except Exception as e:
@@ -1019,12 +1033,26 @@ async def upload_persona_card(
 
 
 @api_router.get("/persona/public", response_model=List[PersonaCardResponse])
-async def get_public_persona_cards():
-    """获取所有公开的人设卡"""
+async def get_public_persona_cards(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    name: str = Query(None, description="按名称搜索"),
+    uploader_id: str = Query(None, description="按上传者ID筛选"),
+    sort_by: str = Query("created_at", description="排序字段(created_at, updated_at, star_count)"),
+    sort_order: str = Query("desc", description="排序顺序(asc, desc)")
+):
+    """获取所有公开的人设卡，支持分页、搜索、按上传者筛选和排序"""
     try:
         app_logger.info("Get public persona cards")
 
-        pcs = db_manager.get_public_persona_cards()
+        pcs = db_manager.get_public_persona_cards(
+            page=page,
+            page_size=page_size,
+            name=name,
+            uploader_id=uploader_id,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
         return [PersonaCardResponse(**pc.to_dict()) for pc in pcs]
 
     except Exception as e:
@@ -1606,8 +1634,16 @@ async def get_user_stars(current_user: dict = Depends(get_current_user)):
 
 # 审核相关路由
 @api_router.get("/review/knowledge/pending", response_model=List[KnowledgeBaseResponse])
-async def get_pending_knowledge_bases(current_user: dict = Depends(get_current_user)):
-    """获取待审核的知识库（需要admin或moderator权限）"""
+async def get_pending_knowledge_bases(
+    page: int = Query(1, ge=1, description="页码，默认为1"),
+    page_size: int = Query(10, ge=1, le=100, description="每页数量，默认为10，最大100"),
+    name: Optional[str] = Query(None, description="按名称搜索"),
+    uploader_id: Optional[str] = Query(None, description="按上传者ID筛选"),
+    sort_by: str = Query("created_at", description="排序字段，可选：created_at, updated_at, star_count"),
+    sort_order: str = Query("desc", description="排序方式，可选：asc, desc"),
+    current_user: dict = Depends(get_current_user)
+):
+    """获取待审核的知识库（需要admin或moderator权限），支持分页、搜索、按上传者筛选和排序"""
     # 验证权限
     if current_user.get("role", "user") not in ["admin", "moderator"]:
         raise HTTPException(
@@ -1616,7 +1652,14 @@ async def get_pending_knowledge_bases(current_user: dict = Depends(get_current_u
         )
 
     try:
-        kbs = db_manager.get_pending_knowledge_bases()
+        kbs = db_manager.get_pending_knowledge_bases(
+            page=page,
+            page_size=page_size,
+            name=name,
+            uploader_id=uploader_id,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
         return [KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs]
     except Exception as e:
         raise HTTPException(
@@ -1626,8 +1669,16 @@ async def get_pending_knowledge_bases(current_user: dict = Depends(get_current_u
 
 
 @api_router.get("/review/persona/pending", response_model=List[PersonaCardResponse])
-async def get_pending_persona_cards(current_user: dict = Depends(get_current_user)):
-    """获取待审核的人设卡（需要admin或moderator权限）"""
+async def get_pending_persona_cards(
+    page: int = Query(1, ge=1, description="页码，默认为1"),
+    page_size: int = Query(10, ge=1, le=100, description="每页数量，默认为10，最大100"),
+    name: Optional[str] = Query(None, description="按名称搜索"),
+    uploader_id: Optional[str] = Query(None, description="按上传者ID筛选"),
+    sort_by: str = Query("created_at", description="排序字段，可选：created_at, updated_at, star_count"),
+    sort_order: str = Query("desc", description="排序方式，可选：asc, desc"),
+    current_user: dict = Depends(get_current_user)
+):
+    """获取待审核的人设卡（需要admin或moderator权限），支持分页、搜索、按上传者筛选和排序"""
     # 验证权限
     if current_user.get("role", "user") not in ["admin", "moderator"]:
         raise HTTPException(
@@ -1636,7 +1687,14 @@ async def get_pending_persona_cards(current_user: dict = Depends(get_current_use
         )
 
     try:
-        pcs = db_manager.get_pending_persona_cards()
+        pcs = db_manager.get_pending_persona_cards(
+            page=page,
+            page_size=page_size,
+            name=name,
+            uploader_id=uploader_id,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
         return [PersonaCardResponse(**pc.to_dict()) for pc in pcs]
     except Exception as e:
         raise HTTPException(

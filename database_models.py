@@ -477,15 +477,65 @@ class SQLiteDatabaseManager:
         with self.get_session() as session:
             return session.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
     
-    def get_pending_knowledge_bases(self):
-        """获取所有待审核的知识库"""
+    def get_pending_knowledge_bases(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
+        """获取所有待审核的知识库，支持分页、搜索、按上传者筛选和排序"""
         with self.get_session() as session:
-            return session.query(KnowledgeBase).filter(KnowledgeBase.is_pending == True).all()
+            query = session.query(KnowledgeBase).filter(KnowledgeBase.is_pending == True)
+            
+            # 按名称搜索
+            if name:
+                query = query.filter(KnowledgeBase.name.contains(name))
+            
+            # 按上传者ID筛选
+            if uploader_id:
+                query = query.filter(KnowledgeBase.uploader_id == uploader_id)
+            
+            # 排序
+            if sort_by == "star_count":
+                order_column = KnowledgeBase.star_count
+            elif sort_by == "updated_at":
+                order_column = KnowledgeBase.updated_at
+            else:
+                order_column = KnowledgeBase.created_at
+                
+            if sort_order == "asc":
+                query = query.order_by(order_column.asc())
+            else:
+                query = query.order_by(order_column.desc())
+            
+            # 分页
+            offset = (page - 1) * page_size
+            return query.offset(offset).limit(page_size).all()
     
-    def get_public_knowledge_bases(self):
-        """获取所有公开的知识库"""
+    def get_public_knowledge_bases(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
+        """获取所有公开的知识库，支持分页、搜索、按上传者筛选和排序"""
         with self.get_session() as session:
-            return session.query(KnowledgeBase).filter(KnowledgeBase.is_public == True).all()
+            query = session.query(KnowledgeBase).filter(KnowledgeBase.is_public == True)
+            
+            # 按名称搜索
+            if name:
+                query = query.filter(KnowledgeBase.name.contains(name))
+            
+            # 按上传者ID筛选
+            if uploader_id:
+                query = query.filter(KnowledgeBase.uploader_id == uploader_id)
+            
+            # 排序
+            if sort_by == "star_count":
+                order_column = KnowledgeBase.star_count
+            elif sort_by == "updated_at":
+                order_column = KnowledgeBase.updated_at
+            else:
+                order_column = KnowledgeBase.created_at
+                
+            if sort_order == "asc":
+                query = query.order_by(order_column.asc())
+            else:
+                query = query.order_by(order_column.desc())
+            
+            # 分页
+            offset = (page - 1) * page_size
+            return query.offset(offset).limit(page_size).all()
     
     def get_knowledge_bases_by_uploader(self, uploader_id: str):
         """根据上传者ID获取知识库"""
@@ -610,15 +660,65 @@ class SQLiteDatabaseManager:
         with self.get_session() as session:
             return session.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
     
-    def get_pending_persona_cards(self):
-        """获取所有待审核的人设卡"""
+    def get_pending_persona_cards(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
+        """获取所有待审核的人设卡，支持分页、搜索、按上传者筛选和排序"""
         with self.get_session() as session:
-            return session.query(PersonaCard).filter(PersonaCard.is_pending == True).all()
+            query = session.query(PersonaCard).filter(PersonaCard.is_pending == True)
+            
+            # 按名称搜索
+            if name:
+                query = query.filter(PersonaCard.name.contains(name))
+            
+            # 按上传者ID筛选
+            if uploader_id:
+                query = query.filter(PersonaCard.uploader_id == uploader_id)
+            
+            # 排序
+            if sort_by == "star_count":
+                order_column = PersonaCard.star_count
+            elif sort_by == "updated_at":
+                order_column = PersonaCard.updated_at
+            else:
+                order_column = PersonaCard.created_at
+                
+            if sort_order == "asc":
+                query = query.order_by(order_column.asc())
+            else:
+                query = query.order_by(order_column.desc())
+            
+            # 分页
+            offset = (page - 1) * page_size
+            return query.offset(offset).limit(page_size).all()
     
-    def get_public_persona_cards(self):
-        """获取所有公开的人设卡"""
+    def get_public_persona_cards(self, page: int = 1, page_size: int = 19, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
+        """获取所有公开的人设卡，支持分页、搜索、按上传者筛选和排序"""
         with self.get_session() as session:
-            return session.query(PersonaCard).filter(PersonaCard.is_public == True).all()
+            query = session.query(PersonaCard).filter(PersonaCard.is_public == True)
+            
+            # 按名称搜索
+            if name:
+                query = query.filter(PersonaCard.name.contains(name))
+            
+            # 按上传者ID筛选
+            if uploader_id:
+                query = query.filter(PersonaCard.uploader_id == uploader_id)
+            
+            # 排序
+            if sort_by == "star_count":
+                order_column = PersonaCard.star_count
+            elif sort_by == "updated_at":
+                order_column = PersonaCard.updated_at
+            else:
+                order_column = PersonaCard.created_at
+                
+            if sort_order == "asc":
+                query = query.order_by(order_column.asc())
+            else:
+                query = query.order_by(order_column.desc())
+            
+            # 分页
+            offset = (page - 1) * page_size
+            return query.offset(offset).limit(page_size).all()
     
     def get_persona_cards_by_uploader(self, uploader_id: str):
         """根据上传者ID获取人设卡"""
