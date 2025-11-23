@@ -79,6 +79,7 @@ class MessageCreate(BaseModel):
     """消息创建请求模型"""
     title: str
     content: str
+    summary: Optional[str] = None  # 消息简介，可选
     recipient_id: Optional[str] = None
     recipient_ids: Optional[List[str]] = None
     message_type: Literal["direct", "announcement"] = "direct"
@@ -104,6 +105,12 @@ class MessageCreate(BaseModel):
                 values["recipient_ids"] = list(dict.fromkeys([rid for rid in recipient_ids if rid]))
         return values
 
+class MessageUpdate(BaseModel):
+    """消息更新请求模型"""
+    title: Optional[str] = None
+    content: Optional[str] = None
+    summary: Optional[str] = None  # 消息简介，可选
+
 class MessageResponse(BaseModel):
     """消息响应模型"""
     id: str
@@ -111,6 +118,7 @@ class MessageResponse(BaseModel):
     recipient_id: str
     title: str
     content: str
+    summary: Optional[str] = None  # 消息简介，可选
     message_type: Literal["direct", "announcement"]
     broadcast_scope: Optional[str]
     is_read: bool
