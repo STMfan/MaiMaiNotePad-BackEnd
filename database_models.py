@@ -481,8 +481,11 @@ class SQLiteDatabaseManager:
         """获取所有待审核的知识库"""
         with self.get_session() as session:
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             return session.query(KnowledgeBase).filter(KnowledgeBase.is_pending == True).all()
 =======
+=======
+>>>>>>> Stashed changes
             # 使用 == True 查询待审核的知识库（SQLAlchemy 的 Boolean 类型应使用 Python 的 True/False）
             query = session.query(KnowledgeBase).filter(KnowledgeBase.is_pending == True)
             
@@ -521,8 +524,11 @@ class SQLiteDatabaseManager:
         """获取所有公开的知识库"""
         with self.get_session() as session:
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             return session.query(KnowledgeBase).filter(KnowledgeBase.is_public == True).all()
 =======
+=======
+>>>>>>> Stashed changes
             query = session.query(KnowledgeBase).filter(
                 KnowledgeBase.is_public == True,
                 KnowledgeBase.is_pending == False  # 只显示已审核通过的内容
@@ -686,8 +692,11 @@ class SQLiteDatabaseManager:
         """获取所有待审核的人设卡"""
         with self.get_session() as session:
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             return session.query(PersonaCard).filter(PersonaCard.is_pending == True).all()
 =======
+=======
+>>>>>>> Stashed changes
             # 使用 == True 查询待审核的人设卡（SQLAlchemy 的 Boolean 类型应使用 Python 的 True/False）
             query = session.query(PersonaCard).filter(PersonaCard.is_pending == True)
             
@@ -726,8 +735,11 @@ class SQLiteDatabaseManager:
         """获取所有公开的人设卡"""
         with self.get_session() as session:
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             return session.query(PersonaCard).filter(PersonaCard.is_public == True).all()
 =======
+=======
+>>>>>>> Stashed changes
             query = session.query(PersonaCard).filter(
                 PersonaCard.is_public == True,
                 PersonaCard.is_pending == False  # 只显示已审核通过的内容
@@ -1156,6 +1168,9 @@ class SQLiteDatabaseManager:
                             # 其他类型，使用当前时间
                             user_data[field] = datetime.now()
                 
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
                 user_id = user_data.get("id")
                 user = session.query(User).filter(User.id == user_id).first()
@@ -1275,8 +1290,11 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"保存验证码失败: {str(e)}")
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             return None
 =======
+=======
+>>>>>>> Stashed changes
             return None    
     def increment_knowledge_base_downloads(self, kb_id: str) -> bool:
         """原子性地增加知识库下载计数器"""
