@@ -647,6 +647,7 @@ class SQLiteDatabaseManager:
     def get_pending_knowledge_bases(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
         """获取所有待审核的知识库，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
+            # 使用 == True 查询待审核的知识库（SQLAlchemy 的 Boolean 类型应使用 Python 的 True/False）
             query = session.query(KnowledgeBase).filter(KnowledgeBase.is_pending == True)
             
             # 按名称搜索
@@ -682,7 +683,10 @@ class SQLiteDatabaseManager:
     def get_public_knowledge_bases(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
         """获取所有公开的知识库，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
-            query = session.query(KnowledgeBase).filter(KnowledgeBase.is_public == True)
+            query = session.query(KnowledgeBase).filter(
+                KnowledgeBase.is_public == True,
+                KnowledgeBase.is_pending == False  # 只显示已审核通过的内容
+            )
             
             # 按名称搜索
             if name:
@@ -840,6 +844,7 @@ class SQLiteDatabaseManager:
     def get_pending_persona_cards(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
         """获取所有待审核的人设卡，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
+            # 使用 == True 查询待审核的人设卡（SQLAlchemy 的 Boolean 类型应使用 Python 的 True/False）
             query = session.query(PersonaCard).filter(PersonaCard.is_pending == True)
             
             # 按名称搜索
@@ -875,7 +880,10 @@ class SQLiteDatabaseManager:
     def get_public_persona_cards(self, page: int = 1, page_size: int = 19, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
         """获取所有公开的人设卡，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
-            query = session.query(PersonaCard).filter(PersonaCard.is_public == True)
+            query = session.query(PersonaCard).filter(
+                PersonaCard.is_public == True,
+                PersonaCard.is_pending == False  # 只显示已审核通过的内容
+            )
             
             # 按名称搜索
             if name:
@@ -1500,6 +1508,38 @@ class SQLiteDatabaseManager:
                 if "email" in user_data and user_data["email"]:
                     user_data["email"] = user_data["email"].lower()
                 
+                # 处理 DateTime 字段：如果传入的是字符串，转换为 datetime 对象
+                datetime_fields = ["created_at", "avatar_updated_at"]
+                for field in datetime_fields:
+                    if field in user_data:
+                        value = user_data[field]
+                        # 如果是字符串，转换为 datetime 对象
+                        if isinstance(value, str):
+                            try:
+                                # 尝试解析 ISO 格式字符串（处理带Z和不带Z的情况）
+                                if value.endswith('Z'):
+                                    value = value[:-1] + '+00:00'
+                                user_data[field] = datetime.fromisoformat(value)
+                            except (ValueError, AttributeError):
+                                # 如果解析失败，尝试其他格式
+                                try:
+                                    user_data[field] = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")
+                                except ValueError:
+                                    try:
+                                        user_data[field] = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
+                                    except ValueError:
+                                        # 如果还是失败，使用当前时间
+                                        user_data[field] = datetime.now()
+                        # 如果已经是 datetime 对象，保持不变
+                        elif isinstance(value, datetime):
+                            pass
+                        # 如果是 None，保持 None（允许清空字段）
+                        elif value is None:
+                            pass
+                        else:
+                            # 其他类型，使用当前时间
+                            user_data[field] = datetime.now()
+                
                 user_id = user_data.get("id")
                 user = session.query(User).filter(User.id == user_id).first()
                 
@@ -1626,8 +1666,7 @@ class SQLiteDatabaseManager:
                 return verification.id
         except Exception as e:
             print(f"保存验证码失败: {str(e)}")
-            return None
-    
+            return None    
     def increment_knowledge_base_downloads(self, kb_id: str) -> bool:
         """原子性地增加知识库下载计数器"""
         try:
@@ -1807,3 +1846,4 @@ class SQLiteDatabaseManager:
 
 # 创建全局SQLite数据库管理器实例
 sqlite_db_manager = SQLiteDatabaseManager()
+

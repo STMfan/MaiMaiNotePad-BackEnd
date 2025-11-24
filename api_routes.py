@@ -543,10 +543,9 @@ async def upload_avatar(
         log_file_operation(
             app_logger,
             "upload",
-            "avatar",
-            success=True,
+            file_path,
             user_id=user_id,
-            file_path=file_path
+            success=True
         )
         
         app_logger.info(f"Avatar uploaded successfully: user_id={user_id}, path={file_path}")

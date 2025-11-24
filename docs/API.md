@@ -6,10 +6,38 @@
 
 ## 基础信息
 
-- **基础URL**: `http://localhost:8000`
+- **基础URL**: `http://0.0.0.0:9278`（本地可通过 `http://localhost:9278` 访问）
 - **API版本**: v1
 - **认证方式**: Bearer Token (JWT)
 - **Content-Type**: 支持 `application/json` 和 `application/x-www-form-urlencoded`
+
+## 系统级接口
+
+### 欢迎页
+返回固定欢迎文案，可用于快速验证服务是否在线。
+
+```http
+GET /
+```
+
+**响应示例**:
+```json
+{
+  "message": "Welcome to MaiMaiNotePad"
+}
+```
+
+### 健康检查
+提供健康检查接口，返回静态状态。
+
+```http
+GET /health
+```
+
+**响应示例**:
+```json
+{ "status": "healthy" }
+```
 
 ## 认证相关接口
 
@@ -103,6 +131,57 @@ username=newuser&password=pass123&email=user@example.com&verification_code=12345
 **错误响应**:
 - `400`: 有未填写的字段、验证码错误或已失效、用户名/邮箱已存在
 - `500`: 注册失败，系统错误
+
+### 发送重置密码验证码
+向已注册邮箱发送密码重置验证码，触发频率受限。
+
+```http
+POST /api/send_reset_password_code
+Content-Type: application/x-www-form-urlencoded
+
+email=user@example.com
+```
+
+**参数说明**:
+- `email` (必填): 接收验证码的邮箱地址，必须已注册
+
+**响应示例**:
+```json
+{
+  "message": "验证码已发送"
+}
+```
+
+**错误响应**:
+- `400`: 邮箱格式无效或邮箱未注册
+- `429`: 请求过于频繁
+- `500`: 发送验证码失败
+
+### 重置密码
+使用邮箱验证码重置账号密码。
+
+```http
+POST /api/reset_password
+Content-Type: application/x-www-form-urlencoded
+
+email=user@example.com&verification_code=123456&new_password=newPass
+```
+
+**参数说明**:
+- `email` (必填): 邮箱地址
+- `verification_code` (必填): 邮件收到的验证码
+- `new_password` (必填): 新密码
+
+**响应示例**:
+```json
+{
+  "message": "密码重置成功"
+}
+```
+
+**错误响应**:
+- `400`: 参数缺失或验证码错误/失效
+- `500`: 重置失败
 
 ### 获取当前用户信息
 获取当前登录用户的基本信息。
@@ -322,8 +401,120 @@ Authorization: Bearer {token}
 - `401`: 未授权访问
 - `500`: 获取用户知识库失败
 
+### 更新知识库信息
+更新知识库元信息，仅限上传者、管理员或审核员。
+
+```http
+PUT /api/knowledge/{kb_id}
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "新的名称",
+  "description": "新的描述",
+  "copyright_owner": "新的版权所有者"
+}
+```
+
+**参数说明**:
+- `kb_id` (路径参数): 知识库ID
+- `name`/`description` (可选): 为空则不更新
+- `copyright_owner` (可选)
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 权限不足
+- `404`: 知识库不存在
+- `500`: 更新失败
+
+### 添加知识库文件
+为知识库追加文件。
+
+```http
+POST /api/knowledge/{kb_id}/files
+Authorization: Bearer {token}
+Content-Type: multipart/form-data
+
+files: [文件1, 文件2, ...]
+```
+
+**参数说明**:
+- `kb_id` (路径参数): 知识库ID
+- `files` (必填): 至少一个文件
+
+**错误响应**:
+- `400`: 未上传文件
+- `401`: 未授权访问
+- `403`: 权限不足
+- `404`: 知识库不存在
+- `500`: 上传失败
+
+### 删除知识库文件
+按文件ID删除知识库中文件。
+
+```http
+DELETE /api/knowledge/{kb_id}/{file_id}
+Authorization: Bearer {token}
+```
+
+**参数说明**:
+- `kb_id`: 知识库ID
+- `file_id`: 文件ID
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 权限不足
+- `404`: 文件或知识库不存在
+- `500`: 删除失败
+
+### 下载知识库全部文件
+以 ZIP 形式下载知识库全部文件。
+
+```http
+GET /api/knowledge/{kb_id}/download
+Authorization: Bearer {token}
+```
+
+**说明**: 对私有知识库仅上传者或管理员可下载。
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 无权下载
+- `404`: 知识库不存在
+- `500`: 打包失败
+
+### 下载单个知识库文件
+下载指定文件。
+
+```http
+GET /api/knowledge/{kb_id}/file/{file_id}
+Authorization: Bearer {token}
+```
+
+**说明**: 私有知识库文件仅上传者或管理员可访问。
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 无权下载
+- `404`: 文件不存在
+- `500`: 下载失败
+
+### 删除知识库
+删除整个知识库及其文件。
+
+```http
+DELETE /api/knowledge/{kb_id}
+Authorization: Bearer {token}
+```
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 权限不足
+- `404`: 知识库不存在
+- `500`: 删除失败
+
 ### Star/取消Star知识库
-对知识库进行Star或取消Star操作（如果已Star则取消，否则添加Star）。
+对知识库进行Star或取消Star操作，接口会根据当前状态自动切换。
 
 ```http
 POST /api/knowledge/{kb_id}/star
@@ -350,7 +541,6 @@ Authorization: Bearer {token}
 
 **错误响应**:
 - `404`: 知识库不存在
-- `409`: 已经Star过了
 - `401`: 未授权访问
 - `500`: Star知识库失败
 
@@ -706,8 +896,102 @@ Authorization: Bearer {token}
 - `401`: 未授权访问
 - `500`: 获取用户人设卡失败
 
+### 更新人设卡信息
+更新人设卡元信息，仅限上传者、管理员或审核员。
+
+```http
+PUT /api/persona/{pc_id}
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "新的名称",
+  "description": "新的描述",
+  "copyright_owner": "新的版权所有者"
+}
+```
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 权限不足
+- `404`: 人设卡不存在
+- `500`: 更新失败
+
+### 添加人设卡文件
+为人设卡追加文件。
+
+```http
+POST /api/persona/{pc_id}/files
+Authorization: Bearer {token}
+Content-Type: multipart/form-data
+
+files: [文件1, 文件2, ...]
+```
+
+**错误响应**:
+- `400`: 未上传文件
+- `401`: 未授权访问
+- `403`: 权限不足
+- `404`: 人设卡不存在
+- `500`: 上传失败
+
+### 删除人设卡文件
+
+```http
+DELETE /api/persona/{pc_id}/{file_id}
+Authorization: Bearer {token}
+```
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 权限不足
+- `404`: 文件或人设卡不存在
+- `500`: 删除失败
+
+### 下载人设卡全部文件
+
+```http
+GET /api/persona/{pc_id}/download
+Authorization: Bearer {token}
+```
+
+**说明**: 私有人设卡仅上传者或管理员可下载。
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 无权下载
+- `404`: 人设卡不存在
+- `500`: 打包失败
+
+### 下载单个人设卡文件
+
+```http
+GET /api/persona/{pc_id}/file/{file_id}
+Authorization: Bearer {token}
+```
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 无权下载
+- `404`: 文件不存在
+- `500`: 下载失败
+
+### 删除人设卡
+删除整个人设卡及其文件。
+
+```http
+DELETE /api/persona/{pc_id}
+Authorization: Bearer {token}
+```
+
+**错误响应**:
+- `401`: 未授权访问
+- `403`: 权限不足
+- `404`: 人设卡不存在
+- `500`: 删除失败
+
 ### Star/取消Star人设卡
-对人设卡进行Star或取消Star操作（如果已Star则取消，否则添加Star）。
+对人设卡进行Star或取消Star操作，接口会根据当前状态自动切换。
 
 ```http
 POST /api/persona/{pc_id}/star
@@ -734,7 +1018,6 @@ Authorization: Bearer {token}
 
 **错误响应**:
 - `404`: 人设卡不存在
-- `409`: Star失败
 - `401`: 未授权访问
 - `500`: Star人设卡失败
 
@@ -1158,8 +1441,8 @@ Content-Type: application/json
 
 ## 消息管理接口
 
-### 发送消息
-向指定用户发送消息。
+### 发送站内公告/消息
+向指定用户发送站内公告或私信（常用于审核通知）。新增原生群发能力，可一次性向多位用户或全体用户推送公告。
 
 ```http
 POST /api/messages/send
@@ -1168,26 +1451,43 @@ Content-Type: application/json
 
 {
   "recipient_id": "user456",
+  "title": "审核结果通知",
   "content": "你好，这是一条测试消息",
-  "message_type": "text"
+  "message_type": "direct"
+}
+```
+
+**公告群发示例**:
+
+```json
+{
+  "title": "系统维护公告",
+  "content": "今晚 23:00-23:30 将进行维护，请提前保存进度。",
+  "message_type": "announcement",
+  "broadcast_scope": "all_users"
 }
 ```
 
 **参数说明**:
-- `recipient_id` (必填): 接收者用户ID
+- `title` (必填): 消息标题，用于在客户端列表中展示
 - `content` (必填): 消息内容
-- `message_type` (可选): 消息类型，默认为"text"
+- `message_type` (可选): `direct`（默认）或 `announcement`
+- `recipient_id` (可选): 单个接收者用户ID（`direct`时必填）
+- `recipient_ids` (可选): 批量接收者ID列表
+- `broadcast_scope` (可选): 当前支持 `all_users`，一次向所有活跃用户推送
+- `announcement` 类型至少需要 `recipient_ids`、`recipient_id` 之一或 `broadcast_scope=all_users`
 
 **响应示例**:
 ```json
 {
-  "message_id": "msg123",
+  "message_ids": ["msg123", "msg124"],
+  "count": 2,
   "status": "sent"
 }
 ```
 
 **错误响应**:
-- `400`: 消息内容不能为空、接收者ID不能为空
+- `400`: 消息内容/标题不能为空、缺少接收者
 - `404`: 接收者不存在
 - `401`: 未授权访问
 - `500`: 发送消息失败
@@ -1211,8 +1511,11 @@ Authorization: Bearer {token}
   {
     "id": "msg123",
     "sender_id": "user456",
-    "title": "",
+    "recipient_id": "user789",
+    "title": "审核结果通知",
     "content": "你好，这是一条测试消息",
+    "message_type": "direct",
+    "broadcast_scope": null,
     "is_read": false,
     "created_at": "2025-11-22T00:00:00"
   }
@@ -1251,8 +1554,9 @@ Authorization: Bearer {token}
 
 ## 邮件服务接口
 
-### 发送邮件
+### 发送邮件（未实现）
 发送邮件到指定邮箱（需要管理员权限）。
+**状态**：未实现，文档仅提供规划信息，客户端调用将返回 `404` 或 `501`。
 
 ```http
 POST /api/email/send
@@ -1266,12 +1570,15 @@ Content-Type: application/json
 }
 ```
 
-**参数说明**:
-- `receiver` (必填): 接收者邮箱地址
-- `subject` (必填): 邮件主题
-- `content` (必填): 邮件内容
+**请求参数**:
 
-**响应示例**:
+| 名称 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `receiver` | string | 是 | 接收者邮箱地址 |
+| `subject` | string | 是 | 邮件主题 |
+| `content` | string | 是 | 邮件正文 |
+
+**预期响应**:
 ```json
 {
   "message": "邮件发送成功"
@@ -1283,15 +1590,16 @@ Content-Type: application/json
 - `401`: 未授权访问
 - `500`: 邮件发送失败
 
-### 获取邮箱配置
+### 获取邮箱配置（未实现）
 获取当前的邮箱服务配置信息（需要管理员权限）。
+**状态**：未实现，文档仅提供规划信息，暂未返回真实配置。
 
 ```http
 GET /api/email/config
 Authorization: Bearer {token}
 ```
 
-**响应示例**:
+**预期响应**:
 ```json
 {
   "mail_host": "smtp.example.com",
@@ -1306,8 +1614,9 @@ Authorization: Bearer {token}
 - `401`: 未授权访问
 - `500`: 获取配置失败
 
-### 更新邮箱配置
+### 更新邮箱配置（未实现）
 更新邮箱服务配置（需要管理员权限）。
+**状态**：未实现，暂不支持动态更新。
 
 ```http
 PUT /api/email/config
@@ -1322,13 +1631,16 @@ Content-Type: application/json
 }
 ```
 
-**参数说明**:
-- `mail_host` (必填): SMTP服务器地址
-- `mail_user` (必填): 邮箱用户名
-- `mail_port` (必填): SMTP端口
-- `mail_pwd` (必填): 邮箱密码
+**请求参数**:
 
-**响应示例**:
+| 名称 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `mail_host` | string | 是 | SMTP 服务器地址 |
+| `mail_user` | string | 是 | 邮箱用户名 |
+| `mail_port` | integer | 是 | SMTP 端口 |
+| `mail_pwd` | string | 是 | 邮箱密码 |
+
+**预期响应**:
 ```json
 {
   "message": "邮箱配置更新成功"

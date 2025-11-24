@@ -180,7 +180,9 @@ class FileUploadService:
             "description": description,
             "uploader_id": uploader_id,
             "copyright_owner": copyright_owner,
-            "base_path": kb_dir
+            "base_path": kb_dir,
+            "is_pending": True,  # 新上传的内容默认为待审核状态
+            "is_public": False   # 新上传的内容默认为非公开
         }
 
         saved_kb = sqlite_db_manager.save_knowledge_base(kb_data)
@@ -261,7 +263,9 @@ class FileUploadService:
                 "description": description,
                 "uploader_id": uploader_id,
                 "copyright_owner": copyright_owner,
-                "base_path": pc_dir
+                "base_path": pc_dir,
+                "is_pending": True,  # 新上传的内容默认为待审核状态
+                "is_public": False   # 新上传的内容默认为非公开
             }
 
             saved_pc = sqlite_db_manager.save_persona_card(pc_data)
