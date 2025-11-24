@@ -71,7 +71,15 @@ username=string&password=string
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer"
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "expires_in": 900,
+  "user": {
+    "id": "user123",
+    "username": "testuser",
+    "email": "user@example.com",
+    "role": "user"
+  }
 }
 ```
 
@@ -201,9 +209,156 @@ Authorization: Bearer {token}
 }
 ```
 
+**响应示例**:
+```json
+{
+  "id": "user123",
+  "username": "testuser",
+  "email": "user@example.com",
+  "role": "user",
+  "avatar_url": "/uploads/avatars/user123.jpg",
+  "avatar_updated_at": "2025-11-22T00:00:00"
+}
+```
+
 **错误响应**:
 - `401`: 未授权访问
 - `500`: 获取用户信息失败
+
+### 刷新访问令牌
+使用刷新令牌获取新的访问令牌。
+
+```http
+POST /api/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+或
+
+```http
+POST /api/refresh
+Content-Type: application/x-www-form-urlencoded
+
+refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**参数说明**:
+- `refresh_token` (必填): 刷新令牌
+
+**响应示例**:
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "expires_in": 900
+}
+```
+
+**错误响应**:
+- `400`: 刷新令牌为空
+- `401`: 无效的刷新令牌
+- `500`: 刷新令牌失败
+
+### 修改密码
+修改当前用户的密码。
+
+```http
+PUT /api/users/me/password
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "current_password": "oldpass123",
+  "new_password": "newpass123",
+  "confirm_password": "newpass123"
+}
+```
+
+**参数说明**:
+- `current_password` (必填): 当前密码
+- `new_password` (必填): 新密码（长度不能少于6位）
+- `confirm_password` (必填): 确认新密码
+
+**响应示例**:
+```json
+{
+  "message": "密码修改成功"
+}
+```
+
+**错误响应**:
+- `400`: 有未填写的字段、新密码与确认密码不匹配、密码长度不能少于6位、当前密码错误
+- `401`: 未授权访问
+- `500`: 修改密码失败
+
+### 上传头像
+上传当前用户的头像。
+
+```http
+POST /api/users/me/avatar
+Authorization: Bearer {token}
+Content-Type: multipart/form-data
+
+avatar: [图片文件]
+```
+
+**参数说明**:
+- `avatar` (必填): 头像图片文件，支持 JPG、JPEG、PNG、GIF、WEBP 格式，最大 2MB，最大尺寸 1024x1024 像素
+
+**响应示例**:
+```json
+{
+  "message": "头像上传成功",
+  "avatar_url": "/uploads/avatars/user123.jpg",
+  "avatar_updated_at": "2025-11-22T00:00:00"
+}
+```
+
+**错误响应**:
+- `400`: 文件格式不支持、文件大小超过限制、图片处理失败
+- `401`: 未授权访问
+- `500`: 上传头像失败
+
+### 删除头像
+删除当前用户的头像。
+
+```http
+DELETE /api/users/me/avatar
+Authorization: Bearer {token}
+```
+
+**响应示例**:
+```json
+{
+  "message": "头像删除成功"
+}
+```
+
+**错误响应**:
+- `401`: 未授权访问
+- `500`: 删除头像失败
+
+### 获取用户头像
+获取指定用户的头像（如果用户没有上传头像，将返回自动生成的头像）。
+
+```http
+GET /api/users/{user_id}/avatar?size=200
+```
+
+**参数说明**:
+- `user_id` (路径参数): 用户ID
+- `size` (查询参数，可选): 头像尺寸，默认200
+
+**响应**:
+- 返回图片文件流，Content-Type: `image/jpeg` 或 `image/png`
+
+**错误响应**:
+- `404`: 用户不存在
+- `500`: 获取头像失败
 
 ### 发送重置密码验证码
 向指定邮箱发送重置密码验证码。
@@ -1551,6 +1706,395 @@ Authorization: Bearer {token}
 - `403`: 没有权限标记此消息为已读（非接收者）
 - `401`: 未授权访问
 - `500`: 标记消息已读失败
+
+## 管理员接口（需要admin权限）
+
+### 获取广播消息统计
+获取系统广播消息的统计数据。
+
+```http
+GET /api/admin/broadcast-messages
+Authorization: Bearer {token}
+```
+
+**响应示例**:
+```json
+{
+  "total_broadcasts": 10,
+  "total_recipients": 500,
+  "recent_broadcasts": [...]
+}
+```
+
+**错误响应**:
+- `403`: 没有管理员权限
+- `401`: 未授权访问
+- `500`: 获取统计数据失败
+
+### 获取系统统计数据
+获取系统的整体统计数据。
+
+```http
+GET /api/admin/stats
+Authorization: Bearer {token}
+```
+
+**响应示例**:
+```json
+{
+  "total_users": 100,
+  "total_knowledge_bases": 50,
+  "total_persona_cards": 30,
+  "pending_reviews": 5
+}
+```
+
+**错误响应**:
+- `403`: 没有管理员权限
+- `401`: 未授权访问
+- `500`: 获取统计数据失败
+
+### 获取最近注册用户
+获取最近注册的用户列表。
+
+```http
+GET /api/admin/recent-users?limit=10
+Authorization: Bearer {token}
+```
+
+**查询参数说明**:
+- `limit` (可选): 返回数量限制，默认10
+
+**响应示例**:
+```json
+[
+  {
+    "id": "user123",
+    "username": "newuser",
+    "email": "user@example.com",
+    "created_at": "2025-11-22T00:00:00"
+  }
+]
+```
+
+**错误响应**:
+- `403`: 没有管理员权限
+- `401`: 未授权访问
+- `500`: 获取用户列表失败
+
+### 获取用户列表
+获取所有用户列表，支持分页和搜索。
+
+```http
+GET /api/admin/users?page=1&page_size=20&search=
+Authorization: Bearer {token}
+```
+
+**查询参数说明**:
+- `page` (可选): 页码，从1开始，默认为1
+- `page_size` (可选): 每页数量，默认20
+- `search` (可选): 搜索关键词（用户名或邮箱）
+
+**响应示例**:
+```json
+{
+  "items": [...],
+  "total": 100,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+**错误响应**:
+- `403`: 没有管理员权限
+- `401`: 未授权访问
+- `500`: 获取用户列表失败
+
+### 更新用户角色
+更新指定用户的角色。
+
+```http
+PUT /api/admin/users/{user_id}/role
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "role": "moderator"
+}
+```
+
+**参数说明**:
+- `user_id` (路径参数): 用户ID
+- `role` (请求体): 新角色（user、moderator、admin）
+
+**响应示例**:
+```json
+{
+  "message": "用户角色更新成功"
+}
+```
+
+**错误响应**:
+- `400`: 无效的角色
+- `403`: 没有管理员权限
+- `404`: 用户不存在
+- `500`: 更新用户角色失败
+
+### 删除用户
+删除指定用户。
+
+```http
+DELETE /api/admin/users/{user_id}
+Authorization: Bearer {token}
+```
+
+**参数说明**:
+- `user_id` (路径参数): 用户ID
+
+**响应示例**:
+```json
+{
+  "message": "用户删除成功"
+}
+```
+
+**错误响应**:
+- `403`: 没有管理员权限
+- `404`: 用户不存在
+- `500`: 删除用户失败
+
+### 创建新用户
+管理员创建新用户。
+
+```http
+POST /api/admin/users
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "username": "newuser",
+  "password": "password123",
+  "email": "user@example.com",
+  "role": "user"
+}
+```
+
+**参数说明**:
+- `username` (必填): 用户名
+- `password` (必填): 密码
+- `email` (必填): 邮箱地址
+- `role` (可选): 角色，默认为user
+
+**响应示例**:
+```json
+{
+  "id": "user123",
+  "username": "newuser",
+  "email": "user@example.com",
+  "role": "user"
+}
+```
+
+**错误响应**:
+- `400`: 参数错误、用户名或邮箱已存在
+- `403`: 没有管理员权限
+- `500`: 创建用户失败
+
+### 获取所有知识库（管理员）
+获取所有知识库，包括待审核和已拒绝的（需要管理员权限）。
+
+```http
+GET /api/admin/knowledge/all?page=1&page_size=20
+Authorization: Bearer {token}
+```
+
+**查询参数说明**:
+- `page` (可选): 页码，从1开始，默认为1
+- `page_size` (可选): 每页数量，默认20
+
+**响应示例**:
+```json
+{
+  "items": [...],
+  "total": 100,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+**错误响应**:
+- `403`: 没有管理员权限
+- `401`: 未授权访问
+- `500`: 获取知识库列表失败
+
+### 获取所有人设卡（管理员）
+获取所有人设卡，包括待审核和已拒绝的（需要管理员权限）。
+
+```http
+GET /api/admin/persona/all?page=1&page_size=20
+Authorization: Bearer {token}
+```
+
+**查询参数说明**:
+- `page` (可选): 页码，从1开始，默认为1
+- `page_size` (可选): 每页数量，默认20
+
+**响应示例**:
+```json
+{
+  "items": [...],
+  "total": 50,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+**错误响应**:
+- `403`: 没有管理员权限
+- `401`: 未授权访问
+- `500`: 获取人设卡列表失败
+
+### 恢复知识库审核状态
+将知识库的审核状态恢复为待审核（需要管理员权限）。
+
+```http
+POST /api/admin/knowledge/{kb_id}/revert
+Authorization: Bearer {token}
+```
+
+**参数说明**:
+- `kb_id` (路径参数): 知识库ID
+
+**响应示例**:
+```json
+{
+  "message": "知识库审核状态已恢复"
+}
+```
+
+**错误响应**:
+- `403`: 没有管理员权限
+- `404`: 知识库不存在
+- `500`: 恢复审核状态失败
+
+### 恢复人设卡审核状态
+将人设卡的审核状态恢复为待审核（需要管理员权限）。
+
+```http
+POST /api/admin/persona/{pc_id}/revert
+Authorization: Bearer {token}
+```
+
+**参数说明**:
+- `pc_id` (路径参数): 人设卡ID
+
+**响应示例**:
+```json
+{
+  "message": "人设卡审核状态已恢复"
+}
+```
+
+**错误响应**:
+- `403`: 没有管理员权限
+- `404`: 人设卡不存在
+- `500`: 恢复审核状态失败
+
+### 获取上传历史记录
+获取所有上传历史记录（需要管理员权限）。
+
+```http
+GET /api/admin/upload-history?page=1&page_size=20
+Authorization: Bearer {token}
+```
+
+**查询参数说明**:
+- `page` (可选): 页码，从1开始，默认为1
+- `page_size` (可选): 每页数量，默认20
+
+**响应示例**:
+```json
+{
+  "items": [...],
+  "total": 200,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+**错误响应**:
+- `403`: 没有管理员权限
+- `401`: 未授权访问
+- `500`: 获取上传历史失败
+
+### 获取上传统计数据
+获取上传相关的统计数据（需要管理员权限）。
+
+```http
+GET /api/admin/upload-stats
+Authorization: Bearer {token}
+```
+
+**响应示例**:
+```json
+{
+  "total_uploads": 200,
+  "pending_uploads": 10,
+  "approved_uploads": 150,
+  "rejected_uploads": 40
+}
+```
+
+**错误响应**:
+- `403`: 没有管理员权限
+- `401`: 未授权访问
+- `500`: 获取统计数据失败
+
+### 删除上传记录
+删除指定的上传记录（需要管理员权限）。
+
+```http
+DELETE /api/admin/uploads/{upload_id}
+Authorization: Bearer {token}
+```
+
+**参数说明**:
+- `upload_id` (路径参数): 上传记录ID
+
+**响应示例**:
+```json
+{
+  "message": "上传记录删除成功"
+}
+```
+
+**错误响应**:
+- `403`: 没有管理员权限
+- `404`: 上传记录不存在
+- `500`: 删除上传记录失败
+
+### 重新处理上传
+重新处理指定的上传记录（需要管理员权限）。
+
+```http
+POST /api/admin/uploads/{upload_id}/reprocess
+Authorization: Bearer {token}
+```
+
+**参数说明**:
+- `upload_id` (路径参数): 上传记录ID
+
+**响应示例**:
+```json
+{
+  "message": "上传记录已重新处理"
+}
+```
+
+**错误响应**:
+- `403`: 没有管理员权限
+- `404`: 上传记录不存在
+- `500`: 重新处理失败
 
 ## 邮件服务接口
 
