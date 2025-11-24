@@ -37,7 +37,7 @@ updated_kb = db_manager.save_knowledge_base(kb.to_dict())
 #### 1.1. 审核拒绝API参数传递方式优化
 
 **问题描述：**
-- `reject_knowledge_base` 和 `reject_persona_card` 接口的 `reason` 参数原本使用查询参数（Query），不符合RESTful端点，且对于较长的拒绝原因不够友好（限制显示）。
+- `reject_knowledge_base` 和 `reject_persona_card` 接口的 `reason` 参数原本使用查询参数（Query），不符合RESTful最佳实践，且对于较长的拒绝原因不够友好。
 
 **修复位置：**
 - 文件：`api_routes.py`
@@ -89,7 +89,7 @@ Content-Type: application/json
 
 **影响：**
 - 客户端需要更新调用方式，将 `reason` 参数从查询字符串改为JSON请求体
-- 更符合RESTful API
+- 更符合RESTful API设计规范
 - 支持更长的拒绝原因文本
 
 ---
@@ -333,7 +333,7 @@ def _migrate_database(self):
 5. SQL查询优化（使用明确的逻辑函数确保查询正确）
 
 **API接口优化：**
-6. 审核拒绝接口参数传递方式优化（从查询参数改为请求体，更符合RESTful API的规范）
+6. 审核拒绝接口参数传递方式优化（从查询参数改为请求体，更符合RESTful规范）
 
 **数据库结构修复：**
 7. 自动数据库迁移（添加缺失的 `message_type` 和 `broadcast_scope` 列）
@@ -344,6 +344,139 @@ def _migrate_database(self):
 - 不需要手动执行SQL脚本，重启应用即可
 
 ---
+
+### 相关文件
+
+- `MaiMaiNotePad-BackEnd/api_routes.py` - API路由实现
+- `MaiMaiNotePad-BackEnd/database_models.py` - 数据库模型定义
+- `MaiMaiNotePad-BackEnd/models.py` - Pydantic模型定义
+
+---
+
+## 2025-11-23 - 新增功能和接口优化
+
+### 新增功能
+
+#### 1. Star状态检查接口
+
+**新增接口**：
+- `GET /api/knowledge/{kb_id}/starred` - 检查知识库是否已被当前用户Star
+- `GET /api/persona/{pc_id}/starred` - 检查人设卡是否已被当前用户Star
+
+**功能说明**：
+- 返回格式：`{"starred": true/false}`
+- 需要用户认证
+- 用于前端快速检查Star状态，避免获取所有Star记录
+
+**实现位置**：
+- 文件：`api_routes.py`
+- 行号：
+  - `check_knowledge_starred`: 第861-874行
+  - `check_persona_starred`: 第1508-1521行
+
+#### 2. 分页支持
+
+**新增分页接口**：
+- `GET /api/knowledge/public` - 支持分页、搜索、筛选和排序
+- `GET /api/persona/public` - 支持分页、搜索、筛选和排序
+
+**查询参数**：
+- `page`: 页码（从1开始）
+- `page_size`: 每页数量（1-100）
+- `name`: 按名称搜索（可选）
+- `uploader_id`: 按上传者ID筛选（可选）
+- `sort_by`: 排序字段（created_at, updated_at, star_count）
+- `sort_order`: 排序顺序（asc, desc）
+
+**响应格式**：
+```json
+{
+  "items": [...],
+  "total": 100,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+#### 3. 用户Star记录接口增强
+
+**接口**：`GET /api/user/stars`
+
+**新增参数**：
+- `includeDetails`: 是否包含完整详情（可选，默认false）
+
+**功能说明**：
+- 当 `includeDetails=true` 时，返回Star记录的同时包含知识库/人设卡的完整信息
+- 减少前端API调用次数，从 1+N 次请求优化到 1 次请求
+
+**实现位置**：
+- 文件：`api_routes.py`
+- 行号：`get_user_stars`: 第2026-2075行
+
+### 影响范围
+
+**新增接口**（客户端可选集成）：
+- `GET /api/knowledge/{kb_id}/starred` - Star状态检查
+- `GET /api/persona/{pc_id}/starred` - Star状态检查
+- `GET /api/knowledge/public` - 支持分页参数
+- `GET /api/persona/public` - 支持分页参数
+- `GET /api/user/stars` - 支持 `includeDetails` 参数
+
+### 相关文件
+
+- `MaiMaiNotePad-BackEnd/api_routes.py` - API路由实现
+
+---
+
+## 2025-11-23 - 代码质量改进
+
+### 代码质量修复
+
+#### 1. 重复定义问题修复 ✅
+
+**问题描述：**
+- `api_routes.py` 和 `models.py` 中重复定义了相同的响应模型类
+- 导致维护困难，可能出现不一致问题
+
+**修复位置：**
+- 文件：`api_routes.py`
+- 行号：第15-19行（导入语句）
+
+**修复方法：**
+统一从 `models.py` 导入响应模型，删除 `api_routes.py` 中的重复定义。
+
+**修改后：**
+```python
+# api_routes.py 第15-19行
+from models import (
+    KnowledgeBase, PersonaCard, Message, MessageCreate, MessageUpdate, StarRecord,
+    KnowledgeBaseUpdate, MessageResponse, KnowledgeBaseResponse, PersonaCardResponse,
+    StarResponse, KnowledgeBasePaginatedResponse, PersonaCardPaginatedResponse
+)
+```
+
+**影响：**
+- 代码符合DRY原则
+- 减少维护成本
+- 避免定义不一致问题
+
+#### 2. 数据库管理器实例化修复 ✅
+
+**问题描述：**
+- 数据库管理器实例化问题可能导致循环导入
+- 其他模块无法正常导入和使用数据库管理器
+
+**修复位置：**
+- 文件：`database_models.py`
+- 行号：第1809行
+
+**修复方法：**
+创建全局实例 `sqlite_db_manager`，确保其他模块可以正常导入和使用。
+
+**影响：**
+- 解决循环导入问题
+- 统一数据库管理器实例
+- 提升代码可维护性
 
 ### 相关文件
 

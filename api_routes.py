@@ -3,21 +3,23 @@ API路由实现
 包含知识库、人设卡、用户管理、审核等功能路由
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request, Body
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request, Body, Query
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import os
+import hashlib
 from datetime import datetime
 
 from models import (
-    KnowledgeBase, PersonaCard, Message, MessageCreate, StarRecord,
-    KnowledgeBaseUpdate, MessageResponse
+    KnowledgeBase, PersonaCard, Message, MessageCreate, MessageUpdate, StarRecord,
+    KnowledgeBaseUpdate, MessageResponse, KnowledgeBaseResponse, PersonaCardResponse,
+    StarResponse, KnowledgeBasePaginatedResponse, PersonaCardPaginatedResponse
 )
-from database_models import sqlite_db_manager
+from database_models import sqlite_db_manager, KnowledgeBase, PersonaCard, UploadRecord
 from file_upload import file_upload_service
-from user_management import get_current_user, pwd_context, create_user, get_user_by_username
+from user_management import get_current_user, get_current_user_optional, pwd_context, create_user, get_user_by_username
 
 # 导入错误处理和日志记录模块
 from logging_config import app_logger, log_exception, log_api_request, log_file_operation, log_database_operation
@@ -33,48 +35,16 @@ api_router = APIRouter()
 # 使用SQLite数据库管理器
 db_manager = sqlite_db_manager
 
+# 注意：速率限制通过main.py中的中间件实现
+
 # OAuth2 认证
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-
-# 响应模型
-class KnowledgeBaseResponse(BaseModel):
-    id: str
-    name: str
-    description: str
-    uploader_id: str
-    copyright_owner: Optional[str]
-    star_count: int
-    is_public: bool
-    is_pending: bool
-    base_path: Optional[str]
-    created_at: datetime
-    updated_at: datetime
-
-
-class PersonaCardResponse(BaseModel):
-    id: str
-    name: str
-    description: str
-    uploader_id: str
-    copyright_owner: Optional[str]
-    star_count: int
-    is_public: bool
-    is_pending: bool
-    created_at: datetime
-    updated_at: datetime
-
-
-class StarResponse(BaseModel):
-    id: str
-    target_id: str
-    target_type: str
-    created_at: str
 
 # 认证相关路由
 @api_router.post("/token")
 async def login(request: Request):
-    """用户登录获取访问令牌，支持JSON和表单数据格式"""
+    """用户登录获取访问令牌，支持JSON和表单数据格式（带速率限制和账户锁定）"""
+    # 速率限制：每分钟最多5次登录尝试（通过装饰器实现）
     try:
         # 获取Content-Type
         content_type = request.headers.get("content-type", "")
@@ -83,17 +53,15 @@ async def login(request: Request):
             # 处理JSON格式
             try:
                 data = await request.json()
-                username = data.get("username")
-                password = data.get("password")
-                app_logger.info(f"Login attempt (JSON): username={username}")
+                username = data.get("username", "").strip()
+                password = data.get("password", "")
             except Exception:
                 raise ValidationError("无效的JSON格式")
         elif "application/x-www-form-urlencoded" in content_type:
             # 处理表单格式
             form_data = await request.form()
-            username = form_data.get("username")
-            password = form_data.get("password")
-            app_logger.info(f"Login attempt (Form): username={username}")
+            username = form_data.get("username", "").strip()
+            password = form_data.get("password", "")
         else:
             raise ValidationError("不支持的Content-Type")
 
@@ -101,24 +69,46 @@ async def login(request: Request):
         if not username or not password:
             raise ValidationError("请提供用户名和密码")
 
-        # 导入用户管理模块的验证函数
-        from user_management import get_user_by_credentials
-        # 导入JWT工具
-        from jwt_utils import create_user_token
+        # 用户名哈希用于日志（不记录真实用户名，保护隐私）
+        username_hash = hashlib.sha256(username.encode()).hexdigest()[:8]
+        app_logger.info(f"Login attempt: username_hash={username_hash}")
 
-        # 验证用户凭据
-        user = get_user_by_credentials(username, password)
+        # 导入用户管理模块的验证函数（带账户锁定检查）
+        from user_management import get_user_by_credentials_with_lock_check
+        # 导入JWT工具
+        from jwt_utils import create_user_token, create_refresh_token
+
+        # 验证用户凭据（带账户锁定检查）
+        user = get_user_by_credentials_with_lock_check(username, password)
 
         if user:
-            app_logger.info(f"Login successful: username={username}, role={user.role}")
+            app_logger.info(f"Login successful: user_id={user.userID}, role={user.role}")
 
-            # 创建JWT访问令牌
-            access_token = create_user_token(user.userID, user.username, user.role)
+            # 获取密码版本号
+            password_version = 0
+            if user._db_user:
+                password_version = user._db_user.password_version or 0
 
-            return {"access_token": access_token, "token_type": "bearer"}
+            # 创建JWT访问令牌和刷新令牌
+            access_token = create_user_token(user.userID, user.username, user.role, password_version)
+            refresh_token = create_refresh_token(user.userID)
 
-        # 登录失败
-        app_logger.warning(f"Login failed: username={username}")
+            # 返回token和用户信息
+            return {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "expires_in": 900,  # 15分钟
+                "user": {
+                    "id": user.userID,
+                    "username": user.username,
+                    "email": user.email,
+                    "role": user.role
+                }
+            }
+
+        # 登录失败（统一错误消息，防止用户枚举）
+        app_logger.warning(f"Login failed: username_hash={username_hash}")
         raise AuthenticationError("用户名或密码错误")
 
     except AuthenticationError:
@@ -128,11 +118,78 @@ async def login(request: Request):
         raise APIError("登录过程中发生错误")
 
 
+@api_router.post("/refresh")
+async def refresh_token(request: Request):
+    """刷新访问令牌"""
+    try:
+        # 获取Content-Type
+        content_type = request.headers.get("content-type", "")
+        
+        if "application/json" in content_type:
+            data = await request.json()
+            refresh_token = data.get("refresh_token")
+        elif "application/x-www-form-urlencoded" in content_type:
+            form_data = await request.form()
+            refresh_token = form_data.get("refresh_token")
+        else:
+            raise ValidationError("不支持的Content-Type")
+        
+        if not refresh_token:
+            raise ValidationError("请提供刷新令牌")
+        
+        # 验证刷新令牌
+        from jwt_utils import verify_token, create_user_token
+        payload = verify_token(refresh_token)
+        
+        if not payload:
+            raise AuthenticationError("无效的刷新令牌")
+        
+        # 检查令牌类型
+        if payload.get("type") != "refresh":
+            raise AuthenticationError("无效的令牌类型")
+        
+        # 获取用户ID
+        user_id = payload.get("sub")
+        if not user_id:
+            raise AuthenticationError("无效的令牌")
+        
+        # 获取用户信息
+        from user_management import get_user_by_id
+        user = get_user_by_id(user_id)
+        
+        if not user:
+            raise AuthenticationError("用户不存在")
+        
+        # 获取密码版本号
+        password_version = 0
+        if user._db_user:
+            password_version = user._db_user.password_version or 0
+        
+        # 创建新的访问令牌
+        access_token = create_user_token(user.userID, user.username, user.role, password_version)
+        
+        app_logger.info(f"Token refreshed: user_id={user.userID}")
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": 900  # 15分钟
+        }
+        
+    except (AuthenticationError, ValidationError):
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Refresh token error", exception=e)
+        raise APIError("刷新令牌过程中发生错误")
+
+
 @api_router.post("/send_verification_code")
 async def send_verification_code(
         email: str = Form(...),
 ):
     try:
+        # 统一转换为小写
+        email = email.lower()
         app_logger.info(f"Send verification code: email={email}")
 
         # 1. 验证邮箱格式
@@ -188,6 +245,8 @@ async def send_reset_password_code(
 ):
     """发送重置密码验证码"""
     try:
+        # 统一转换为小写
+        email = email.lower()
         app_logger.info(f"Send reset password code: email={email}")
 
         # 1. 验证邮箱格式
@@ -250,6 +309,8 @@ async def reset_password(
 ):
     """通过邮箱验证码重置密码"""
     try:
+        # 统一转换为小写
+        email = email.lower()
         app_logger.info(f"Reset password: email={email}")
 
         # 1. 验证输入参数
@@ -295,6 +356,9 @@ async def user_register(
         if not username or not password or not email or not verification_code:
             raise ValidationError("有未填写的字段")
 
+        # 统一转换为小写
+        email = email.lower()
+        
         message=db_manager.check_user_register_legality(username, email)
         if message != "ok":
             raise ValidationError(message)
@@ -331,19 +395,30 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
         user_id = current_user.get("id", "")
         app_logger.info(f"Get user info: user_id={user_id}")
 
+        # 从数据库获取用户信息（包含头像信息）
+        user = db_manager.get_user_by_id(user_id)
+        avatar_url = None
+        avatar_updated_at = None
+        
+        if user:
+            if user.avatar_path:
+                avatar_url = f"/{user.avatar_path}"
+            if user.avatar_updated_at:
+                avatar_updated_at = user.avatar_updated_at.isoformat()
+
         return {
             "id": user_id,
             "username": current_user.get("username", ""),
             "email": current_user.get("email", ""),
-            "role": current_user.get("role", "user")
+            "role": current_user.get("role", "user"),
+            "avatar_url": avatar_url,
+            "avatar_updated_at": avatar_updated_at
         }
     except Exception as e:
         log_exception(app_logger, "Get user info error", exception=e)
         raise APIError("获取用户信息失败")
 
 
-<<<<<<< Updated upstream
-=======
 @api_router.put("/users/me/password", response_model=dict)
 async def change_password(
     password_data: dict = Body(...),
@@ -468,9 +543,10 @@ async def upload_avatar(
         log_file_operation(
             app_logger,
             "upload",
-            file_path,
+            "avatar",
+            success=True,
             user_id=user_id,
-            success=True
+            file_path=file_path
         )
         
         app_logger.info(f"Avatar uploaded successfully: user_id={user_id}, path={file_path}")
@@ -570,7 +646,6 @@ async def get_user_avatar(user_id: str, size: int = 200):
         raise APIError("获取用户头像失败")
 
 
->>>>>>> Stashed changes
 # 知识库相关路由
 @api_router.post("/knowledge/upload", response_model=KnowledgeBaseResponse)
 async def upload_knowledge_base(
@@ -608,6 +683,19 @@ async def upload_knowledge_base(
             copyright_owner=copyright_owner if copyright_owner else username
         )
 
+        # 创建上传记录
+        try:
+            db_manager.create_upload_record(
+                uploader_id=user_id,
+                target_id=kb.id,
+                target_type="knowledge",
+                name=name,
+                description=description,
+                status="pending"
+            )
+        except Exception as e:
+            app_logger.warning(f"Failed to create upload record: {str(e)}")
+
         # 记录文件操作成功
         log_file_operation(
             app_logger,
@@ -644,56 +732,75 @@ async def upload_knowledge_base(
         raise APIError("上传知识库失败")
 
 
-@api_router.get("/knowledge/public", response_model=List[KnowledgeBaseResponse])
-async def get_public_knowledge_bases():
-    """获取所有公开的知识库"""
+@api_router.get("/knowledge/public", response_model=KnowledgeBasePaginatedResponse)
+async def get_public_knowledge_bases(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    name: str = Query(None, description="按名称搜索"),
+    uploader_id: str = Query(None, description="按上传者ID筛选"),
+    sort_by: str = Query("created_at", description="排序字段(created_at, updated_at, star_count)"),
+    sort_order: str = Query("desc", description="排序顺序(asc, desc)")
+):
+    """获取所有公开的知识库，支持分页、搜索、按上传者筛选和排序"""
     try:
         app_logger.info("Get public knowledge bases")
 
-        kbs = db_manager.get_public_knowledge_bases()
-        return [KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs]
+        kbs, total = db_manager.get_public_knowledge_bases(
+            page=page,
+            page_size=page_size,
+            name=name,
+            uploader_id=uploader_id,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
+        return KnowledgeBasePaginatedResponse(
+            items=[KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs],
+            total=total,
+            page=page,
+            page_size=page_size
+        )
 
     except Exception as e:
         log_exception(app_logger, "Get public knowledge bases error", exception=e)
         raise APIError("获取公开知识库失败")
 
 
-@api_router.get("/knowledge/{kb_id}", response_model=dict)
+@api_router.get("/knowledge/{kb_id}", response_model=KnowledgeBaseResponse)
 async def get_knowledge_base(kb_id: str):
-    """获取知识库内容"""
-    # 这里改成获取知识库基本信息了，下载知识库文件改成其他接口了
+    """获取知识库基本信息"""
     try:
-        app_logger.info(f"Get knowledge base content: kb_id={kb_id}")
+        app_logger.info(f"Get knowledge base: kb_id={kb_id}")
 
         # 检查知识库是否存在
         kb = db_manager.get_knowledge_base_by_id(kb_id)
         if not kb:
             raise NotFoundError("知识库不存在")
 
-        content = file_upload_service.get_knowledge_base_content(kb_id)
+        # 返回完整的知识库信息（包含文件和metadata）
+        kb_dict = kb.to_dict(include_files=True, include_metadata=True)
+        return KnowledgeBaseResponse(**kb_dict)
 
-        # 记录文件读取操作
-        log_file_operation(
-            app_logger,
-            "read",
-            f"knowledge_base/{kb_id}",
-            success=True
-        )
-
-        return content
-
-    except (NotFoundError, FileOperationError):
+    except NotFoundError:
         raise
     except Exception as e:
-        log_exception(app_logger, "Get knowledge base content error", exception=e)
-        log_file_operation(
-            app_logger,
-            "read",
-            f"knowledge_base/{kb_id}",
-            success=False,
-            error_message=str(e)
-        )
-        raise APIError("获取知识库内容失败")
+        log_exception(app_logger, "Get knowledge base error", exception=e)
+        raise APIError("获取知识库失败")
+
+
+@api_router.get("/knowledge/{kb_id}/starred", response_model=Dict[str, bool])
+async def check_knowledge_starred(
+    kb_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """检查知识库是否已被当前用户Star"""
+    user_id = current_user.get("id", "")
+    try:
+        app_logger.info(f"Check knowledge starred: kb_id={kb_id}, user_id={user_id}")
+        starred = db_manager.is_starred(user_id, kb_id, "knowledge")
+        return {"starred": starred}
+    except Exception as e:
+        log_exception(app_logger, "Check knowledge starred error", exception=e)
+        raise APIError("检查Star状态失败")
 
 
 @api_router.get("/knowledge/user/{user_id}", response_model=List[KnowledgeBaseResponse])
@@ -1032,6 +1139,12 @@ async def download_knowledge_base_files(
         zip_path = zip_result["zip_path"]
         zip_filename = zip_result["zip_filename"]
         
+        # 使用原子操作更新下载计数器
+        success = db_manager.increment_knowledge_base_downloads(kb_id)
+        if not success:
+            # 如果更新计数器失败，记录日志但不影响下载
+            app_logger.warning(f"更新知识库下载计数器失败: kb_id={kb_id}")
+        
         # 返回文件下载响应
         return FileResponse(
             path=zip_path,
@@ -1137,6 +1250,12 @@ async def delete_knowledge_base(
         # 删除数据库记录
         if not db_manager.delete_knowledge_base(kb_id):
             raise DatabaseError("删除知识库记录失败")
+        
+        # 删除相关的上传记录
+        try:
+            db_manager.delete_upload_records_by_target(kb_id, "knowledge")
+        except Exception as e:
+            app_logger.warning(f"删除知识库上传记录失败: {str(e)}")
 
         # 记录文件操作成功
         log_file_operation(
@@ -1211,6 +1330,19 @@ async def upload_persona_card(
             copyright_owner=copyright_owner if copyright_owner else username
         )
 
+        # 创建上传记录
+        try:
+            db_manager.create_upload_record(
+                uploader_id=user_id,
+                target_id=pc.id,
+                target_type="persona",
+                name=name,
+                description=description,
+                status="pending"
+            )
+        except Exception as e:
+            app_logger.warning(f"Failed to create upload record: {str(e)}")
+
         # 记录文件操作成功
         log_file_operation(
             app_logger,
@@ -1247,55 +1379,75 @@ async def upload_persona_card(
         raise APIError("上传人设卡失败")
 
 
-@api_router.get("/persona/public", response_model=List[PersonaCardResponse])
-async def get_public_persona_cards():
-    """获取所有公开的人设卡"""
+@api_router.get("/persona/public", response_model=PersonaCardPaginatedResponse)
+async def get_public_persona_cards(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    name: str = Query(None, description="按名称搜索"),
+    uploader_id: str = Query(None, description="按上传者ID筛选"),
+    sort_by: str = Query("created_at", description="排序字段(created_at, updated_at, star_count)"),
+    sort_order: str = Query("desc", description="排序顺序(asc, desc)")
+):
+    """获取所有公开的人设卡，支持分页、搜索、按上传者筛选和排序"""
     try:
         app_logger.info("Get public persona cards")
 
-        pcs = db_manager.get_public_persona_cards()
-        return [PersonaCardResponse(**pc.to_dict()) for pc in pcs]
+        pcs, total = db_manager.get_public_persona_cards(
+            page=page,
+            page_size=page_size,
+            name=name,
+            uploader_id=uploader_id,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
+        return PersonaCardPaginatedResponse(
+            items=[PersonaCardResponse(**pc.to_dict()) for pc in pcs],
+            total=total,
+            page=page,
+            page_size=page_size
+        )
 
     except Exception as e:
         log_exception(app_logger, "Get public persona cards error", exception=e)
         raise APIError("获取公开人设卡失败")
 
 
-@api_router.get("/persona/{pc_id}", response_model=dict)
+@api_router.get("/persona/{pc_id}", response_model=PersonaCardResponse)
 async def get_persona_card(pc_id: str):
-    """获取人设卡内容"""
+    """获取人设卡详情"""
     try:
-        app_logger.info(f"Get persona card content: pc_id={pc_id}")
+        app_logger.info(f"Get persona card detail: pc_id={pc_id}")
 
         # 检查人设卡是否存在
         pc = db_manager.get_persona_card_by_id(pc_id)
         if not pc:
             raise NotFoundError("人设卡不存在")
 
-        content = file_upload_service.get_persona_card_content(pc_id)
+        # 返回完整的人设卡信息（包含文件和metadata）
+        pc_dict = pc.to_dict(include_files=True, include_metadata=True)
+        return PersonaCardResponse(**pc_dict)
 
-        # 记录文件读取操作
-        log_file_operation(
-            app_logger,
-            "read",
-            f"persona_card/{pc_id}",
-            success=True
-        )
-
-        return content
-
-    except (NotFoundError, FileOperationError):
+    except NotFoundError:
         raise
     except Exception as e:
-        log_exception(app_logger, "Get persona card content error", exception=e)
-        log_file_operation(
-            app_logger,
-            "read",
-            f"persona_card/{pc_id}",
-            success=False,
-            error_message=str(e)
-        )
-        raise APIError("获取人设卡内容失败")
+        log_exception(app_logger, "Get persona card detail error", exception=e)
+        raise APIError("获取人设卡详情失败")
+
+
+@api_router.get("/persona/{pc_id}/starred", response_model=Dict[str, bool])
+async def check_persona_starred(
+    pc_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """检查人设卡是否已被当前用户Star"""
+    user_id = current_user.get("id", "")
+    try:
+        app_logger.info(f"Check persona starred: pc_id={pc_id}, user_id={user_id}")
+        starred = db_manager.is_starred(user_id, pc_id, "persona")
+        return {"starred": starred}
+    except Exception as e:
+        log_exception(app_logger, "Check persona starred error", exception=e)
+        raise APIError("检查Star状态失败")
 
 
 @api_router.get("/persona/user/{user_id}", response_model=List[PersonaCardResponse])
@@ -1525,6 +1677,12 @@ async def delete_persona_card(
         success = db_manager.delete_persona_card(pc_id)
         if not success:
             raise DatabaseError("删除人设卡失败")
+        
+        # 删除相关的上传记录
+        try:
+            db_manager.delete_upload_records_by_target(pc_id, "persona")
+        except Exception as e:
+            app_logger.warning(f"删除人设卡上传记录失败: {str(e)}")
 
         # 记录数据库操作成功
         log_database_operation(
@@ -1686,13 +1844,35 @@ async def delete_files_from_persona_card(
 @api_router.get("/persona/{pc_id}/download")
 async def download_persona_card_files(
     pc_id: str,
+    current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
     """下载人设卡的所有文件压缩包"""
     try:
+        # 检查人设卡是否存在
+        pc = db_manager.get_persona_card_by_id(pc_id)
+        if not pc:
+            raise NotFoundError("人设卡不存在")
+        
+        # 权限检查：公开人设卡任何人都可以下载，私有人设卡需要认证
+        if not pc.is_public:
+            if not current_user:
+                raise AuthenticationError("需要登录才能下载私有人设卡")
+            # 检查权限：只有上传者、管理员或版主可以下载私有人设卡
+            user_role = current_user.get("role", "user")
+            is_admin_or_moderator = user_role in ["admin", "moderator"]
+            if pc.uploader_id != current_user.get("id") and not is_admin_or_moderator:
+                raise AuthorizationError("没有权限下载此人设卡")
+        
         # 创建ZIP文件
         zip_result = await file_upload_service.create_persona_card_zip(pc_id)
         zip_path = zip_result["zip_path"]
         zip_filename = zip_result["zip_filename"]
+        
+        # 使用原子操作更新下载计数器
+        success = db_manager.increment_persona_card_downloads(pc_id)
+        if not success:
+            # 如果更新计数器失败，记录日志但不影响下载
+            app_logger.warning(f"更新人设卡下载计数器失败: pc_id={pc_id}")
         
         # 返回文件下载响应
         return FileResponse(
@@ -1701,7 +1881,7 @@ async def download_persona_card_files(
             media_type='application/zip'
         )
         
-    except HTTPException:
+    except (HTTPException, NotFoundError, AuthenticationError, AuthorizationError):
         raise
     except Exception as e:
         raise HTTPException(
@@ -1773,11 +1953,14 @@ async def download_persona_card_file(
 
 # 用户Star记录相关路由
 @api_router.get("/user/stars", response_model=List[Dict[str, Any]])
-async def get_user_stars(current_user: dict = Depends(get_current_user)):
+async def get_user_stars(
+    current_user: dict = Depends(get_current_user),
+    include_details: bool = False
+):
     """获取用户Star的知识库和人设卡"""
     user_id = current_user.get("id", "")
     try:
-        app_logger.info(f"Get user stars: user_id={user_id}")
+        app_logger.info(f"Get user stars: user_id={user_id}, include_details={include_details}")
 
         stars = db_manager.get_stars_by_user(user_id)
         result = []
@@ -1786,7 +1969,7 @@ async def get_user_stars(current_user: dict = Depends(get_current_user)):
             if star.target_type == "knowledge":
                 kb = db_manager.get_knowledge_base_by_id(star.target_id)
                 if kb and kb.is_public:
-                    result.append({
+                    item = {
                         "id": star.id,
                         "type": "knowledge",
                         "target_id": star.target_id,
@@ -1794,11 +1977,16 @@ async def get_user_stars(current_user: dict = Depends(get_current_user)):
                         "description": kb.description,
                         "star_count": kb.star_count,
                         "created_at": star.created_at.isoformat()
-                    })
+                    }
+                    # 如果需要完整详情，调用to_dict
+                    if include_details:
+                        kb_dict = kb.to_dict(include_files=True, include_metadata=True)
+                        item.update(kb_dict)
+                    result.append(item)
             elif star.target_type == "persona":
                 pc = db_manager.get_persona_card_by_id(star.target_id)
                 if pc and pc.is_public:
-                    result.append({
+                    item = {
                         "id": star.id,
                         "type": "persona",
                         "target_id": star.target_id,
@@ -1806,7 +1994,12 @@ async def get_user_stars(current_user: dict = Depends(get_current_user)):
                         "description": pc.description,
                         "star_count": pc.star_count,
                         "created_at": star.created_at.isoformat()
-                    })
+                    }
+                    # 如果需要完整详情，调用to_dict
+                    if include_details:
+                        pc_dict = pc.to_dict(include_files=True, include_metadata=True)
+                        item.update(pc_dict)
+                    result.append(item)
 
         # 记录数据库操作成功
         log_database_operation(
@@ -1834,9 +2027,17 @@ async def get_user_stars(current_user: dict = Depends(get_current_user)):
 
 
 # 审核相关路由
-@api_router.get("/review/knowledge/pending", response_model=List[KnowledgeBaseResponse])
-async def get_pending_knowledge_bases(current_user: dict = Depends(get_current_user)):
-    """获取待审核的知识库（需要admin或moderator权限）"""
+@api_router.get("/review/knowledge/pending", response_model=KnowledgeBasePaginatedResponse)
+async def get_pending_knowledge_bases(
+    page: int = Query(1, ge=1, description="页码，默认为1"),
+    page_size: int = Query(10, ge=1, le=100, description="每页数量，默认为10，最大100"),
+    name: Optional[str] = Query(None, description="按名称搜索"),
+    uploader_id: Optional[str] = Query(None, description="按上传者ID筛选"),
+    sort_by: str = Query("created_at", description="排序字段，可选：created_at, updated_at, star_count"),
+    sort_order: str = Query("desc", description="排序方式，可选：asc, desc"),
+    current_user: dict = Depends(get_current_user)
+):
+    """获取待审核的知识库（需要admin或moderator权限），支持分页、搜索、按上传者筛选和排序"""
     # 验证权限
     if current_user.get("role", "user") not in ["admin", "moderator"]:
         raise HTTPException(
@@ -1845,8 +2046,20 @@ async def get_pending_knowledge_bases(current_user: dict = Depends(get_current_u
         )
 
     try:
-        kbs = db_manager.get_pending_knowledge_bases()
-        return [KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs]
+        kbs, total = db_manager.get_pending_knowledge_bases(
+            page=page,
+            page_size=page_size,
+            name=name,
+            uploader_id=uploader_id,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
+        return KnowledgeBasePaginatedResponse(
+            items=[KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs],
+            total=total,
+            page=page,
+            page_size=page_size
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1854,9 +2067,17 @@ async def get_pending_knowledge_bases(current_user: dict = Depends(get_current_u
         )
 
 
-@api_router.get("/review/persona/pending", response_model=List[PersonaCardResponse])
-async def get_pending_persona_cards(current_user: dict = Depends(get_current_user)):
-    """获取待审核的人设卡（需要admin或moderator权限）"""
+@api_router.get("/review/persona/pending", response_model=PersonaCardPaginatedResponse)
+async def get_pending_persona_cards(
+    page: int = Query(1, ge=1, description="页码，默认为1"),
+    page_size: int = Query(10, ge=1, le=100, description="每页数量，默认为10，最大100"),
+    name: Optional[str] = Query(None, description="按名称搜索"),
+    uploader_id: Optional[str] = Query(None, description="按上传者ID筛选"),
+    sort_by: str = Query("created_at", description="排序字段，可选：created_at, updated_at, star_count"),
+    sort_order: str = Query("desc", description="排序方式，可选：asc, desc"),
+    current_user: dict = Depends(get_current_user)
+):
+    """获取待审核的人设卡（需要admin或moderator权限），支持分页、搜索、按上传者筛选和排序"""
     # 验证权限
     if current_user.get("role", "user") not in ["admin", "moderator"]:
         raise HTTPException(
@@ -1865,8 +2086,20 @@ async def get_pending_persona_cards(current_user: dict = Depends(get_current_use
         )
 
     try:
-        pcs = db_manager.get_pending_persona_cards()
-        return [PersonaCardResponse(**pc.to_dict()) for pc in pcs]
+        pcs, total = db_manager.get_pending_persona_cards(
+            page=page,
+            page_size=page_size,
+            name=name,
+            uploader_id=uploader_id,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
+        return PersonaCardPaginatedResponse(
+            items=[PersonaCardResponse(**pc.to_dict()) for pc in pcs],
+            total=total,
+            page=page,
+            page_size=page_size
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1906,6 +2139,12 @@ async def approve_knowledge_base(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="更新知识库状态失败"
             )
+
+        # 更新上传记录状态
+        try:
+            db_manager.update_upload_record_status(kb_id, "approved")
+        except Exception as e:
+            app_logger.warning(f"Failed to update upload record status: {str(e)}")
 
         return {"message": "审核通过"}
     except HTTPException as e:
@@ -1950,6 +2189,12 @@ async def reject_knowledge_base(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="更新知识库状态失败"
             )
+
+        # 更新上传记录状态
+        try:
+            db_manager.update_upload_record_status(kb_id, "rejected")
+        except Exception as e:
+            app_logger.warning(f"Failed to update upload record status: {str(e)}")
 
         # 发送拒绝通知
         message = Message(
@@ -2004,6 +2249,12 @@ async def approve_persona_card(
                 detail="更新人设卡状态失败"
             )
 
+        # 更新上传记录状态
+        try:
+            db_manager.update_upload_record_status(pc_id, "approved")
+        except Exception as e:
+            app_logger.warning(f"Failed to update upload record status: {str(e)}")
+
         return {"message": "审核通过"}
     except HTTPException as e:
         raise e
@@ -2048,6 +2299,12 @@ async def reject_persona_card(
                 detail="更新人设卡状态失败"
             )
 
+        # 更新上传记录状态
+        try:
+            db_manager.update_upload_record_status(pc_id, "rejected")
+        except Exception as e:
+            app_logger.warning(f"Failed to update upload record status: {str(e)}")
+
         # 发送拒绝通知
         message = Message(
             recipient_id=pc.uploader_id,
@@ -2091,6 +2348,17 @@ async def send_message(
         if not content:
             raise ValidationError("消息内容不能为空")
 
+        # 权限检查：只有announcement类型可以使用broadcast_scope
+        if message.broadcast_scope and message.message_type != "announcement":
+            raise ValidationError("只有公告类型消息可以使用广播功能")
+
+        # 权限检查：发送全用户广播需要管理员或审核员权限
+        if message.broadcast_scope == "all_users":
+            user_role = current_user.get("role", "user")
+            is_admin_or_moderator = user_role in ["admin", "moderator"]
+            if not is_admin_or_moderator:
+                raise AuthorizationError("只有管理员和审核员可以发送全用户广播")
+
         recipient_ids = set()
         if message.recipient_id:
             recipient_ids.add(message.recipient_id)
@@ -2118,16 +2386,47 @@ async def send_message(
         if missing:
             raise NotFoundError(f"接收者不存在: {', '.join(missing)}")
 
+        # 对接收者对象按用户ID去重，确保每个用户只创建一条消息
+        # 使用字典按用户ID去重，保留第一个出现的用户对象
+        unique_recipients = {}
+        for user in recipient_objects:
+            if user.id and user.id not in unique_recipients:
+                unique_recipients[user.id] = user
+
+        # 如果未提供summary，可以从content自动生成（取前150字符）
+        summary = message.summary
+        if not summary and content:
+            import re
+            text = re.sub(r'<[^>]+>', '', content)  # 移除HTML标签（如果有）
+            text = ' '.join(text.split())  # 移除多余空白
+            if len(text) > 150:
+                truncated = text[:150]
+                last_punctuation = max(
+                    truncated.rfind('。'),
+                    truncated.rfind('！'),
+                    truncated.rfind('？'),
+                    truncated.rfind('.'),
+                    truncated.rfind('!'),
+                    truncated.rfind('?')
+                )
+                if last_punctuation > 75:
+                    summary = truncated[:last_punctuation + 1]
+                else:
+                    summary = truncated + '...'
+            else:
+                summary = text
+        
         message_payloads = [
             {
                 "sender_id": sender_id,
                 "recipient_id": user.id,
                 "title": title,
                 "content": content,
+                "summary": summary,
                 "message_type": message.message_type,
                 "broadcast_scope": message.broadcast_scope if message.message_type == "announcement" else None
             }
-            for user in recipient_objects
+            for user in unique_recipients.values()
         ]
 
         try:
@@ -2168,6 +2467,48 @@ async def send_message(
             error_message=str(e)
         )
         raise APIError("发送消息失败")
+
+
+@api_router.get("/messages/{message_id}", response_model=MessageResponse)
+async def get_message_detail(
+    message_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """获取消息详情"""
+    user_id = current_user.get("id", "")
+    try:
+        app_logger.info(f"Get message detail: message_id={message_id}, user_id={user_id}")
+
+        # 检查消息是否存在
+        message = db_manager.get_message_by_id(message_id)
+        if not message:
+            raise NotFoundError("消息不存在")
+
+        # 验证权限：只有接收者可以查看消息详情
+        recipient_id = str(message.recipient_id) if message.recipient_id else ""
+        user_id_str = str(user_id) if user_id else ""
+        
+        if recipient_id != user_id_str:
+            raise AuthorizationError("没有权限查看此消息")
+
+        return MessageResponse(
+            id=message.id,
+            sender_id=message.sender_id,
+            recipient_id=message.recipient_id,
+            title=message.title,
+            content=message.content,
+            summary=message.summary,
+            message_type=message.message_type or "direct",
+            broadcast_scope=message.broadcast_scope,
+            is_read=message.is_read or False,
+            created_at=message.created_at if message.created_at else datetime.now()
+        )
+
+    except (NotFoundError, AuthorizationError):
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Get message detail error", exception=e)
+        raise APIError("获取消息详情失败")
 
 
 @api_router.get("/messages", response_model=List[MessageResponse])
@@ -2225,14 +2566,25 @@ async def mark_message_read(
     try:
         app_logger.info(f"Mark message as read: message_id={message_id}, user_id={user_id}")
 
+        # 验证用户ID
+        if not user_id:
+            raise AuthorizationError("用户ID无效")
+
         # 检查消息是否存在
         message = db_manager.get_message_by_id(message_id)
         if not message:
             raise NotFoundError("消息不存在")
 
         # 验证权限：只有接收者可以标记消息为已读
-        if message.recipient_id != user_id:
-            app_logger.warning(f"Unauthorized mark read attempt: user={user_id} trying to mark message={message_id} sent to {message.recipient_id}")
+        # 确保类型一致（都转换为字符串进行比较）
+        recipient_id = str(message.recipient_id) if message.recipient_id else ""
+        user_id_str = str(user_id) if user_id else ""
+        
+        if recipient_id != user_id_str:
+            app_logger.warning(
+                f"Unauthorized mark read attempt: user={user_id_str} (type={type(user_id)}) "
+                f"trying to mark message={message_id} sent to {recipient_id} (type={type(message.recipient_id)})"
+            )
             raise AuthorizationError("没有权限标记此消息为已读")
 
         # 标记为已读
@@ -2269,10 +2621,6 @@ async def mark_message_read(
         raise APIError("标记消息已读失败")
 
 
-<<<<<<< Updated upstream
-# 导出路由器
-router = api_router
-=======
 @api_router.delete("/messages/{message_id}", response_model=dict)
 async def delete_message(
     message_id: str,
@@ -3758,7 +4106,3 @@ async def reprocess_upload_record(
 
 
 # 导出路由器
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes

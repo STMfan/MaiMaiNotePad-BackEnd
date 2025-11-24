@@ -7,17 +7,8 @@ import os
 import io
 from datetime import datetime
 from typing import Tuple, Optional
+from PIL import Image, ImageDraw, ImageFont
 import hashlib
-
-# 导入PIL/Pillow库
-try:
-    from PIL import Image, ImageDraw, ImageFont
-except ImportError:
-    raise ImportError(
-        "Pillow库未安装或未正确安装。请运行以下命令安装：\n"
-        "pip install Pillow\n"
-        "或者如果使用虚拟环境，请确保激活虚拟环境后再安装。"
-    )
 
 # 头像配置
 AVATAR_MAX_SIZE = 2 * 1024 * 1024  # 2MB

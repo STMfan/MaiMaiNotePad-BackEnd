@@ -29,6 +29,18 @@ class User(Base):
     is_moderator = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now)
     
+    # 账户锁定相关字段
+    failed_login_attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime, nullable=True)
+    last_failed_login = Column(DateTime, nullable=True)
+    
+    # 头像相关字段
+    avatar_path = Column(String, nullable=True)  # 头像文件路径（相对路径或URL）
+    avatar_updated_at = Column(DateTime, nullable=True)  # 头像最后更新时间
+    
+    # 密码版本号（用于Token失效机制）
+    password_version = Column(Integer, default=0)  # 密码修改次数，每次修改密码时递增
+    
     # 添加索引
     __table_args__ = (
         Index('idx_user_username', 'username'),
@@ -58,16 +70,22 @@ class User(Base):
             "is_active": self.is_active,
             "is_admin": self.is_admin,
             "is_moderator": self.is_moderator,
-            "created_at": self.created_at
+            "created_at": self.created_at,
+            "avatar_path": self.avatar_path,
+            "avatar_updated_at": self.avatar_updated_at.isoformat() if self.avatar_updated_at else None,
+            "password_version": self.password_version or 0
         }
     
     @classmethod
     def from_dict(cls, data):
         """从字典创建用户对象"""
+        # 统一将邮箱转换为小写
+        email = data.get("email", "")
+        email_lower = email.lower() if email else ""
         return cls(
             id=data.get("id", str(uuid.uuid4())),
             username=data.get("username", ""),
-            email=data.get("email", ""),
+            email=email_lower,
             hashed_password=data.get("hashed_password", ""),
             is_active=data.get("is_active", True),
             is_admin=data.get("is_admin", False),
@@ -89,6 +107,8 @@ class User(Base):
         # 确保密码不超过72字节（bcrypt限制）
         new_password = new_password[:72]
         self.hashed_password = pwd_context.hash(new_password)
+        # 增加密码版本号，使所有现有Token失效
+        self.password_version = (self.password_version or 0) + 1
     
     def to_admin(self, highest_pwd):
         """提升用户为管理员"""
@@ -123,6 +143,7 @@ class KnowledgeBase(Base):
     uploader_id = Column(String, ForeignKey("users.id"), nullable=False)
     copyright_owner = Column(String, nullable=True)
     star_count = Column(Integer, default=0)
+    downloads = Column(Integer, default=0)
     base_path = Column(Text, default="[]") 
     metadata_path = Column(String, nullable=False)
     is_public = Column(Boolean, default=False)
@@ -146,9 +167,9 @@ class KnowledgeBase(Base):
     # 移除star_records关系，因为StarRecord没有正确的外键关系
     # star_records = relationship("StarRecord", back_populates="knowledge_base")
 
-    def to_dict(self):
+    def to_dict(self, include_files: bool = True, include_metadata: bool = True):
         """将知识库对象转换为字典"""
-        return {
+        result = {
             "id": self.id,
             "name": self.name,
             "description": self.description,
@@ -160,8 +181,47 @@ class KnowledgeBase(Base):
             "is_pending": self.is_pending if self.is_pending is not None else True,
             "rejection_reason": self.rejection_reason,
             "created_at": self.created_at if self.created_at else datetime.now(),
-            "updated_at": self.updated_at if self.updated_at else datetime.now()
+            "updated_at": self.updated_at if self.updated_at else datetime.now(),
+            # 默认值
+            "file_names": [],
+            "content": None,
+            "tags": [],
+            "downloads": self.downloads or 0,
+            "download_url": None,
+            "preview_url": None,
+            "version": None,
+            "size": None
         }
+        
+        if include_files:
+            # 获取文件列表
+            try:
+                # 通过全局变量访问数据库管理器
+                from database_models import sqlite_db_manager
+                files = sqlite_db_manager.get_files_by_knowledge_base_id(self.id)
+                result["file_names"] = [f.original_name for f in files]
+                result["size"] = sum(f.file_size or 0 for f in files)
+                # 构建下载URL
+                result["download_url"] = f"/api/knowledge/{self.id}/download"
+            except Exception as e:
+                # 如果获取文件失败，使用默认值
+                pass
+        
+        if include_metadata:
+            # 从metadata文件读取额外信息
+            try:
+                if os.path.exists(self.metadata_path):
+                    with open(self.metadata_path, 'r', encoding='utf-8') as f:
+                        metadata = json.load(f)
+                        result["content"] = metadata.get("content")
+                        result["tags"] = metadata.get("tags", [])
+                        result["preview_url"] = metadata.get("preview_url")
+                        result["version"] = metadata.get("version")
+            except Exception:
+                # 如果读取失败，使用默认值
+                pass
+        
+        return result
 
     @classmethod
     def from_dict(cls, data):
@@ -269,6 +329,7 @@ class PersonaCard(Base):
     uploader_id = Column(String, ForeignKey("users.id"), nullable=False)
     copyright_owner = Column(String, nullable=True)
     star_count = Column(Integer, default=0)
+    downloads = Column(Integer, default=0)
     base_path = Column(String, nullable=False)
     is_public = Column(Boolean, default=False)
     is_pending = Column(Boolean, default=True)
@@ -291,9 +352,9 @@ class PersonaCard(Base):
     # 移除star_records关系，因为StarRecord没有正确的外键关系
     # star_records = relationship("StarRecord", back_populates="persona_card")
 
-    def to_dict(self):
+    def to_dict(self, include_files: bool = True, include_metadata: bool = True):
         """将人设卡对象转换为字典"""
-        return {
+        result = {
             "id": self.id,
             "name": self.name,
             "description": self.description,
@@ -305,8 +366,52 @@ class PersonaCard(Base):
             "is_pending": self.is_pending if self.is_pending is not None else True,
             "rejection_reason": self.rejection_reason,
             "created_at": self.created_at if self.created_at else datetime.now(),
-            "updated_at": self.updated_at if self.updated_at else datetime.now()
+            "updated_at": self.updated_at if self.updated_at else datetime.now(),
+            # 默认值
+            "file_names": [],
+            "content": None,
+            "tags": [],
+            "downloads": self.downloads or 0,
+            "download_url": None,
+            "preview_url": None,
+            "version": None,
+            "size": None,
+            "author": None,
+            "author_id": self.uploader_id,
+            "stars": self.star_count or 0
         }
+        
+        if include_files:
+            # 获取文件列表
+            try:
+                # 通过全局变量访问数据库管理器
+                from database_models import sqlite_db_manager
+                files = sqlite_db_manager.get_files_by_persona_card_id(self.id)
+                result["file_names"] = [f.original_name for f in files]
+                result["size"] = sum(f.file_size or 0 for f in files)
+                # 构建下载URL
+                result["download_url"] = f"/api/persona/{self.id}/download"
+            except Exception as e:
+                # 如果获取文件失败，使用默认值
+                pass
+        
+        if include_metadata:
+            # 从base_path目录下的metadata.json文件读取额外信息（如果存在）
+            try:
+                metadata_path = os.path.join(self.base_path, "metadata.json")
+                if os.path.exists(metadata_path):
+                    with open(metadata_path, 'r', encoding='utf-8') as f:
+                        metadata = json.load(f)
+                        result["content"] = metadata.get("content")
+                        result["tags"] = metadata.get("tags", [])
+                        result["preview_url"] = metadata.get("preview_url")
+                        result["version"] = metadata.get("version")
+                        result["author"] = metadata.get("author")
+            except Exception:
+                # 如果读取失败，使用默认值
+                pass
+        
+        return result
 
 
 class Message(Base):
@@ -318,8 +423,9 @@ class Message(Base):
     sender_id = Column(String, ForeignKey("users.id"), nullable=False)
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
-    message_type = Column(String, default="direct")  # direct, announcement
-    broadcast_scope = Column(String, nullable=True)  # e.g. all_users
+    summary = Column(Text, nullable=True)  # 消息简介，可选
+    message_type = Column(String, default="direct")  # 直接声明
+    broadcast_scope = Column(String, nullable=True)  # 比如所有用户
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now)
     
@@ -344,6 +450,7 @@ class Message(Base):
             "sender_id": self.sender_id,
             "title": self.title,
             "content": self.content,
+            "summary": self.summary,  # 添加summary字段
             "message_type": self.message_type or "direct",
             "broadcast_scope": self.broadcast_scope,
             "is_read": self.is_read or False,
@@ -417,6 +524,44 @@ class EmailVerification(Base):
         }
 
 
+class UploadRecord(Base):
+    """上传记录模型 - 用于记录所有上传操作，防止恶意删除"""
+    __tablename__ = "upload_records"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    uploader_id = Column(String, ForeignKey("users.id"), nullable=False)
+    target_id = Column(String, nullable=False)  # 知识库或人设卡的ID
+    target_type = Column(String, nullable=False)  # "knowledge" 或 "persona"
+    name = Column(String, nullable=False)  # 知识库或人设卡名称
+    description = Column(Text, nullable=True)  # 描述
+    status = Column(String, default="pending")  # "pending", "approved", "rejected"
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # 添加索引
+    __table_args__ = (
+        Index('idx_upload_record_uploader_id', 'uploader_id'),
+        Index('idx_upload_record_target_id', 'target_id'),
+        Index('idx_upload_record_target_type', 'target_type'),
+        Index('idx_upload_record_status', 'status'),
+        Index('idx_upload_record_created_at', 'created_at'),
+    )
+    
+    def to_dict(self):
+        """将上传记录对象转换为字典"""
+        return {
+            "id": self.id,
+            "uploader_id": self.uploader_id,
+            "target_id": self.target_id,
+            "target_type": self.target_type,
+            "name": self.name,
+            "description": self.description,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
 class SQLiteDatabaseManager:
     """SQLite数据库管理器"""
     
@@ -437,30 +582,52 @@ class SQLiteDatabaseManager:
         # 执行数据库迁移
         self._migrate_database()
     
-    def _migrate_database(self):
-        """执行数据库迁移，添加缺失的列"""
+    def _add_column_if_not_exists(self, table_name: str, column_name: str, column_definition: str):
+        """为表添加列（如果不存在）"""
         try:
             inspector = inspect(self.engine)
+            if table_name not in inspector.get_table_names():
+                return
             
-            # 检查 messages 表是否存在
-            if 'messages' in inspector.get_table_names():
-                # 获取现有列
-                existing_columns = [col['name'] for col in inspector.get_columns('messages')]
-                
-                # 检查并添加 message_type 列
-                if 'message_type' not in existing_columns:
-                    with self.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE messages ADD COLUMN message_type VARCHAR DEFAULT 'direct'"))
-                    print("已添加 message_type 列到 messages 表")
-                
-                # 检查并添加 broadcast_scope 列（如果缺失）
-                if 'broadcast_scope' not in existing_columns:
-                    with self.engine.begin() as conn:
-                        conn.execute(text("ALTER TABLE messages ADD COLUMN broadcast_scope VARCHAR"))
-                    print("已添加 broadcast_scope 列到 messages 表")
-        except Exception as e:
-            print(f"数据库迁移失败: {str(e)}")
+            existing_columns = [col['name'] for col in inspector.get_columns(table_name)]
+            if column_name not in existing_columns:
+                with self.engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"))
+                # 使用日志系统记录迁移操作（静默执行，不输出到控制台）
+        except Exception:
+            # 数据库迁移失败时静默处理，不输出到控制台（避免启动时干扰）
             # 不抛出异常，允许应用继续运行
+            pass
+
+    def _migrate_database(self):
+        """执行数据库迁移，添加缺失的列"""
+        # 迁移配置：表名 -> [(列名, 列定义), ...]
+        migrations = [
+            ('messages', [
+                ('message_type', "VARCHAR DEFAULT 'direct'"),
+                ('broadcast_scope', 'VARCHAR'),
+                ('summary', 'TEXT'),
+            ]),
+            ('knowledge_bases', [
+                ('downloads', 'INTEGER DEFAULT 0'),
+            ]),
+            ('persona_cards', [
+                ('downloads', 'INTEGER DEFAULT 0'),
+            ]),
+            ('users', [
+                ('failed_login_attempts', 'INTEGER DEFAULT 0'),
+                ('locked_until', 'DATETIME'),
+                ('last_failed_login', 'DATETIME'),
+                ('avatar_path', 'VARCHAR'),
+                ('avatar_updated_at', 'DATETIME'),
+                ('password_version', 'INTEGER DEFAULT 0'),
+            ]),
+        ]
+        
+        # 执行所有迁移
+        for table_name, columns in migrations:
+            for column_name, column_definition in columns:
+                self._add_column_if_not_exists(table_name, column_name, column_definition)
     
     def get_session(self):
         """获取数据库会话"""
@@ -477,16 +644,9 @@ class SQLiteDatabaseManager:
         with self.get_session() as session:
             return session.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
     
-    def get_pending_knowledge_bases(self):
-        """获取所有待审核的知识库"""
+    def get_pending_knowledge_bases(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
+        """获取所有待审核的知识库，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-            return session.query(KnowledgeBase).filter(KnowledgeBase.is_pending == True).all()
-=======
-=======
->>>>>>> Stashed changes
-            # 使用 == True 查询待审核的知识库（SQLAlchemy 的 Boolean 类型应使用 Python 的 True/False）
             query = session.query(KnowledgeBase).filter(KnowledgeBase.is_pending == True)
             
             # 按名称搜索
@@ -518,21 +678,11 @@ class SQLiteDatabaseManager:
             items = query.offset(offset).limit(page_size).all()
             
             return items, total
->>>>>>> Stashed changes
     
-    def get_public_knowledge_bases(self):
-        """获取所有公开的知识库"""
+    def get_public_knowledge_bases(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
+        """获取所有公开的知识库，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-            return session.query(KnowledgeBase).filter(KnowledgeBase.is_public == True).all()
-=======
-=======
->>>>>>> Stashed changes
-            query = session.query(KnowledgeBase).filter(
-                KnowledgeBase.is_public == True,
-                KnowledgeBase.is_pending == False  # 只显示已审核通过的内容
-            )
+            query = session.query(KnowledgeBase).filter(KnowledgeBase.is_public == True)
             
             # 按名称搜索
             if name:
@@ -563,7 +713,6 @@ class SQLiteDatabaseManager:
             items = query.offset(offset).limit(page_size).all()
             
             return items, total
->>>>>>> Stashed changes
     
     def get_knowledge_bases_by_uploader(self, uploader_id: str):
         """根据上传者ID获取知识库"""
@@ -688,16 +837,9 @@ class SQLiteDatabaseManager:
         with self.get_session() as session:
             return session.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
     
-    def get_pending_persona_cards(self):
-        """获取所有待审核的人设卡"""
+    def get_pending_persona_cards(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
+        """获取所有待审核的人设卡，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-            return session.query(PersonaCard).filter(PersonaCard.is_pending == True).all()
-=======
-=======
->>>>>>> Stashed changes
-            # 使用 == True 查询待审核的人设卡（SQLAlchemy 的 Boolean 类型应使用 Python 的 True/False）
             query = session.query(PersonaCard).filter(PersonaCard.is_pending == True)
             
             # 按名称搜索
@@ -729,21 +871,11 @@ class SQLiteDatabaseManager:
             items = query.offset(offset).limit(page_size).all()
             
             return items, total
->>>>>>> Stashed changes
     
-    def get_public_persona_cards(self):
-        """获取所有公开的人设卡"""
+    def get_public_persona_cards(self, page: int = 1, page_size: int = 19, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
+        """获取所有公开的人设卡，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-            return session.query(PersonaCard).filter(PersonaCard.is_public == True).all()
-=======
-=======
->>>>>>> Stashed changes
-            query = session.query(PersonaCard).filter(
-                PersonaCard.is_public == True,
-                PersonaCard.is_pending == False  # 只显示已审核通过的内容
-            )
+            query = session.query(PersonaCard).filter(PersonaCard.is_public == True)
             
             # 按名称搜索
             if name:
@@ -774,7 +906,6 @@ class SQLiteDatabaseManager:
             items = query.offset(offset).limit(page_size).all()
             
             return items, total
->>>>>>> Stashed changes
     
     def get_persona_cards_by_uploader(self, uploader_id: str):
         """根据上传者ID获取人设卡"""
@@ -842,7 +973,8 @@ class SQLiteDatabaseManager:
         title: str,
         content: str,
         message_type: str = "direct",
-        broadcast_scope: Optional[str] = None
+        broadcast_scope: Optional[str] = None,
+        summary: Optional[str] = None
     ):
         """创建消息"""
         try:
@@ -852,6 +984,7 @@ class SQLiteDatabaseManager:
                     recipient_id=recipient_id,
                     title=title or "新消息",
                     content=content,
+                    summary=summary,
                     message_type=message_type or "direct",
                     broadcast_scope=broadcast_scope
                 )
@@ -870,7 +1003,17 @@ class SQLiteDatabaseManager:
         session = None
         try:
             with self.get_session() as session:
-                message_models = [Message(**msg) for msg in messages]
+                # 为同一批消息使用同一个时间戳，确保统计查询时能正确匹配
+                from datetime import datetime
+                common_timestamp = datetime.now()
+                
+                # 为每个消息设置相同的 created_at 时间戳
+                message_models = []
+                for msg in messages:
+                    msg_copy = msg.copy()
+                    msg_copy['created_at'] = common_timestamp
+                    message_models.append(Message(**msg_copy))
+                
                 session.add_all(message_models)
                 session.commit()
                 for msg in message_models:
@@ -897,11 +1040,91 @@ class SQLiteDatabaseManager:
             ).order_by(Message.created_at.desc()).offset(offset).limit(limit).all()
     
     def get_user_messages(self, user_id: str, limit: int = 50, offset: int = 0):
-        """获取用户的所有消息（发送和接收）"""
+        """获取用户收到的消息（仅接收者）"""
         with self.get_session() as session:
             return session.query(Message).filter(
-                or_(Message.sender_id == user_id, Message.recipient_id == user_id)
+                Message.recipient_id == user_id
             ).order_by(Message.created_at.desc()).offset(offset).limit(limit).all()
+    
+    def get_broadcast_messages(self, limit: int = 50, offset: int = 0):
+        """获取所有广播消息（按发送者分组，返回每个广播的唯一消息）"""
+        with self.get_session() as session:
+            # 获取所有广播消息
+            messages = session.query(Message).filter(
+                Message.message_type == "announcement",
+                Message.broadcast_scope == "all_users"
+            ).order_by(Message.created_at.desc()).offset(offset).limit(limit * 10).all()  # 获取更多以便去重
+            
+            # 去重：相同sender_id、title、content、created_at的消息只保留一条
+            seen = set()
+            unique_messages = []
+            for msg in messages:
+                # 使用created_at的秒级精度作为key的一部分（因为同一广播的所有消息创建时间相同）
+                created_at_key = msg.created_at.strftime("%Y-%m-%d %H:%M:%S") if msg.created_at else ""
+                key = (msg.sender_id, msg.title, msg.content, created_at_key)
+                if key not in seen:
+                    seen.add(key)
+                    unique_messages.append(msg)
+                    if len(unique_messages) >= limit:
+                        break
+            
+            return unique_messages
+    
+    def get_broadcast_message_stats(self, message_id: str = None, sender_id: str = None, title: str = None):
+        """获取广播消息统计信息（发送数量、已读数量等）"""
+        with self.get_session() as session:
+            query = session.query(Message).filter(
+                Message.message_type == "announcement",
+                Message.broadcast_scope == "all_users"
+            )
+            
+            # 如果提供了message_id，查找相同广播的所有消息
+            if message_id:
+                # 先找到这条消息
+                msg = session.query(Message).filter(Message.id == message_id).first()
+                if msg:
+                    # 使用 sender_id、title、content 来唯一标识一个广播批次
+                    # created_at 作为辅助条件，使用时间范围匹配（同一秒内）以应对可能的精度问题
+                    # 注意：由于批量创建时已使用同一时间戳，理论上 created_at 应该完全相同
+                    # 但使用时间范围匹配可以应对 SQLite 存储精度丢失等边缘情况
+                    from datetime import timedelta
+                    if msg.created_at:
+                        # 使用时间范围：同一秒内的消息（确保匹配到所有同一批的消息）
+                        # 由于批量创建时使用同一时间戳，同一批消息的 created_at 应该完全相同
+                        # 但为了安全，使用时间范围匹配（同一秒内）
+                        time_start = msg.created_at.replace(microsecond=0)
+                        time_end = time_start + timedelta(seconds=1)
+                        query = query.filter(
+                            Message.sender_id == msg.sender_id,
+                            Message.title == msg.title,
+                            Message.content == msg.content,
+                            Message.created_at >= time_start,
+                            Message.created_at < time_end
+                        )
+                    else:
+                        # 如果没有 created_at，只使用前三个条件
+                        query = query.filter(
+                            Message.sender_id == msg.sender_id,
+                            Message.title == msg.title,
+                            Message.content == msg.content
+                        )
+            elif sender_id and title:
+                # 根据发送者和标题查找（不推荐，可能匹配到多个批次）
+                query = query.filter(
+                    Message.sender_id == sender_id,
+                    Message.title == title
+                )
+            
+            messages = query.all()
+            total_count = len(messages)
+            read_count = sum(1 for msg in messages if msg.is_read)
+            
+            return {
+                "total_count": total_count,
+                "read_count": read_count,
+                "unread_count": total_count - read_count,
+                "read_rate": (read_count / total_count * 100) if total_count > 0 else 0
+            }
     
     def save_message(self, message_data) -> bool:
         """保存单条消息，支持dict或Message对象"""
@@ -946,6 +1169,144 @@ class SQLiteDatabaseManager:
             print(f"标记消息已读失败: {str(e)}")
             return False
     
+    def delete_message(self, message_id: str, user_id: str) -> bool:
+        """删除消息（仅接收者可以删除）"""
+        try:
+            with self.get_session() as session:
+                message = session.query(Message).filter(Message.id == message_id).first()
+                if message and message.recipient_id == user_id:
+                    session.delete(message)
+                    session.commit()
+                    return True
+                return False
+        except Exception as e:
+            print(f"删除消息失败: {str(e)}")
+            return False
+    
+    def delete_messages(self, message_ids: List[str], user_id: str) -> int:
+        """批量删除消息（仅接收者可以删除）"""
+        try:
+            deleted_count = 0
+            with self.get_session() as session:
+                messages = session.query(Message).filter(
+                    Message.id.in_(message_ids),
+                    Message.recipient_id == user_id
+                ).all()
+                for message in messages:
+                    session.delete(message)
+                    deleted_count += 1
+                session.commit()
+                return deleted_count
+        except Exception as e:
+            print(f"批量删除消息失败: {str(e)}")
+            return 0
+    
+    def delete_broadcast_messages(self, message_id: str, user_id: str) -> int:
+        """批量删除公告消息（发送者可以删除所有相关消息）"""
+        try:
+            with self.get_session() as session:
+                # 先找到这条消息
+                message = session.query(Message).filter(Message.id == message_id).first()
+                if not message:
+                    return 0
+                
+                # 验证权限：只有发送者可以删除公告
+                sender_id = str(message.sender_id) if message.sender_id else ""
+                user_id_str = str(user_id) if user_id else ""
+                
+                if sender_id != user_id_str:
+                    return 0
+                
+                # 如果是公告类型，删除所有相关的消息
+                if message.message_type == "announcement" and message.broadcast_scope == "all_users":
+                    # 查找所有相同广播的消息（相同sender_id、title、content、created_at）
+                    created_at_key = message.created_at.strftime("%Y-%m-%d %H:%M:%S") if message.created_at else ""
+                    related_messages = session.query(Message).filter(
+                        Message.message_type == "announcement",
+                        Message.broadcast_scope == "all_users",
+                        Message.sender_id == message.sender_id,
+                        Message.title == message.title,
+                        Message.content == message.content
+                    ).all()
+                    
+                    # 进一步过滤：只删除相同时间（秒级精度）的消息
+                    deleted_count = 0
+                    for msg in related_messages:
+                        msg_created_at_key = msg.created_at.strftime("%Y-%m-%d %H:%M:%S") if msg.created_at else ""
+                        if msg_created_at_key == created_at_key:
+                            session.delete(msg)
+                            deleted_count += 1
+                    
+                    session.commit()
+                    return deleted_count
+                else:
+                    # 非公告消息，只删除单条
+                    session.delete(message)
+                    session.commit()
+                    return 1
+        except Exception as e:
+            print(f"批量删除公告消息失败: {str(e)}")
+            return 0
+    
+    def update_broadcast_messages(self, message_id: str, user_id: str, title: str = None, content: str = None, summary: str = None) -> int:
+        """批量更新公告消息（发送者可以更新所有相关消息）"""
+        try:
+            with self.get_session() as session:
+                # 先找到这条消息
+                message = session.query(Message).filter(Message.id == message_id).first()
+                if not message:
+                    return 0
+                
+                # 验证权限：只有发送者可以更新公告
+                sender_id = str(message.sender_id) if message.sender_id else ""
+                user_id_str = str(user_id) if user_id else ""
+                
+                if sender_id != user_id_str:
+                    return 0
+                
+                # 如果没有提供更新内容，返回0
+                if not title and not content and summary is None:
+                    return 0
+                
+                # 如果是公告类型，更新所有相关的消息
+                if message.message_type == "announcement" and message.broadcast_scope == "all_users":
+                    # 查找所有相同广播的消息（相同sender_id、title、content、created_at）
+                    created_at_key = message.created_at.strftime("%Y-%m-%d %H:%M:%S") if message.created_at else ""
+                    related_messages = session.query(Message).filter(
+                        Message.message_type == "announcement",
+                        Message.broadcast_scope == "all_users",
+                        Message.sender_id == message.sender_id,
+                        Message.title == message.title,
+                        Message.content == message.content
+                    ).all()
+                    
+                    # 进一步过滤：只更新相同时间（秒级精度）的消息
+                    updated_count = 0
+                    for msg in related_messages:
+                        msg_created_at_key = msg.created_at.strftime("%Y-%m-%d %H:%M:%S") if msg.created_at else ""
+                        if msg_created_at_key == created_at_key:
+                            if title:
+                                msg.title = title
+                            if content:
+                                msg.content = content
+                            if summary is not None:  # 允许设置为空字符串
+                                msg.summary = summary
+                            updated_count += 1
+                    
+                    session.commit()
+                    return updated_count
+                else:
+                    # 非公告消息，只更新单条
+                    if title:
+                        message.title = title
+                    if content:
+                        message.content = content
+                    session.commit()
+                    return 1
+        except Exception as e:
+            print(f"批量更新公告消息失败: {str(e)}")
+            return 0
+    
     # Star记录相关方法
     def get_all_stars(self):
         """获取所有Star记录"""
@@ -960,11 +1321,14 @@ class SQLiteDatabaseManager:
     def is_starred(self, user_id: str, target_id: str, target_type: str) -> bool:
         """检查用户是否已star某个目标"""
         with self.get_session() as session:
-            return session.query(StarRecord).filter(
+            star = session.query(StarRecord).filter(
+                and_(
                 StarRecord.user_id == user_id,
                 StarRecord.target_id == target_id,
                 StarRecord.target_type == target_type
-            ).first() is not None
+                )
+            ).first()
+            return star is not None
     
     def add_star(self, user_id: str, target_id: str, target_type: str) -> bool:
         """添加Star记录"""
@@ -1119,7 +1483,9 @@ class SQLiteDatabaseManager:
     def get_user_by_email(self, email: str):
         """根据邮箱获取用户"""
         with self.get_session() as session:
-            return session.query(User).filter(User.email == email).first()
+            # 统一转换为小写进行查询
+            email_lower = email.lower()
+            return session.query(User).filter(User.email == email_lower).first()
 
     def get_user_by_id(self, user_id: str):
         """根据ID获取用户"""
@@ -1130,48 +1496,10 @@ class SQLiteDatabaseManager:
         """保存用户"""
         try:
             with self.get_session() as session:
-<<<<<<< Updated upstream
-=======
                 # 统一将邮箱转换为小写
                 if "email" in user_data and user_data["email"]:
                     user_data["email"] = user_data["email"].lower()
                 
-                # 处理 DateTime 字段：如果传入的是字符串，转换为 datetime 对象
-                datetime_fields = ["created_at", "avatar_updated_at"]
-                for field in datetime_fields:
-                    if field in user_data:
-                        value = user_data[field]
-                        # 如果是字符串，转换为 datetime 对象
-                        if isinstance(value, str):
-                            try:
-                                # 尝试解析 ISO 格式字符串（处理带Z和不带Z的情况）
-                                if value.endswith('Z'):
-                                    value = value[:-1] + '+00:00'
-                                user_data[field] = datetime.fromisoformat(value)
-                            except (ValueError, AttributeError):
-                                # 如果解析失败，尝试其他格式
-                                try:
-                                    user_data[field] = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")
-                                except ValueError:
-                                    try:
-                                        user_data[field] = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
-                                    except ValueError:
-                                        # 如果还是失败，使用当前时间
-                                        user_data[field] = datetime.now()
-                        # 如果已经是 datetime 对象，保持不变
-                        elif isinstance(value, datetime):
-                            pass
-                        # 如果是 None，保持 None（允许清空字段）
-                        elif value is None:
-                            pass
-                        else:
-                            # 其他类型，使用当前时间
-                            user_data[field] = datetime.now()
-                
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
                 user_id = user_data.get("id")
                 user = session.query(User).filter(User.id == user_id).first()
                 
@@ -1211,8 +1539,9 @@ class SQLiteDatabaseManager:
                 user = session.query(User).filter(User.username == username).first()
                 if user:
                     return "用户名已存在"
-                # 检查邮箱是否已被注册
-                user = session.query(User).filter(User.email == email).first()
+                # 检查邮箱是否已被注册（统一转换为小写进行查询）
+                email_lower = email.lower()
+                user = session.query(User).filter(User.email == email_lower).first()
                 if user:
                     return "该邮箱已被注册"
                 return "ok"
@@ -1224,8 +1553,10 @@ class SQLiteDatabaseManager:
         """验证邮箱验证码是否有效（未使用且未过期）"""
         try:
             with self.get_session() as session:
+                # 统一转换为小写进行查询
+                email_lower = email.lower()
                 record = session.query(EmailVerification).filter(
-                    EmailVerification.email == email,
+                    EmailVerification.email == email_lower,
                     EmailVerification.code == code,
                     EmailVerification.is_used == False,
                     EmailVerification.expires_at > datetime.now()
@@ -1246,8 +1577,10 @@ class SQLiteDatabaseManager:
         one_hour_ago = now - timedelta(hours=1)
 
         with self.get_session() as session:
+            # 统一转换为小写进行查询
+            email_lower = email.lower()
             record = session.query(EmailVerification).filter(
-                EmailVerification.email == email,
+                EmailVerification.email == email_lower,
                 EmailVerification.created_at > one_hour_ago
             ).count()
             if record >= 5:
@@ -1261,7 +1594,9 @@ class SQLiteDatabaseManager:
             pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
             
             with self.get_session() as session:
-                user = session.query(User).filter(User.email == email).first()
+                # 统一转换为小写进行查询
+                email_lower = email.lower()
+                user = session.query(User).filter(User.email == email_lower).first()
                 if not user:
                     return False
                 
@@ -1278,8 +1613,10 @@ class SQLiteDatabaseManager:
         """保存邮箱验证码"""
         try:
             with self.get_session() as session:
+                # 统一转换为小写进行存储
+                email_lower = email.lower()
                 verification=EmailVerification(
-                    email=email,
+                    email=email_lower,
                     code=code,
                     is_used=False,
                     expires_at=datetime.now() + timedelta(minutes=2)
@@ -1289,13 +1626,8 @@ class SQLiteDatabaseManager:
                 return verification.id
         except Exception as e:
             print(f"保存验证码失败: {str(e)}")
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
             return None
-=======
-=======
->>>>>>> Stashed changes
-            return None    
+    
     def increment_knowledge_base_downloads(self, kb_id: str) -> bool:
         """原子性地增加知识库下载计数器"""
         try:
@@ -1470,10 +1802,8 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"更新上传记录状态失败: {str(e)}")
             return False
->>>>>>> Stashed changes
 
 
 
 # 创建全局SQLite数据库管理器实例
 sqlite_db_manager = SQLiteDatabaseManager()
-

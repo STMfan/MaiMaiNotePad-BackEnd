@@ -100,6 +100,28 @@
     - 测试验证JSON格式和表单格式都能正常工作
     - 添加适当的错误处理和验证
 
+19. ✅ **修复审核API和消息API的Bug**
+    - 修复审核通过/拒绝接口的对象转字典问题
+    - 优化审核拒绝接口参数传递方式（从查询参数改为请求体）
+    - 修复消息创建和获取API的类型验证问题
+    - 改进消息批量创建和查询的异常处理
+    - 添加自动数据库迁移功能
+
+20. ✅ **新增Star状态检查接口**
+    - 实现 `GET /api/knowledge/{kb_id}/starred` 接口
+    - 实现 `GET /api/persona/{pc_id}/starred` 接口
+    - 优化Star状态检查性能，从O(N)优化到O(1)
+
+21. ✅ **添加分页支持**
+    - 为公开知识库接口添加分页、搜索、筛选和排序功能
+    - 为公开人设卡接口添加分页、搜索、筛选和排序功能
+    - 优化列表查询性能
+
+22. ✅ **增强用户Star记录接口**
+    - 为 `GET /api/user/stars` 接口添加 `includeDetails` 参数
+    - 支持返回Star记录的同时包含完整详情
+    - 减少前端API调用次数
+
 ## 待完成任务
 
 1. 🔄 **添加API文档和测试用例**
@@ -160,7 +182,7 @@ backend-python-remake/
 ### 知识库相关
 - `POST /api/knowledge/upload` - 上传知识库
 - `GET /api/knowledge/public` - 获取公开知识库
-- `GET /api/knowledge/{kb_id}` - 获取指定知识库
+- `GET /api/knowledge/{kb_id}` - 获取指定知识库详情
 - `GET /api/knowledge/user/{user_id}` - 获取用户知识库
 - `PUT /api/knowledge/{kb_id}` - 更新知识库信息
 - `POST /api/knowledge/{kb_id}/files` - 添加知识库文件
@@ -174,7 +196,7 @@ backend-python-remake/
 ### 人设卡相关
 - `POST /api/persona/upload` - 上传人设卡
 - `GET /api/persona/public` - 获取公开人设卡
-- `GET /api/persona/{pc_id}` - 获取指定人设卡
+- `GET /api/persona/{pc_id}` - 获取指定人设卡详情
 - `GET /api/persona/user/{user_id}` - 获取用户人设卡
 - `PUT /api/persona/{pc_id}` - 更新人设卡信息
 - `POST /api/persona/{pc_id}/files` - 添加人设卡文件

@@ -13,3 +13,5 @@ werkzeug
 sqlalchemy
 pydantic[email]
 toml
+slowapi
+Pillow

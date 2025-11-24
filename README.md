@@ -138,6 +138,7 @@ docker run -p 9278:9278 mainnp-backend
 - `DELETE /api/knowledge/{kb_id}` - 删除知识库
 - `POST /api/knowledge/{kb_id}/star` - Star知识库
 - `DELETE /api/knowledge/{kb_id}/star` - 取消Star知识库
+- `GET /api/knowledge/{kb_id}/starred` - 检查知识库Star状态
 
 ### 人设卡相关
 - `POST /api/persona/upload` - 上传人设卡
@@ -152,6 +153,7 @@ docker run -p 9278:9278 mainnp-backend
 - `DELETE /api/persona/{pc_id}` - 删除人设卡
 - `POST /api/persona/{pc_id}/star` - Star人设卡
 - `DELETE /api/persona/{pc_id}/star` - 取消Star人设卡
+- `GET /api/persona/{pc_id}/starred` - 检查人设卡Star状态
 
 ### 审核相关（需要admin/moderator权限）
 - `GET /api/review/knowledge/pending` - 获取待审核知识库
@@ -174,7 +176,7 @@ docker run -p 9278:9278 mainnp-backend
 **注意**：邮件服务API目前未实现，文档仅提供规划信息。系统内部使用邮件服务发送验证码等功能，但未提供公开的API接口。
 
 ### 用户相关
-- `GET /api/user/stars` - 获取用户Star的知识库和人设卡
+- `GET /api/user/stars` - 获取用户Star的知识库和人设卡（支持`includeDetails`参数）
 
 ## 🔐 权限说明
 
