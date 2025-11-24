@@ -56,7 +56,7 @@ class KnowledgeBaseResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     # 扩展字段
-    file_names: List[str] = []
+    files: List[Dict[str, Any]] = []
     content: Optional[str] = None
     tags: List[str] = []
     downloads: int = 0
@@ -84,7 +84,7 @@ class PersonaCardResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     # 扩展字段
-    file_names: List[str] = []
+    files: List[Dict[str, Any]] = []
     content: Optional[str] = None
     tags: List[str] = []
     downloads: int = 0

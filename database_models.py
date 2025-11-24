@@ -145,7 +145,6 @@ class KnowledgeBase(Base):
     star_count = Column(Integer, default=0)
     downloads = Column(Integer, default=0)
     base_path = Column(Text, default="[]") 
-    metadata_path = Column(String, nullable=False)
     is_public = Column(Boolean, default=False)
     is_pending = Column(Boolean, default=True)
     rejection_reason = Column(Text, nullable=True)
@@ -183,7 +182,7 @@ class KnowledgeBase(Base):
             "created_at": self.created_at if self.created_at else datetime.now(),
             "updated_at": self.updated_at if self.updated_at else datetime.now(),
             # 默认值
-            "file_names": [],
+            "files": [],
             "content": None,
             "tags": [],
             "downloads": self.downloads or 0,
@@ -199,7 +198,11 @@ class KnowledgeBase(Base):
                 # 通过全局变量访问数据库管理器
                 from database_models import sqlite_db_manager
                 files = sqlite_db_manager.get_files_by_knowledge_base_id(self.id)
-                result["file_names"] = [f.original_name for f in files]
+                result["files"] = [{
+                    "file_id": f.id,
+                    "original_name": f.original_name,
+                    "file_size": f.file_size or 0,
+                } for f in files]
                 result["size"] = sum(f.file_size or 0 for f in files)
                 # 构建下载URL
                 result["download_url"] = f"/api/knowledge/{self.id}/download"
@@ -368,7 +371,7 @@ class PersonaCard(Base):
             "created_at": self.created_at if self.created_at else datetime.now(),
             "updated_at": self.updated_at if self.updated_at else datetime.now(),
             # 默认值
-            "file_names": [],
+            "files": [],
             "content": None,
             "tags": [],
             "downloads": self.downloads or 0,
@@ -387,7 +390,11 @@ class PersonaCard(Base):
                 # 通过全局变量访问数据库管理器
                 from database_models import sqlite_db_manager
                 files = sqlite_db_manager.get_files_by_persona_card_id(self.id)
-                result["file_names"] = [f.original_name for f in files]
+                result["files"] = [{
+                    "file_id": f.id,
+                    "original_name": f.original_name,
+                    "file_size": f.file_size or 0,
+                }for f in files]
                 result["size"] = sum(f.file_size or 0 for f in files)
                 # 构建下载URL
                 result["download_url"] = f"/api/persona/{self.id}/download"
@@ -1611,10 +1618,11 @@ class SQLiteDatabaseManager:
             return False
 
     def check_email_rate_limit(self, email: str) -> bool:
-        """检查同一邮箱1小时内是否超过5次请求"""
+        """检查同一邮箱1小时内是否超过5次请求 或 1分钟内是否超过1次"""
         from datetime import datetime, timedelta
         now = datetime.now()
         one_hour_ago = now - timedelta(hours=1)
+        one_minute_ago = now - timedelta(minutes=1)
 
         with self.get_session() as session:
             # 统一转换为小写进行查询
@@ -1624,6 +1632,12 @@ class SQLiteDatabaseManager:
                 EmailVerification.created_at > one_hour_ago
             ).count()
             if record >= 5:
+                return False
+            record = session.query(EmailVerification).filter(
+                EmailVerification.email == email_lower,
+                EmailVerification.created_at > one_minute_ago
+            ).count()
+            if record >= 1:
                 return False
             return True
 
