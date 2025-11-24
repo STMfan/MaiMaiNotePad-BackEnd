@@ -1,5 +1,145 @@
 # 修改日志 (CHANGELOG)
 
+## 2025-11-24 - 用户功能和管理员功能增强
+
+### 新增功能
+
+#### 1. 刷新令牌机制
+
+**新增接口**：
+- `POST /api/refresh` - 刷新访问令牌
+
+**功能说明**：
+- 登录接口现在返回 `refresh_token` 和 `expires_in` 字段
+- 支持使用刷新令牌获取新的访问令牌，提升用户体验
+- 访问令牌有效期15分钟，刷新令牌有效期更长
+
+**实现位置**：
+- 文件：`api_routes.py`
+- 行号：`refresh_token`: 第121-180行
+
+#### 2. 用户头像功能
+
+**新增接口**：
+- `POST /api/users/me/avatar` - 上传头像
+- `DELETE /api/users/me/avatar` - 删除头像
+- `GET /api/users/{user_id}/avatar` - 获取用户头像
+
+**功能说明**：
+- 支持上传、删除和获取用户头像
+- 支持 JPG、JPEG、PNG、GIF、WEBP 格式
+- 自动生成缩略图
+- 如果用户没有上传头像，返回自动生成的头像
+- 头像最大 2MB，最大尺寸 1024x1024 像素
+
+**实现位置**：
+- 文件：`api_routes.py`
+- 行号：
+  - `upload_avatar`: 第493-566行
+  - `delete_avatar`: 第567-612行
+  - `get_user_avatar`: 第614-644行
+- 文件：`avatar_utils.py` - 头像处理工具
+
+#### 3. 修改密码功能
+
+**新增接口**：
+- `PUT /api/users/me/password` - 修改密码
+
+**功能说明**：
+- 支持用户修改自己的密码
+- 需要提供当前密码进行验证
+- 密码修改后，所有现有Token将失效（通过password_version机制）
+- 带速率限制：每分钟最多5次尝试
+
+**实现位置**：
+- 文件：`api_routes.py`
+- 行号：`change_password`: 第422-490行
+
+#### 4. 管理员功能增强
+
+**新增接口**：
+- `GET /api/admin/broadcast-messages` - 获取广播消息统计
+- `GET /api/admin/stats` - 获取系统统计数据
+- `GET /api/admin/recent-users` - 获取最近注册用户
+- `GET /api/admin/users` - 获取用户列表（支持分页和搜索）
+- `PUT /api/admin/users/{user_id}/role` - 更新用户角色
+- `DELETE /api/admin/users/{user_id}` - 删除用户
+- `POST /api/admin/users` - 创建新用户
+- `GET /api/admin/knowledge/all` - 获取所有知识库（管理员）
+- `GET /api/admin/persona/all` - 获取所有人设卡（管理员）
+- `POST /api/admin/knowledge/{kb_id}/revert` - 恢复知识库审核状态
+- `POST /api/admin/persona/{pc_id}/revert` - 恢复人设卡审核状态
+- `GET /api/admin/upload-history` - 获取上传历史记录
+- `GET /api/admin/upload-stats` - 获取上传统计数据
+- `DELETE /api/admin/uploads/{upload_id}` - 删除上传记录
+- `POST /api/admin/uploads/{upload_id}/reprocess` - 重新处理上传
+
+**功能说明**：
+- 提供完整的管理员管理功能
+- 支持用户管理、内容管理、上传统计等
+- 所有接口需要admin权限
+
+**实现位置**：
+- 文件：`api_routes.py`
+- 行号：第2838-4108行
+
+### 接口变更
+
+#### 登录接口响应格式更新
+
+**变更前**：
+```json
+{
+  "access_token": "...",
+  "token_type": "bearer"
+}
+```
+
+**变更后**：
+```json
+{
+  "access_token": "...",
+  "refresh_token": "...",
+  "token_type": "bearer",
+  "expires_in": 900,
+  "user": {
+    "id": "...",
+    "username": "...",
+    "email": "...",
+    "role": "..."
+  }
+}
+```
+
+#### 获取用户信息接口响应格式更新
+
+**新增字段**：
+- `avatar_url`: 头像URL
+- `avatar_updated_at`: 头像更新时间
+
+### 影响范围
+
+**新增接口**（客户端可选集成）：
+- `POST /api/refresh` - 刷新访问令牌
+- `PUT /api/users/me/password` - 修改密码
+- `POST /api/users/me/avatar` - 上传头像
+- `DELETE /api/users/me/avatar` - 删除头像
+- `GET /api/users/{user_id}/avatar` - 获取用户头像
+- 所有管理员接口（需要admin权限）
+
+**接口变更**（客户端需要更新）：
+- `POST /api/token` - 响应格式已更新，包含更多字段
+- `GET /api/users/me` - 响应格式已更新，包含头像信息
+
+### 相关文件
+
+- `MaiMaiNotePad-BackEnd/api_routes.py` - API路由实现
+- `MaiMaiNotePad-BackEnd/avatar_utils.py` - 头像处理工具
+- `MaiMaiNotePad-BackEnd/database_models.py` - 数据库模型（User模型已包含头像字段）
+- `MaiMaiNotePad-BackEnd/jwt_utils.py` - JWT工具（包含刷新令牌功能）
+
+---
+
 ## 2025-11-22 - API Bug修复和优化
 
 ### 修复内容

@@ -118,12 +118,17 @@ docker run -p 9278:9278 mainnp-backend
 ## 📖 API接口文档
 
 ### 认证相关
-- `POST /api/token` - 用户登录获取token
+- `POST /api/token` - 用户登录获取token（返回access_token和refresh_token）
+- `POST /api/refresh` - 刷新访问令牌
 - `POST /api/send_verification_code` - 发送注册验证码
 - `POST /api/send_reset_password_code` - 发送重置密码验证码
 - `POST /api/reset_password` - 重置密码
 - `POST /api/user/register` - 用户注册
 - `GET /api/users/me` - 获取当前用户信息
+- `PUT /api/users/me/password` - 修改密码
+- `POST /api/users/me/avatar` - 上传头像
+- `DELETE /api/users/me/avatar` - 删除头像
+- `GET /api/users/{user_id}/avatar` - 获取用户头像
 
 ### 知识库相关
 - `POST /api/knowledge/upload` - 上传知识库
@@ -177,6 +182,23 @@ docker run -p 9278:9278 mainnp-backend
 
 ### 用户相关
 - `GET /api/user/stars` - 获取用户Star的知识库和人设卡（支持`includeDetails`参数）
+
+### 管理员相关（需要admin权限）
+- `GET /api/admin/broadcast-messages` - 获取广播消息统计
+- `GET /api/admin/stats` - 获取系统统计数据
+- `GET /api/admin/recent-users` - 获取最近注册用户
+- `GET /api/admin/users` - 获取用户列表（支持分页和搜索）
+- `PUT /api/admin/users/{user_id}/role` - 更新用户角色
+- `DELETE /api/admin/users/{user_id}` - 删除用户
+- `POST /api/admin/users` - 创建新用户
+- `GET /api/admin/knowledge/all` - 获取所有知识库（管理员）
+- `GET /api/admin/persona/all` - 获取所有人设卡（管理员）
+- `POST /api/admin/knowledge/{kb_id}/revert` - 恢复知识库审核状态
+- `POST /api/admin/persona/{pc_id}/revert` - 恢复人设卡审核状态
+- `GET /api/admin/upload-history` - 获取上传历史记录
+- `GET /api/admin/upload-stats` - 获取上传统计数据
+- `DELETE /api/admin/uploads/{upload_id}` - 删除上传记录
+- `POST /api/admin/uploads/{upload_id}/reprocess` - 重新处理上传
 
 ## 🔐 权限说明
 
