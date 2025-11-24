@@ -3,8 +3,8 @@
 为应用提供统一的数据模型导入接口
 """
 
-from pydantic import BaseModel, EmailStr
-from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, EmailStr, model_validator
+from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
 
 # 从 database_models 导入SQLAlchemy模型
@@ -55,6 +55,15 @@ class KnowledgeBaseResponse(BaseModel):
     base_path: Optional[str]
     created_at: datetime
     updated_at: datetime
+    # 扩展字段
+    file_names: List[str] = []
+    content: Optional[str] = None
+    tags: List[str] = []
+    downloads: int = 0
+    download_url: Optional[str] = None
+    preview_url: Optional[str] = None
+    version: Optional[str] = None
+    size: Optional[int] = None
 
 class PersonaCardCreate(BaseModel):
     """人设卡创建请求模型"""
@@ -74,12 +83,54 @@ class PersonaCardResponse(BaseModel):
     is_pending: bool
     created_at: datetime
     updated_at: datetime
+    # 扩展字段
+    file_names: List[str] = []
+    content: Optional[str] = None
+    tags: List[str] = []
+    downloads: int = 0
+    download_url: Optional[str] = None
+    preview_url: Optional[str] = None
+    version: Optional[str] = None
+    size: Optional[int] = None
+    author: Optional[str] = None
+    author_id: Optional[str] = None
+    stars: int = 0
 
 class MessageCreate(BaseModel):
     """消息创建请求模型"""
-    recipient_id: str
     title: str
     content: str
+    summary: Optional[str] = None  # 消息简介，可选
+    recipient_id: Optional[str] = None
+    recipient_ids: Optional[List[str]] = None
+    message_type: Literal["direct", "announcement"] = "direct"
+    broadcast_scope: Optional[Literal["all_users"]] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def validate_recipients(cls, values):
+        if isinstance(values, dict):
+            message_type = values.get("message_type", "direct")
+            recipient_id = values.get("recipient_id")
+            recipient_ids = values.get("recipient_ids") or []
+            broadcast_scope = values.get("broadcast_scope")
+
+            if message_type == "direct":
+                if not recipient_id:
+                    raise ValueError("私信必须指定recipient_id")
+            else:
+                if not recipient_id and not recipient_ids and broadcast_scope != "all_users":
+                    raise ValueError("公告必须指定接收者列表或broadcast_scope=all_users")
+            # 去重
+            if recipient_ids:
+                values["recipient_ids"] = list(dict.fromkeys([rid for rid in recipient_ids if rid]))
+        return values
+
+class MessageUpdate(BaseModel):
+    """消息更新请求模型"""
+    title: Optional[str] = None
+    content: Optional[str] = None
+    summary: Optional[str] = None  # 消息简介，可选
 
 class MessageResponse(BaseModel):
     """消息响应模型"""
@@ -88,6 +139,9 @@ class MessageResponse(BaseModel):
     recipient_id: str
     title: str
     content: str
+    summary: Optional[str] = None  # 消息简介，可选
+    message_type: Literal["direct", "announcement"]
+    broadcast_scope: Optional[str]
     is_read: bool
     created_at: datetime
 
@@ -104,6 +158,20 @@ class StarResponse(BaseModel):
     target_type: str
     created_at: datetime
 
+class KnowledgeBasePaginatedResponse(BaseModel):
+    """知识库分页响应模型"""
+    items: List[KnowledgeBaseResponse]
+    total: int
+    page: int
+    page_size: int
+
+class PersonaCardPaginatedResponse(BaseModel):
+    """人设卡分页响应模型"""
+    items: List[PersonaCardResponse]
+    total: int
+    page: int
+    page_size: int
+
 # 导出所有模型
 __all__ = [
     # SQLAlchemy模型
@@ -112,7 +180,9 @@ __all__ = [
     # Pydantic模型
     'UserCreate', 'UserResponse',
     'KnowledgeBaseCreate', 'KnowledgeBaseUpdate', 'KnowledgeBaseResponse',
+    'KnowledgeBasePaginatedResponse',
     'PersonaCardCreate', 'PersonaCardResponse',
+    'PersonaCardPaginatedResponse',
     'MessageCreate', 'MessageResponse',
     'StarRecordCreate', 'StarResponse',
 ]

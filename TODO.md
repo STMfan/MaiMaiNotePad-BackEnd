@@ -100,6 +100,28 @@
     - 测试验证JSON格式和表单格式都能正常工作
     - 添加适当的错误处理和验证
 
+19. ✅ **修复审核API和消息API的Bug**
+    - 修复审核通过/拒绝接口的对象转字典问题
+    - 优化审核拒绝接口参数传递方式（从查询参数改为请求体）
+    - 修复消息创建和获取API的类型验证问题
+    - 改进消息批量创建和查询的异常处理
+    - 添加自动数据库迁移功能
+
+20. ✅ **新增Star状态检查接口**
+    - 实现 `GET /api/knowledge/{kb_id}/starred` 接口
+    - 实现 `GET /api/persona/{pc_id}/starred` 接口
+    - 优化Star状态检查性能，从O(N)优化到O(1)
+
+21. ✅ **添加分页支持**
+    - 为公开知识库接口添加分页、搜索、筛选和排序功能
+    - 为公开人设卡接口添加分页、搜索、筛选和排序功能
+    - 优化列表查询性能
+
+22. ✅ **增强用户Star记录接口**
+    - 为 `GET /api/user/stars` 接口添加 `includeDetails` 参数
+    - 支持返回Star记录的同时包含完整详情
+    - 减少前端API调用次数
+
 ## 待完成任务
 
 1. 🔄 **添加API文档和测试用例**
@@ -150,39 +172,56 @@ backend-python-remake/
 ## API接口概览
 
 ### 认证相关
-- `POST /token` - 用户登录获取token
-- `GET /users/me` - 获取当前用户信息
+- `POST /api/token` - 用户登录获取token
+- `POST /api/send_verification_code` - 发送注册验证码
+- `POST /api/send_reset_password_code` - 发送重置密码验证码
+- `POST /api/reset_password` - 重置密码
+- `POST /api/user/register` - 用户注册
+- `GET /api/users/me` - 获取当前用户信息
 
 ### 知识库相关
-- `POST /knowledge/upload` - 上传知识库
-- `GET /knowledge/public` - 获取公开知识库
-- `GET /knowledge/{kb_id}` - 获取指定知识库
-- `GET /knowledge/user/{user_id}` - 获取用户知识库
-- `POST /knowledge/{kb_id}/star` - Star知识库
-- `DELETE /knowledge/{kb_id}/star` - 取消Star知识库
+- `POST /api/knowledge/upload` - 上传知识库
+- `GET /api/knowledge/public` - 获取公开知识库
+- `GET /api/knowledge/{kb_id}` - 获取指定知识库详情
+- `GET /api/knowledge/user/{user_id}` - 获取用户知识库
+- `PUT /api/knowledge/{kb_id}` - 更新知识库信息
+- `POST /api/knowledge/{kb_id}/files` - 添加知识库文件
+- `DELETE /api/knowledge/{kb_id}/{file_id}` - 删除知识库文件
+- `GET /api/knowledge/{kb_id}/download` - 下载知识库全部文件（ZIP）
+- `GET /api/knowledge/{kb_id}/file/{file_id}` - 下载知识库单个文件
+- `DELETE /api/knowledge/{kb_id}` - 删除知识库
+- `POST /api/knowledge/{kb_id}/star` - Star知识库
+- `DELETE /api/knowledge/{kb_id}/star` - 取消Star知识库
 
 ### 人设卡相关
-- `POST /persona/upload` - 上传人设卡
-- `GET /persona/public` - 获取公开人设卡
-- `GET /persona/{pc_id}` - 获取指定人设卡
-- `GET /persona/user/{user_id}` - 获取用户人设卡
-- `POST /persona/{pc_id}/star` - Star人设卡
-- `DELETE /persona/{pc_id}/star` - 取消Star人设卡
+- `POST /api/persona/upload` - 上传人设卡
+- `GET /api/persona/public` - 获取公开人设卡
+- `GET /api/persona/{pc_id}` - 获取指定人设卡详情
+- `GET /api/persona/user/{user_id}` - 获取用户人设卡
+- `PUT /api/persona/{pc_id}` - 更新人设卡信息
+- `POST /api/persona/{pc_id}/files` - 添加人设卡文件
+- `DELETE /api/persona/{pc_id}/{file_id}` - 删除人设卡文件
+- `GET /api/persona/{pc_id}/download` - 下载人设卡全部文件（ZIP）
+- `GET /api/persona/{pc_id}/file/{file_id}` - 下载人设卡单个文件
+- `DELETE /api/persona/{pc_id}` - 删除人设卡
+- `POST /api/persona/{pc_id}/star` - Star人设卡
+- `DELETE /api/persona/{pc_id}/star` - 取消Star人设卡
 
 ### 审核相关
-- `GET /review/knowledge/pending` - 获取待审核知识库
-- `GET /review/persona/pending` - 获取待审核人设卡
-- `POST /review/knowledge/{kb_id}/approve` - 审核通过知识库
-- `POST /review/knowledge/{kb_id}/reject` - 审核拒绝知识库
-- `POST /review/persona/{pc_id}/approve` - 审核通过人设卡
-- `POST /review/persona/{pc_id}/reject` - 审核拒绝人设卡
+- `GET /api/review/knowledge/pending` - 获取待审核知识库
+- `GET /api/review/persona/pending` - 获取待审核人设卡
+- `POST /api/review/knowledge/{kb_id}/approve` - 审核通过知识库
+- `POST /api/review/knowledge/{kb_id}/reject` - 审核拒绝知识库（需在请求体中传递 `{"reason": "拒绝原因"}`）
+- `POST /api/review/persona/{pc_id}/approve` - 审核通过人设卡
+- `POST /api/review/persona/{pc_id}/reject` - 审核拒绝人设卡（需在请求体中传递 `{"reason": "拒绝原因"}`）
 
 ### 消息相关
-- `GET /messages` - 获取用户消息
-- `POST /messages/{message_id}/read` - 标记消息为已读
+- `POST /api/messages/send` - 发送消息
+- `GET /api/messages` - 获取用户消息
+- `POST /api/messages/{message_id}/read` - 标记消息为已读
 
 ### 用户相关
-- `GET /user/stars` - 获取用户Star的知识库和人设卡
+- `GET /api/user/stars` - 获取用户Star的知识库和人设卡
 
 ## 运行说明
 
