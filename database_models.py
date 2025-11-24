@@ -480,12 +480,84 @@ class SQLiteDatabaseManager:
     def get_pending_knowledge_bases(self):
         """获取所有待审核的知识库"""
         with self.get_session() as session:
+<<<<<<< Updated upstream
             return session.query(KnowledgeBase).filter(KnowledgeBase.is_pending == True).all()
+=======
+            # 使用 == True 查询待审核的知识库（SQLAlchemy 的 Boolean 类型应使用 Python 的 True/False）
+            query = session.query(KnowledgeBase).filter(KnowledgeBase.is_pending == True)
+            
+            # 按名称搜索
+            if name:
+                query = query.filter(KnowledgeBase.name.contains(name))
+            
+            # 按上传者ID筛选
+            if uploader_id:
+                query = query.filter(KnowledgeBase.uploader_id == uploader_id)
+            
+            # 排序
+            if sort_by == "star_count":
+                order_column = KnowledgeBase.star_count
+            elif sort_by == "updated_at":
+                order_column = KnowledgeBase.updated_at
+            else:
+                order_column = KnowledgeBase.created_at
+                
+            if sort_order == "asc":
+                query = query.order_by(order_column.asc())
+            else:
+                query = query.order_by(order_column.desc())
+            
+            # 在应用分页前计算总数
+            total = query.count()
+            
+            # 分页
+            offset = (page - 1) * page_size
+            items = query.offset(offset).limit(page_size).all()
+            
+            return items, total
+>>>>>>> Stashed changes
     
     def get_public_knowledge_bases(self):
         """获取所有公开的知识库"""
         with self.get_session() as session:
+<<<<<<< Updated upstream
             return session.query(KnowledgeBase).filter(KnowledgeBase.is_public == True).all()
+=======
+            query = session.query(KnowledgeBase).filter(
+                KnowledgeBase.is_public == True,
+                KnowledgeBase.is_pending == False  # 只显示已审核通过的内容
+            )
+            
+            # 按名称搜索
+            if name:
+                query = query.filter(KnowledgeBase.name.contains(name))
+            
+            # 按上传者ID筛选
+            if uploader_id:
+                query = query.filter(KnowledgeBase.uploader_id == uploader_id)
+            
+            # 排序
+            if sort_by == "star_count":
+                order_column = KnowledgeBase.star_count
+            elif sort_by == "updated_at":
+                order_column = KnowledgeBase.updated_at
+            else:
+                order_column = KnowledgeBase.created_at
+                
+            if sort_order == "asc":
+                query = query.order_by(order_column.asc())
+            else:
+                query = query.order_by(order_column.desc())
+            
+            # 在应用分页前计算总数
+            total = query.count()
+            
+            # 分页
+            offset = (page - 1) * page_size
+            items = query.offset(offset).limit(page_size).all()
+            
+            return items, total
+>>>>>>> Stashed changes
     
     def get_knowledge_bases_by_uploader(self, uploader_id: str):
         """根据上传者ID获取知识库"""
@@ -613,12 +685,84 @@ class SQLiteDatabaseManager:
     def get_pending_persona_cards(self):
         """获取所有待审核的人设卡"""
         with self.get_session() as session:
+<<<<<<< Updated upstream
             return session.query(PersonaCard).filter(PersonaCard.is_pending == True).all()
+=======
+            # 使用 == True 查询待审核的人设卡（SQLAlchemy 的 Boolean 类型应使用 Python 的 True/False）
+            query = session.query(PersonaCard).filter(PersonaCard.is_pending == True)
+            
+            # 按名称搜索
+            if name:
+                query = query.filter(PersonaCard.name.contains(name))
+            
+            # 按上传者ID筛选
+            if uploader_id:
+                query = query.filter(PersonaCard.uploader_id == uploader_id)
+            
+            # 排序
+            if sort_by == "star_count":
+                order_column = PersonaCard.star_count
+            elif sort_by == "updated_at":
+                order_column = PersonaCard.updated_at
+            else:
+                order_column = PersonaCard.created_at
+                
+            if sort_order == "asc":
+                query = query.order_by(order_column.asc())
+            else:
+                query = query.order_by(order_column.desc())
+            
+            # 在应用分页前计算总数
+            total = query.count()
+            
+            # 分页
+            offset = (page - 1) * page_size
+            items = query.offset(offset).limit(page_size).all()
+            
+            return items, total
+>>>>>>> Stashed changes
     
     def get_public_persona_cards(self):
         """获取所有公开的人设卡"""
         with self.get_session() as session:
+<<<<<<< Updated upstream
             return session.query(PersonaCard).filter(PersonaCard.is_public == True).all()
+=======
+            query = session.query(PersonaCard).filter(
+                PersonaCard.is_public == True,
+                PersonaCard.is_pending == False  # 只显示已审核通过的内容
+            )
+            
+            # 按名称搜索
+            if name:
+                query = query.filter(PersonaCard.name.contains(name))
+            
+            # 按上传者ID筛选
+            if uploader_id:
+                query = query.filter(PersonaCard.uploader_id == uploader_id)
+            
+            # 排序
+            if sort_by == "star_count":
+                order_column = PersonaCard.star_count
+            elif sort_by == "updated_at":
+                order_column = PersonaCard.updated_at
+            else:
+                order_column = PersonaCard.created_at
+                
+            if sort_order == "asc":
+                query = query.order_by(order_column.asc())
+            else:
+                query = query.order_by(order_column.desc())
+            
+            # 在应用分页前计算总数
+            total = query.count()
+            
+            # 分页
+            offset = (page - 1) * page_size
+            items = query.offset(offset).limit(page_size).all()
+            
+            return items, total
+>>>>>>> Stashed changes
     
     def get_persona_cards_by_uploader(self, uploader_id: str):
         """根据上传者ID获取人设卡"""
@@ -974,6 +1118,45 @@ class SQLiteDatabaseManager:
         """保存用户"""
         try:
             with self.get_session() as session:
+<<<<<<< Updated upstream
+=======
+                # 统一将邮箱转换为小写
+                if "email" in user_data and user_data["email"]:
+                    user_data["email"] = user_data["email"].lower()
+                
+                # 处理 DateTime 字段：如果传入的是字符串，转换为 datetime 对象
+                datetime_fields = ["created_at", "avatar_updated_at"]
+                for field in datetime_fields:
+                    if field in user_data:
+                        value = user_data[field]
+                        # 如果是字符串，转换为 datetime 对象
+                        if isinstance(value, str):
+                            try:
+                                # 尝试解析 ISO 格式字符串（处理带Z和不带Z的情况）
+                                if value.endswith('Z'):
+                                    value = value[:-1] + '+00:00'
+                                user_data[field] = datetime.fromisoformat(value)
+                            except (ValueError, AttributeError):
+                                # 如果解析失败，尝试其他格式
+                                try:
+                                    user_data[field] = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")
+                                except ValueError:
+                                    try:
+                                        user_data[field] = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
+                                    except ValueError:
+                                        # 如果还是失败，使用当前时间
+                                        user_data[field] = datetime.now()
+                        # 如果已经是 datetime 对象，保持不变
+                        elif isinstance(value, datetime):
+                            pass
+                        # 如果是 None，保持 None（允许清空字段）
+                        elif value is None:
+                            pass
+                        else:
+                            # 其他类型，使用当前时间
+                            user_data[field] = datetime.now()
+                
+>>>>>>> Stashed changes
                 user_id = user_data.get("id")
                 user = session.query(User).filter(User.id == user_id).first()
                 
@@ -1091,9 +1274,188 @@ class SQLiteDatabaseManager:
                 return verification.id
         except Exception as e:
             print(f"保存验证码失败: {str(e)}")
+<<<<<<< Updated upstream
             return None
+=======
+            return None    
+    def increment_knowledge_base_downloads(self, kb_id: str) -> bool:
+        """原子性地增加知识库下载计数器"""
+        try:
+            with self.get_session() as session:
+                session.execute(
+                    text("UPDATE knowledge_bases SET downloads = downloads + 1 WHERE id = :kb_id"),
+                    {"kb_id": kb_id}
+                )
+                session.commit()
+                return True
+        except Exception as e:
+            print(f"更新知识库下载计数器失败: {str(e)}")
+            return False
+    
+    def increment_persona_card_downloads(self, pc_id: str) -> bool:
+        """原子性地增加人设卡下载计数器"""
+        try:
+            with self.get_session() as session:
+                session.execute(
+                    text("UPDATE persona_cards SET downloads = downloads + 1 WHERE id = :pc_id"),
+                    {"pc_id": pc_id}
+                )
+                session.commit()
+                return True
+        except Exception as e:
+            print(f"更新人设卡下载计数器失败: {str(e)}")
+            return False
+    
+    # 上传记录相关方法
+    def create_upload_record(
+        self,
+        uploader_id: str,
+        target_id: str,
+        target_type: str,
+        name: str,
+        description: Optional[str] = None,
+        status: str = "pending"
+    ) -> UploadRecord:
+        """创建上传记录"""
+        try:
+            with self.get_session() as session:
+                upload_record = UploadRecord(
+                    uploader_id=uploader_id,
+                    target_id=target_id,
+                    target_type=target_type,
+                    name=name,
+                    description=description,
+                    status=status
+                )
+                session.add(upload_record)
+                session.commit()
+                session.refresh(upload_record)
+                return upload_record
+        except Exception as e:
+            print(f"创建上传记录失败: {str(e)}")
+            return None
+    
+    def update_upload_record_status(self, target_id: str, status: str) -> bool:
+        """更新上传记录状态"""
+        try:
+            with self.get_session() as session:
+                upload_record = session.query(UploadRecord).filter(
+                    UploadRecord.target_id == target_id
+                ).first()
+                if upload_record:
+                    upload_record.status = status
+                    upload_record.updated_at = datetime.now()
+                    session.commit()
+                    return True
+                return False
+        except Exception as e:
+            print(f"更新上传记录状态失败: {str(e)}")
+            return False
+    
+    def get_all_upload_records(self, page: int = 1, limit: int = 20):
+        """获取所有上传记录（分页）"""
+        with self.get_session() as session:
+            offset = (page - 1) * limit
+            return session.query(UploadRecord).order_by(
+                UploadRecord.created_at.desc()
+            ).offset(offset).limit(limit).all()
+    
+    def get_upload_records_count(self):
+        """获取上传记录总数"""
+        with self.get_session() as session:
+            return session.query(UploadRecord).count()
+    
+    def get_upload_records_by_status(self, status: str):
+        """根据状态获取上传记录"""
+        with self.get_session() as session:
+            return session.query(UploadRecord).filter(
+                UploadRecord.status == status
+            ).all()
+    
+    def get_total_file_size_by_target(self, target_id: str, target_type: str) -> int:
+        """根据目标ID和类型获取总文件大小"""
+        try:
+            with self.get_session() as session:
+                if target_type == "knowledge":
+                    files = session.query(KnowledgeBaseFile).filter(
+                        KnowledgeBaseFile.knowledge_base_id == target_id
+                    ).all()
+                elif target_type == "persona":
+                    files = session.query(PersonaCardFile).filter(
+                        PersonaCardFile.persona_card_id == target_id
+                    ).all()
+                else:
+                    return 0
+                
+                return sum(f.file_size or 0 for f in files)
+        except Exception as e:
+            print(f"获取文件大小失败: {str(e)}")
+            return 0
+    
+    def get_upload_record_by_id(self, record_id: str) -> Optional[UploadRecord]:
+        """根据ID获取上传记录"""
+        with self.get_session() as session:
+            return session.query(UploadRecord).filter(
+                UploadRecord.id == record_id
+            ).first()
+    
+    def delete_upload_record(self, record_id: str) -> bool:
+        """删除上传记录"""
+        try:
+            with self.get_session() as session:
+                upload_record = session.query(UploadRecord).filter(
+                    UploadRecord.id == record_id
+                ).first()
+                
+                if upload_record:
+                    session.delete(upload_record)
+                    session.commit()
+                    return True
+                return False
+        except Exception as e:
+            print(f"删除上传记录失败: {str(e)}")
+            return False
+    
+    def delete_upload_records_by_target(self, target_id: str, target_type: str) -> bool:
+        """根据目标ID和类型删除上传记录"""
+        try:
+            with self.get_session() as session:
+                upload_records = session.query(UploadRecord).filter(
+                    UploadRecord.target_id == target_id,
+                    UploadRecord.target_type == target_type
+                ).all()
+                
+                if upload_records:
+                    for record in upload_records:
+                        session.delete(record)
+                    session.commit()
+                    return True
+                return False
+        except Exception as e:
+            print(f"根据目标删除上传记录失败: {str(e)}")
+            return False
+    
+    def update_upload_record_status_by_id(self, record_id: str, status: str) -> bool:
+        """根据记录ID更新上传记录状态"""
+        try:
+            with self.get_session() as session:
+                upload_record = session.query(UploadRecord).filter(
+                    UploadRecord.id == record_id
+                ).first()
+                
+                if upload_record:
+                    upload_record.status = status
+                    upload_record.updated_at = datetime.now()
+                    session.commit()
+                    return True
+                return False
+        except Exception as e:
+            print(f"更新上传记录状态失败: {str(e)}")
+            return False
+>>>>>>> Stashed changes
 
 
 
 # 创建全局SQLite数据库管理器实例
 sqlite_db_manager = SQLiteDatabaseManager()
+
