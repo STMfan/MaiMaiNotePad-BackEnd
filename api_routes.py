@@ -652,6 +652,8 @@ async def upload_knowledge_base(
     name: str = Form(...),
     description: str = Form(...),
     copyright_owner: Optional[str] = Form(None),
+    content: Optional[str] = Form(None),
+    tags: Optional[str] = Form(None),
     current_user: dict = Depends(get_current_user)
 ):
     """上传知识库"""
@@ -679,7 +681,9 @@ async def upload_knowledge_base(
             name=name,
             description=description,
             uploader_id=user_id,
-            copyright_owner=copyright_owner if copyright_owner else username
+            copyright_owner=copyright_owner if copyright_owner else username,
+            content=content,
+            tags=tags
         )
 
         # 创建上传记录
@@ -744,6 +748,20 @@ async def get_public_knowledge_bases(
     try:
         app_logger.info("Get public knowledge bases")
 
+        # 允许使用用户名作为上传者筛选输入，若传入的不是ID则尝试用户名解析
+        if uploader_id:
+            try:
+                # 如果找不到对应用户ID且输入不是标准UUID，则尝试按用户名查找
+                user = db_manager.get_user_by_id(uploader_id)
+                if not user:
+                    user = db_manager.get_user_by_username(uploader_id)
+                if user:
+                    uploader_id = user.id
+                else:
+                    uploader_id = None
+            except Exception:
+                uploader_id = None
+
         kbs, total = db_manager.get_public_knowledge_bases(
             page=page,
             page_size=page_size,
@@ -802,23 +820,77 @@ async def check_knowledge_starred(
         raise APIError("检查Star状态失败")
 
 
-@api_router.get("/knowledge/user/{user_id}", response_model=List[KnowledgeBaseResponse])
+@api_router.get("/knowledge/user/{user_id}", response_model=KnowledgeBasePaginatedResponse)
 async def get_user_knowledge_bases(
     user_id: str,
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    name: str = Query(None, description="按名称搜索"),
+    tag: str = Query(None, description="按标签搜索"),
+    status: str = Query("all", description="状态过滤: all/pending/approved/rejected"),
+    sort_by: str = Query("created_at", description="排序字段: created_at/updated_at/name/downloads/star_count"),
+    sort_order: str = Query("desc", description="排序方向: asc/desc"),
     current_user: dict = Depends(get_current_user)
 ):
-    """获取用户上传的知识库"""
+    """获取指定用户上传的知识库，支持分页/筛选；管理员/审核员可查看他人"""
     current_user_id = current_user.get("id", "")
+    current_role = current_user.get("role", "user")
     try:
         app_logger.info(f"Get user knowledge bases: user_id={user_id}, requester={current_user_id}")
 
-        # 验证权限：只能查看自己的知识库
-        if user_id != current_user_id:
-            app_logger.warning(f"Unauthorized access attempt: user={current_user_id} trying to access user={user_id} data")
+        if user_id != current_user_id and current_role not in ["admin", "moderator"]:
             raise AuthorizationError("没有权限查看其他用户的上传记录")
 
         kbs = db_manager.get_knowledge_bases_by_uploader(user_id)
-        return [KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs]
+
+        def match_status(kb):
+            if status == "pending":
+                return kb.is_pending
+            if status == "approved":
+                return (kb.is_pending is False) and kb.is_public
+            if status == "rejected":
+                return (kb.is_pending is False) and (not kb.is_public)
+            return True
+
+        # 允许的排序字段
+        sort_field_map = {
+            "created_at": lambda kb: kb.created_at,
+            "updated_at": lambda kb: kb.updated_at,
+            "name": lambda kb: kb.name.lower(),
+            "downloads": lambda kb: kb.downloads or 0,
+            "star_count": lambda kb: kb.star_count or 0,
+        }
+
+        filtered = []
+        for kb in kbs:
+            if name and name.lower() not in kb.name.lower():
+                continue
+            if tag:
+                tag_list = []
+                if kb.tags:
+                    tag_list = kb.tags.split(",") if isinstance(kb.tags, str) else kb.tags
+                if not any(tag.lower() in t.lower() for t in tag_list):
+                    continue
+            if not match_status(kb):
+                continue
+            filtered.append(kb)
+
+        # 排序
+        key_func = sort_field_map.get(sort_by, sort_field_map["created_at"])
+        reverse = sort_order.lower() != "asc"
+        filtered.sort(key=key_func, reverse=reverse)
+
+        total = len(filtered)
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_items = filtered[start:end]
+
+        return KnowledgeBasePaginatedResponse(
+            items=[KnowledgeBaseResponse(**kb.to_dict()) for kb in page_items],
+            total=total,
+            page=page,
+            page_size=page_size
+        )
 
     except (AuthorizationError, DatabaseError):
         raise
@@ -1082,13 +1154,31 @@ async def delete_files_from_knowledge_base(
             raise AuthorizationError("是你的知识库吗你就删")
 
         if not file_id:
-            return {"message": "文件删除成功"}
+            return {"message": "文件删除成功", "knowledge_deleted": False}
 
         # 删除文件
         success = await file_upload_service.delete_files_from_knowledge_base(kb_id, file_id, user_id)
         
         if not success:
             raise FileOperationError("删除文件失败")
+
+        knowledge_deleted = False
+        # 检查是否还有剩余文件，没有则自动删除整个知识库
+        remaining_files = db_manager.get_files_by_knowledge_base_id(kb_id)
+        if not remaining_files:
+            cleanup_success = await file_upload_service.delete_knowledge_base(kb_id, user_id)
+            if not cleanup_success:
+                raise FileOperationError("删除知识库文件失败")
+
+            if not db_manager.delete_knowledge_base(kb_id):
+                raise DatabaseError("删除知识库记录失败")
+
+            try:
+                db_manager.delete_upload_records_by_target(kb_id, "knowledge")
+            except Exception as e:
+                app_logger.warning(f"删除知识库上传记录失败: {str(e)}")
+
+            knowledge_deleted = True
 
         # 记录文件操作成功
         log_file_operation(
@@ -1109,7 +1199,26 @@ async def delete_files_from_knowledge_base(
             success=True
         )
 
-        return {"message": "文件删除成功"}
+        if knowledge_deleted:
+            # 补充记录知识库删除日志
+            log_file_operation(
+                app_logger,
+                "delete",
+                f"knowledge_base/{kb_id}",
+                user_id=user_id,
+                success=True
+            )
+            log_database_operation(
+                app_logger,
+                "delete",
+                "knowledge_base",
+                record_id=kb_id,
+                user_id=user_id,
+                success=True
+            )
+
+        message = "最后一个文件删除，知识库已自动删除" if knowledge_deleted else "文件删除成功"
+        return {"message": message, "knowledge_deleted": knowledge_deleted}
 
     except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError):
         raise
@@ -1299,6 +1408,8 @@ async def upload_persona_card(
     name: str = Form(...),
     description: str = Form(...),
     copyright_owner: Optional[str] = Form(None),
+    content: Optional[str] = Form(None),
+    tags: Optional[str] = Form(None),
     current_user: dict = Depends(get_current_user)
 ):
     """上传人设卡"""
@@ -1326,7 +1437,9 @@ async def upload_persona_card(
             name=name,
             description=description,
             uploader_id=user_id,
-            copyright_owner=copyright_owner if copyright_owner else username
+            copyright_owner=copyright_owner if copyright_owner else username,
+            content=content,
+            tags=tags
         )
 
         # 创建上传记录
@@ -1391,6 +1504,19 @@ async def get_public_persona_cards(
     try:
         app_logger.info("Get public persona cards")
 
+        # 允许用用户名输入进行解析
+        if uploader_id:
+            try:
+                user = db_manager.get_user_by_id(uploader_id)
+                if not user:
+                    user = db_manager.get_user_by_username(uploader_id)
+                if user:
+                    uploader_id = user.id
+                else:
+                    uploader_id = None
+            except Exception:
+                uploader_id = None
+
         pcs, total = db_manager.get_public_persona_cards(
             page=page,
             page_size=page_size,
@@ -1449,23 +1575,76 @@ async def check_persona_starred(
         raise APIError("检查Star状态失败")
 
 
-@api_router.get("/persona/user/{user_id}", response_model=List[PersonaCardResponse])
+@api_router.get("/persona/user/{user_id}", response_model=PersonaCardPaginatedResponse)
 async def get_user_persona_cards(
     user_id: str,
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    name: str = Query(None, description="按名称搜索"),
+    tag: str = Query(None, description="按标签搜索"),
+    status: str = Query("all", description="状态过滤: all/pending/approved/rejected"),
+    sort_by: str = Query("created_at", description="排序字段: created_at/updated_at/name/downloads/star_count"),
+    sort_order: str = Query("desc", description="排序方向: asc/desc"),
     current_user: dict = Depends(get_current_user)
 ):
-    """获取用户上传的人设卡"""
+    """获取指定用户的人设卡，支持分页/筛选；管理员/审核员可查看他人"""
     current_user_id = current_user.get("id", "")
+    current_role = current_user.get("role", "user")
     try:
         app_logger.info(f"Get user persona cards: user_id={user_id}, requester={current_user_id}")
 
-        # 验证权限：只能查看自己的人设卡
-        if user_id != current_user_id:
-            app_logger.warning(f"Unauthorized access attempt: user={current_user_id} trying to access user={user_id} data")
+        if user_id != current_user_id and current_role not in ["admin", "moderator"]:
             raise AuthorizationError("没有权限查看其他用户的上传记录")
 
         pcs = db_manager.get_persona_cards_by_uploader(user_id)
-        return [PersonaCardResponse(**pc.to_dict()) for pc in pcs]
+
+        sort_field_map = {
+            "created_at": lambda pc: pc.created_at,
+            "updated_at": lambda pc: pc.updated_at,
+            "name": lambda pc: pc.name.lower(),
+            "downloads": lambda pc: pc.downloads or 0,
+            "star_count": lambda pc: pc.star_count or 0,
+        }
+
+        def match_status(pc):
+            pending = getattr(pc, "is_pending", False)
+            if status == "pending":
+                return pending
+            if status == "approved":
+                return (pending is False) and pc.is_public
+            if status == "rejected":
+                return (pending is False) and (not pc.is_public)
+            return True
+
+        filtered = []
+        for pc in pcs:
+            if name and name.lower() not in pc.name.lower():
+                continue
+            if tag:
+                tag_list = []
+                if pc.tags:
+                    tag_list = pc.tags.split(",") if isinstance(pc.tags, str) else pc.tags
+                if not any(tag.lower() in t.lower() for t in tag_list):
+                    continue
+            if not match_status(pc):
+                continue
+            filtered.append(pc)
+
+        key_func = sort_field_map.get(sort_by, sort_field_map["created_at"])
+        reverse = sort_order.lower() != "asc"
+        filtered.sort(key=key_func, reverse=reverse)
+
+        total = len(filtered)
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_items = filtered[start:end]
+
+        return PersonaCardPaginatedResponse(
+            items=[PersonaCardResponse(**pc.to_dict()) for pc in page_items],
+            total=total,
+            page=page,
+            page_size=page_size
+        )
 
     except (AuthorizationError, DatabaseError):
         raise
@@ -1951,54 +2130,96 @@ async def download_persona_card_file(
 
 
 # 用户Star记录相关路由
-@api_router.get("/user/stars", response_model=List[Dict[str, Any]])
+@api_router.get("/user/stars", response_model=Dict[str, Any])
 async def get_user_stars(
     current_user: dict = Depends(get_current_user),
-    include_details: bool = False
+    include_details: bool = False,
+    page: int = Query(1, description="页码，从1开始"),
+    page_size: int = Query(20, description="每页条数，最大50"),
+    sort_by: str = Query("created_at", description="排序字段: created_at / star_count"),
+    sort_order: str = Query("desc", description="排序方向: asc / desc"),
+    type: str = Query("all", description="收藏类型: knowledge / persona / all")
 ):
     """获取用户Star的知识库和人设卡"""
     user_id = current_user.get("id", "")
     try:
-        app_logger.info(f"Get user stars: user_id={user_id}, include_details={include_details}")
+        # 参数规范化与校验
+        if page < 1:
+            page = 1
+        if page_size < 1:
+            page_size = 1
+        page_size = min(page_size, 50)
+
+        allowed_sort_by = {"created_at", "star_count"}
+        if sort_by not in allowed_sort_by:
+            sort_by = "created_at"
+
+        sort_order = sort_order.lower()
+        if sort_order not in {"asc", "desc"}:
+            sort_order = "desc"
+
+        target_type = type.lower()
+        if target_type not in {"knowledge", "persona", "all"}:
+            app_logger.warning(f"Invalid star type param: {type}")
+            raise HTTPException(status_code=400, detail="type 参数不合法")
+
+        app_logger.info(
+            f"Get user stars: user_id={user_id}, include_details={include_details}, "
+            f"page={page}, page_size={page_size}, sort_by={sort_by}, sort_order={sort_order}, type={target_type}"
+        )
 
         stars = db_manager.get_stars_by_user(user_id)
         result = []
 
         for star in stars:
+            if target_type != "all" and star.target_type != target_type:
+                continue
             if star.target_type == "knowledge":
                 kb = db_manager.get_knowledge_base_by_id(star.target_id)
-                if kb and kb.is_public:
-                    item = {
-                        "id": star.id,
-                        "type": "knowledge",
-                        "target_id": star.target_id,
-                        "name": kb.name,
-                        "description": kb.description,
-                        "star_count": kb.star_count,
-                        "created_at": star.created_at.isoformat()
-                    }
-                    # 如果需要完整详情，调用to_dict
-                    if include_details:
-                        kb_dict = kb.to_dict(include_files=True, include_metadata=True)
-                        item.update(kb_dict)
-                    result.append(item)
+                if not kb or not kb.is_public:
+                    continue
+                item = {
+                    "id": star.id,
+                    "type": "knowledge",
+                    "target_id": star.target_id,
+                    "name": kb.name,
+                    "description": kb.description,
+                    "star_count": kb.star_count,
+                    "created_at": star.created_at.isoformat()
+                }
+                if include_details:
+                    kb_dict = kb.to_dict(include_files=True, include_metadata=True)
+                    item.update(kb_dict)
+                result.append(item)
             elif star.target_type == "persona":
                 pc = db_manager.get_persona_card_by_id(star.target_id)
-                if pc and pc.is_public:
-                    item = {
-                        "id": star.id,
-                        "type": "persona",
-                        "target_id": star.target_id,
-                        "name": pc.name,
-                        "description": pc.description,
-                        "star_count": pc.star_count,
-                        "created_at": star.created_at.isoformat()
-                    }
-                    # 如果需要完整详情，调用to_dict
-                    if include_details:
-                        pc_dict = pc.to_dict(include_files=True, include_metadata=True)
-                        item.update(pc_dict)
-                    result.append(item)
+                if not pc or not pc.is_public:
+                    continue
+                item = {
+                    "id": star.id,
+                    "type": "persona",
+                    "target_id": star.target_id,
+                    "name": pc.name,
+                    "description": pc.description,
+                    "star_count": pc.star_count,
+                    "created_at": star.created_at.isoformat()
+                }
+                if include_details:
+                    pc_dict = pc.to_dict(include_files=True, include_metadata=True)
+                    item.update(pc_dict)
+                result.append(item)
+
+        # 排序
+        reverse = sort_order == "desc"
+        if sort_by == "created_at":
+            result.sort(key=lambda x: x.get("created_at") or "", reverse=reverse)
+        else:
+            result.sort(key=lambda x: x.get("star_count", 0), reverse=reverse)
+
+        total = len(result)
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_items = result[start:end]
 
         # 记录数据库操作成功
         log_database_operation(
@@ -2009,8 +2230,16 @@ async def get_user_stars(
             success=True
         )
 
-        return result
+        return {
+            "items": page_items,
+            "total": total,
+            "page": page,
+            "page_size": page_size
+        }
     except DatabaseError:
+        raise
+    except HTTPException:
+        # 参数错误，直接抛出
         raise
     except Exception as e:
         log_exception(app_logger, "Get user stars error", exception=e)
@@ -2022,7 +2251,7 @@ async def get_user_stars(
             success=False,
             error_message=str(e)
         )
-        raise APIError("获取用户Star记录失败")
+        raise APIError("获取收藏记录失败")
 
 
 # 审核相关路由
@@ -3372,6 +3601,18 @@ async def get_all_knowledge_bases_admin(
     limit: int = 20,
     status: Optional[str] = None,
     search: Optional[str] = None,
+    uploader: Optional[str] = Query(
+        None,
+        description="上传者ID或用户名（支持模糊匹配）"
+    ),
+    order_by: Optional[str] = Query(
+        "created_at",
+        description="排序字段，支持 created_at、updated_at、star_count、name、downloads、is_public"
+    ),
+    order_dir: Optional[str] = Query(
+        "desc",
+        description="排序方向 asc/desc，默认 desc"
+    ),
     current_user: dict = Depends(get_current_user)
 ):
     """获取所有知识库（管理员视图，仅限admin）"""
@@ -3383,7 +3624,18 @@ async def get_all_knowledge_bases_admin(
         )
     
     try:
-        app_logger.info(f"Get all knowledge bases (admin): user_id={current_user.get('id')}, page={page}, limit={limit}, status={status}, search={search}")
+        app_logger.info(
+            "Get all knowledge bases (admin): user_id=%s, page=%s, limit=%s, status=%s, "
+            "search=%s, uploader=%s, order_by=%s, order_dir=%s",
+            current_user.get('id'),
+            page,
+            limit,
+            status,
+            search,
+            uploader,
+            order_by,
+            order_dir,
+        )
         
         # 限制参数范围
         if limit < 1 or limit > 100:
@@ -3397,6 +3649,8 @@ async def get_all_knowledge_bases_admin(
             
             # 构建查询
             query = session.query(KnowledgeBase)
+            uploader_filter = uploader.strip() if uploader else None
+            joined_user = False
             
             # 状态过滤
             if status == "pending":
@@ -3414,12 +3668,41 @@ async def get_all_knowledge_bases_admin(
                 )
                 query = query.filter(search_filter)
             
+            if uploader_filter:
+                if not joined_user:
+                    query = query.join(User, KnowledgeBase.uploader_id == User.id, isouter=True)
+                    joined_user = True
+                uploader_condition = or_(
+                    KnowledgeBase.uploader_id == uploader_filter,
+                    User.username.ilike(f"%{uploader_filter}%")
+                )
+                query = query.filter(uploader_condition)
+
+            order_by_key = (order_by or "created_at").lower()
+            order_dir_key = (order_dir or "desc").lower()
+            valid_order_columns = {
+                "created_at": KnowledgeBase.created_at,
+                "updated_at": KnowledgeBase.updated_at,
+                "star_count": KnowledgeBase.star_count,
+                "name": KnowledgeBase.name,
+                "downloads": KnowledgeBase.downloads,
+                "is_public": KnowledgeBase.is_public,
+            }
+            order_column = valid_order_columns.get(order_by_key, KnowledgeBase.created_at)
+            if order_dir_key not in ("asc", "desc"):
+                order_dir_key = "desc"
+            
             # 获取总数
             total = query.count()
             
             # 分页
             offset = (page - 1) * limit
-            knowledge_bases = query.order_by(KnowledgeBase.created_at.desc()).offset(offset).limit(limit).all()
+            ordering = [
+                order_column.asc() if order_dir_key == "asc" else order_column.desc(),
+                KnowledgeBase.created_at.desc(),
+                KnowledgeBase.id.desc()
+            ]
+            knowledge_bases = query.order_by(*ordering).offset(offset).limit(limit).all()
             
             # 获取上传者信息
             uploader_ids = list(set([kb.uploader_id for kb in knowledge_bases]))
@@ -3459,7 +3742,10 @@ async def get_all_knowledge_bases_admin(
                 "knowledgeBases": kb_list,
                 "total": total,
                 "page": page,
-                "limit": limit
+                "limit": limit,
+                "orderBy": order_by_key,
+                "orderDir": order_dir_key,
+                "uploader": uploader_filter
             }
         }
         
@@ -3479,6 +3765,18 @@ async def get_all_personas_admin(
     limit: int = 20,
     status: Optional[str] = None,
     search: Optional[str] = None,
+    uploader: Optional[str] = Query(
+        None,
+        description="上传者ID或用户名（支持模糊匹配）"
+    ),
+    order_by: Optional[str] = Query(
+        "created_at",
+        description="排序字段，支持 created_at、updated_at、star_count、name、downloads、is_public"
+    ),
+    order_dir: Optional[str] = Query(
+        "desc",
+        description="排序方向 asc/desc，默认 desc"
+    ),
     current_user: dict = Depends(get_current_user)
 ):
     """获取所有人设卡（管理员视图，仅限admin）"""
@@ -3490,7 +3788,18 @@ async def get_all_personas_admin(
         )
     
     try:
-        app_logger.info(f"Get all personas (admin): user_id={current_user.get('id')}, page={page}, limit={limit}, status={status}, search={search}")
+        app_logger.info(
+            "Get all personas (admin): user_id=%s, page=%s, limit=%s, status=%s, "
+            "search=%s, uploader=%s, order_by=%s, order_dir=%s",
+            current_user.get('id'),
+            page,
+            limit,
+            status,
+            search,
+            uploader,
+            order_by,
+            order_dir,
+        )
         
         # 限制参数范围
         if limit < 1 or limit > 100:
@@ -3504,6 +3813,8 @@ async def get_all_personas_admin(
             
             # 构建查询
             query = session.query(PersonaCard)
+            uploader_filter = uploader.strip() if uploader else None
+            joined_user = False
             
             # 状态过滤
             if status == "pending":
@@ -3521,12 +3832,41 @@ async def get_all_personas_admin(
                 )
                 query = query.filter(search_filter)
             
+            if uploader_filter:
+                if not joined_user:
+                    query = query.join(User, PersonaCard.uploader_id == User.id, isouter=True)
+                    joined_user = True
+                uploader_condition = or_(
+                    PersonaCard.uploader_id == uploader_filter,
+                    User.username.ilike(f"%{uploader_filter}%")
+                )
+                query = query.filter(uploader_condition)
+
+            order_by_key = (order_by or "created_at").lower()
+            order_dir_key = (order_dir or "desc").lower()
+            valid_order_columns = {
+                "created_at": PersonaCard.created_at,
+                "updated_at": PersonaCard.updated_at,
+                "star_count": PersonaCard.star_count,
+                "name": PersonaCard.name,
+                "downloads": PersonaCard.downloads,
+                "is_public": PersonaCard.is_public,
+            }
+            order_column = valid_order_columns.get(order_by_key, PersonaCard.created_at)
+            if order_dir_key not in ("asc", "desc"):
+                order_dir_key = "desc"
+            
             # 获取总数
             total = query.count()
             
             # 分页
             offset = (page - 1) * limit
-            persona_cards = query.order_by(PersonaCard.created_at.desc()).offset(offset).limit(limit).all()
+            ordering = [
+                order_column.asc() if order_dir_key == "asc" else order_column.desc(),
+                PersonaCard.created_at.desc(),
+                PersonaCard.id.desc()
+            ]
+            persona_cards = query.order_by(*ordering).offset(offset).limit(limit).all()
             
             # 获取上传者信息
             uploader_ids = list(set([pc.uploader_id for pc in persona_cards]))
@@ -3566,7 +3906,10 @@ async def get_all_personas_admin(
                 "personas": pc_list,
                 "total": total,
                 "page": page,
-                "limit": limit
+                "limit": limit,
+                "orderBy": order_by_key,
+                "orderDir": order_dir_key,
+                "uploader": uploader_filter
             }
         }
         

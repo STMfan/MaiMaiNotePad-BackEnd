@@ -55,10 +55,12 @@
 | `description` | `Text` | `nullable=False` | 描述/概要 |
 | `uploader_id` | `String` | FK -> `users.id` | 上传者 |
 | `copyright_owner` | `String` | 可空 | 版权声明 |
+| `content` | `Text` | 可空 | 正文内容（兼容旧 metadata 文件，现改为直接入库） |
+| `tags` | `Text` | 可空 | 标签，逗号分隔存储 |
 | `star_count` | `Integer` | `default=0` | 收藏数 |
 | `downloads` | `Integer` | `default=0` | 下载次数 |
 | `base_path` | `Text` | `default="[]"` | 文件列表 JSON（字符串存储） |
-| `metadata_path` | `String` | `nullable=False` | 元数据索引文件 |
+| `metadata_path` | `String` | `nullable=True`，默认空字符串 | 元数据索引文件，兼容旧结构 |
 | `is_public` | `Boolean` | `default=False` | 是否公开 |
 | `is_pending` | `Boolean` | `default=True` | 审核状态 |
 | `rejection_reason` | `Text` | 可空 | 拒绝原因 |
@@ -101,6 +103,8 @@
 | `copyright_owner` (`String`, 可空) |
 | `star_count` (`Integer`, 默认 0) |
 | `downloads` (`Integer`, 默认 0) | 下载次数 |
+| `content` (`Text`, 可空) | 正文内容 |
+| `tags` (`Text`, 可空) | 标签，逗号分隔 |
 | `base_path` (`String`, 非空) | 资源路径 |
 | `is_public` (`Boolean`, 默认 False) |
 | `is_pending` (`Boolean`, 默认 True) |
@@ -200,7 +204,8 @@
   - **收藏**：判断、增删并联动计数。  
   - **用户**：注册校验、密码更新、批量查询、账户锁定、头像管理。  
   - **邮箱验证码**：保存、验证、频控。  
-  - **上传记录**：创建、更新状态、查询历史、统计。
+  - **上传记录**：创建、更新状态、查询历史、统计。  
+- 迁移与默认值：在 `_migrate_database` 中为 `knowledge_bases` / `persona_cards` 自动补充 `downloads`、`content`、`tags` 列；`save_knowledge_base` / `save_persona_card` 在写入前会将列表标签转逗号字符串，并为 `metadata_path` 提供空字符串默认值，避免 SQLite 类型不匹配。
 
 > 若未来切换到 MySQL / PostgreSQL，建议重构该管理器以接受通用 `DATABASE_URL`，并移除强制的 SQLite 依赖，配合 Alembic 迁移实现数据库统一升级。
 
@@ -241,4 +246,3 @@
 **文档版本**: 2.1  
 **最后更新**: 2025-11-22  
 **维护者**: 开发团队
-

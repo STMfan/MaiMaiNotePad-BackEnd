@@ -142,6 +142,10 @@ class KnowledgeBase(Base):
     description = Column(Text, nullable=False)
     uploader_id = Column(String, ForeignKey("users.id"), nullable=False)
     copyright_owner = Column(String, nullable=True)
+    # 直接在数据库中保存内容与标签，避免依赖外部 metadata 文件
+    content = Column(Text, nullable=True)
+    tags = Column(Text, nullable=True)  # 逗号分隔存储
+    metadata_path = Column(Text, nullable=True, default="")  # 兼容旧表结构
     star_count = Column(Integer, default=0)
     downloads = Column(Integer, default=0)
     base_path = Column(Text, default="[]") 
@@ -174,6 +178,9 @@ class KnowledgeBase(Base):
             "description": self.description,
             "uploader_id": self.uploader_id,
             "copyright_owner": self.copyright_owner,
+            "content": self.content,
+            "tags": (self.tags or "").split(",") if self.tags else [],
+            "metadata_path": self.metadata_path,
             "star_count": self.star_count or 0,
             "base_path": self.base_path or "[]",
             "is_public": self.is_public,
@@ -183,13 +190,13 @@ class KnowledgeBase(Base):
             "updated_at": self.updated_at if self.updated_at else datetime.now(),
             # 默认值
             "files": [],
-            "content": None,
-            "tags": [],
             "downloads": self.downloads or 0,
             "download_url": None,
             "preview_url": None,
             "version": None,
-            "size": None
+            "size": None,
+            "author": None,
+            "author_id": self.uploader_id
         }
         
         if include_files:
@@ -209,20 +216,13 @@ class KnowledgeBase(Base):
             except Exception as e:
                 # 如果获取文件失败，使用默认值
                 pass
-        
-        if include_metadata:
-            # 从metadata文件读取额外信息
-            try:
-                if os.path.exists(self.metadata_path):
-                    with open(self.metadata_path, 'r', encoding='utf-8') as f:
-                        metadata = json.load(f)
-                        result["content"] = metadata.get("content")
-                        result["tags"] = metadata.get("tags", [])
-                        result["preview_url"] = metadata.get("preview_url")
-                        result["version"] = metadata.get("version")
-            except Exception:
-                # 如果读取失败，使用默认值
-                pass
+
+        if not result["author"]:
+            # 统一作者显示，优先使用数据库中的版权归属
+            result["author"] = self.copyright_owner or self.uploader_id
+
+        if not result["author_id"]:
+            result["author_id"] = self.uploader_id
         
         return result
 
@@ -235,9 +235,11 @@ class KnowledgeBase(Base):
             description=data.get("description", ""),
             uploader_id=data.get("uploader_id", ""),
             copyright_owner=data.get("copyright_owner", None),
+            content=data.get("content"),
+            tags=",".join(data.get("tags", [])) if isinstance(data.get("tags"), list) else data.get("tags"),
+            metadata_path=data.get("metadata_path", ""),
             star_count=data.get("star_count", 0),
             base_path=data.get("bast_path", "[]"),
-            metadata_path=data.get("metadata_path", ""),
             is_public=data.get("is_public", False),
             is_pending=data.get("is_pending", True),
             rejection_reason=data.get("rejection_reason", None),
@@ -331,6 +333,9 @@ class PersonaCard(Base):
     description = Column(Text, nullable=False)
     uploader_id = Column(String, ForeignKey("users.id"), nullable=False)
     copyright_owner = Column(String, nullable=True)
+    # 直接存储正文与标签，避免依赖外部 metadata 文件
+    content = Column(Text, nullable=True)
+    tags = Column(Text, nullable=True)  # 逗号分隔
     star_count = Column(Integer, default=0)
     downloads = Column(Integer, default=0)
     base_path = Column(String, nullable=False)
@@ -363,6 +368,8 @@ class PersonaCard(Base):
             "description": self.description,
             "uploader_id": self.uploader_id,
             "copyright_owner": self.copyright_owner,
+            "content": self.content,
+            "tags": (self.tags or "").split(",") if self.tags else [],
             "star_count": self.star_count or 0,
             "base_path": self.base_path,
             "is_public": self.is_public,
@@ -372,8 +379,6 @@ class PersonaCard(Base):
             "updated_at": self.updated_at if self.updated_at else datetime.now(),
             # 默认值
             "files": [],
-            "content": None,
-            "tags": [],
             "downloads": self.downloads or 0,
             "download_url": None,
             "preview_url": None,
@@ -403,20 +408,14 @@ class PersonaCard(Base):
                 pass
         
         if include_metadata:
-            # 从base_path目录下的metadata.json文件读取额外信息（如果存在）
-            try:
-                metadata_path = os.path.join(self.base_path, "metadata.json")
-                if os.path.exists(metadata_path):
-                    with open(metadata_path, 'r', encoding='utf-8') as f:
-                        metadata = json.load(f)
-                        result["content"] = metadata.get("content")
-                        result["tags"] = metadata.get("tags", [])
-                        result["preview_url"] = metadata.get("preview_url")
-                        result["version"] = metadata.get("version")
-                        result["author"] = metadata.get("author")
-            except Exception:
-                # 如果读取失败，使用默认值
-                pass
+            # 兼容旧参数，现已不读取外部 metadata 文件
+            pass
+
+        if not result["author"]:
+            result["author"] = self.copyright_owner or self.uploader_id
+
+        if not result["author_id"]:
+            result["author_id"] = self.uploader_id
         
         return result
 
@@ -617,9 +616,13 @@ class SQLiteDatabaseManager:
             ]),
             ('knowledge_bases', [
                 ('downloads', 'INTEGER DEFAULT 0'),
+                ('content', 'TEXT'),
+                ('tags', 'TEXT'),
             ]),
             ('persona_cards', [
                 ('downloads', 'INTEGER DEFAULT 0'),
+                ('content', 'TEXT'),
+                ('tags', 'TEXT'),
             ]),
             ('users', [
                 ('failed_login_attempts', 'INTEGER DEFAULT 0'),
@@ -734,6 +737,13 @@ class SQLiteDatabaseManager:
         """保存知识库并返回保存后的对象"""
         try:
             with self.get_session() as session:
+                # 规范化字段，避免非字符串写入SQLite
+                tags_value = kb_data.get("tags")
+                if isinstance(tags_value, list):
+                    kb_data["tags"] = ",".join(tags_value)
+                if kb_data.get("metadata_path") is None:
+                    kb_data["metadata_path"] = ""
+
                 kb_id = kb_data.get("id")
                 kb = None
                 if kb_id:
@@ -746,11 +756,8 @@ class SQLiteDatabaseManager:
                             setattr(kb, key, value)
                     kb.updated_at = datetime.now()
                 else:
-                    if not kb_data.get("metadata_path"):
-                        kb_data["metadata_path"] = "default_metadata_path"  # 设置默认值
                     # 创建新记录
                     kb = KnowledgeBase(**kb_data)
-                    # 确保file_paths是字符串格式
                     session.add(kb)
                 
                 session.commit()
@@ -931,6 +938,12 @@ class SQLiteDatabaseManager:
         """保存人设卡并返回保存后的对象"""
         try:
             with self.get_session() as session:
+                tags_value = pc_data.get("tags")
+                if isinstance(tags_value, list):
+                    pc_data["tags"] = ",".join(tags_value)
+                if pc_data.get("metadata_path") is None:
+                    pc_data["metadata_path"] = ""
+
                 pc_id = pc_data.get("id")
                 pc = session.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
                 
@@ -1860,4 +1873,3 @@ class SQLiteDatabaseManager:
 
 # 创建全局SQLite数据库管理器实例
 sqlite_db_manager = SQLiteDatabaseManager()
-

@@ -566,6 +566,23 @@ def _migrate_database(self):
 
 - `MaiMaiNotePad-BackEnd/api_routes.py` - API路由实现
 
+## 2025-11-25 - 内容字段入库与列表能力增强
+
+### 功能 / 接口
+- 知识库与人设卡上传新增正文 `content`、标签 `tags`，响应带作者信息、文件列表与大小聚合，删除最后一个文件时自动删除整条知识库（返回 `knowledge_deleted` 标识）
+- 用户上传记录（知识库、人设卡）支持分页、名称/标签/状态筛选与多字段排序，管理员/审核员可查看他人记录
+- 用户收藏列表分页化，支持类型过滤和创建时间/收藏数排序，返回 `items/total/page/page_size` 结构
+- 管理端内容列表新增上传者（ID/用户名模糊）筛选与排序字段/方向参数，日志输出补充上下文
+- 上传/下载相关 CORS 暴露 `Content-Disposition` 头，前端可读取文件名
+
+### 模型 / 存储
+- `KnowledgeBase`、`PersonaCard` 模型新增 `content`、`tags` 字段；`metadata_path` 允许空字符串默认值；返回的作者字段回落到版权人/上传者
+- SQLite 迁移补充 `content`、`tags` 列并在保存前统一将标签列表转逗号字符串，空 `metadata_path` 自动置空串
+
+### 文档
+- API 文档补充 content/tags 传参、用户上传/收藏分页参数与响应、删除文件返回字段、管理端筛选与排序参数示例
+- README/TODO 同步上述行为与完成状态
+
 ---
 
 ## 2025-11-23 - 代码质量改进
@@ -623,4 +640,3 @@ from models import (
 - `MaiMaiNotePad-BackEnd/api_routes.py` - API路由实现
 - `MaiMaiNotePad-BackEnd/database_models.py` - 数据库模型定义
 - `MaiMaiNotePad-BackEnd/models.py` - Pydantic模型定义
-

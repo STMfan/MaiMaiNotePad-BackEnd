@@ -138,7 +138,9 @@ class FileUploadService:
         name: str,
         description: str,
         uploader_id: str,
-        copyright_owner: Optional[str] = None
+        copyright_owner: Optional[str] = None,
+        content: Optional[str] = None,
+        tags: Optional[str] = None,
     ) -> KnowledgeBase:
         """上传知识库"""
         # 验证文件数量
@@ -180,6 +182,9 @@ class FileUploadService:
             "description": description,
             "uploader_id": uploader_id,
             "copyright_owner": copyright_owner,
+            "content": content,
+            "tags": tags,
+            "metadata_path": "",
             "base_path": kb_dir,
             "is_pending": True,  # 新上传的内容默认为待审核状态
             "is_public": False   # 新上传的内容默认为非公开
@@ -220,7 +225,9 @@ class FileUploadService:
         name: str,
         description: str,
         uploader_id: str,
-        copyright_owner: str
+        copyright_owner: str,
+        content: Optional[str] = None,
+        tags: Optional[str] = None,
     ) -> PersonaCard:
         """上传人设卡"""
         # 验证文件数量
@@ -263,6 +270,8 @@ class FileUploadService:
                 "description": description,
                 "uploader_id": uploader_id,
                 "copyright_owner": copyright_owner,
+                "content": content,
+                "tags": tags,
                 "base_path": pc_dir,
                 "is_pending": True,  # 新上传的内容默认为待审核状态
                 "is_public": False   # 新上传的内容默认为非公开
@@ -438,15 +447,26 @@ class FileUploadService:
         # 获取知识库信息
         kb = sqlite_db_manager.get_knowledge_base_by_id(kb_id)
         if not kb:
-            return False
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="知识库不存在"
+            )
 
         # 获取要删除的文件
         kb_file = sqlite_db_manager.get_knowledge_base_file_by_id(file_id)
+        if not kb_file or kb_file.knowledge_base_id != kb_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="文件不存在"
+            )
 
         # 获取知识库目录
         kb_dir = kb.base_path
         if not kb_dir or not os.path.exists(kb_dir):
-            return False
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="知识库目录不存在"
+            )
 
         # 删除文件和文件记录
         try:

@@ -426,6 +426,8 @@ files: [文件1, 文件2, ...]
 name: 知识库名称
 description: 知识库描述
 copyright_owner: 版权所有者（可选）
+content: 知识库正文（可选）
+tags: 标签，逗号分隔或多值（可选）
 ```
 
 **参数说明**:
@@ -433,6 +435,8 @@ copyright_owner: 版权所有者（可选）
 - `name` (必填): 知识库名称
 - `description` (必填): 知识库描述
 - `copyright_owner` (可选): 版权所有者信息
+- `content` (可选): 正文内容，用于直接存储在数据库中
+- `tags` (可选): 标签，逗号分隔字符串或多值提交，接口会落库为逗号分隔
 
 **响应示例**:
 ```json
@@ -484,7 +488,19 @@ GET /api/knowledge/public?page=1&page_size=20&name=&uploader_id=&sort_by=created
       "is_public": true,
       "is_pending": false,
       "created_at": "2025-11-22T00:00:00",
-      "updated_at": "2025-11-22T00:00:00"
+      "updated_at": "2025-11-22T00:00:00",
+      "files": [
+        {
+          "file_id": "file123",
+          "original_name": "数据集.txt",
+          "file_size": 2048
+        }
+      ],
+      "size": 2048,
+      "download_url": "/api/knowledge/kb123/download",
+      "tags": [],
+      "author": "版权所有者",
+      "author_id": "user123"
     }
   ],
   "total": 100,
@@ -510,49 +526,94 @@ GET /api/knowledge/{kb_id}
 **响应示例**:
 ```json
 {
-  "content": "知识库内容...",
-  "metadata": {
-    "file_count": 2,
-    "total_size": 1024
-  }
+  "id": "kb123",
+  "name": "我的知识库",
+  "description": "详细描述……",
+  "uploader_id": "user123",
+  "copyright_owner": "版权所有者",
+  "star_count": 5,
+  "is_public": false,
+  "is_pending": false,
+  "created_at": "2025-11-22T00:00:00",
+  "updated_at": "2025-11-24T10:00:00",
+  "files": [
+    {
+      "file_id": "file123",
+      "original_name": "数据集A.txt",
+      "file_size": 2048
+    },
+    {
+      "file_id": "file456",
+      "original_name": "配置B.json",
+      "file_size": 1024
+    }
+  ],
+  "size": 3072,
+  "download_url": "/api/knowledge/kb123/download",
+  "content": "扩展内容（可选）",
+  "tags": ["测试", "样例"],
+  "downloads": 12,
+  "preview_url": null,
+  "version": "v1.0.0",
+  "author": "版权所有者",
+  "author_id": "user123"
 }
 ```
+
+**字段说明**:
+- `files`: 文件数组，每项包含 `file_id`（用于单文件下载/删除）、`original_name`（展示用文件名）、`file_size`（字节）。
+- `size`: 所有文件大小总和（字节）。
+- `download_url`: 整包下载地址，已登录用户可直接使用。
 
 **错误响应**:
 - `404`: 知识库不存在
 - `500`: 获取知识库内容失败
 
 ### 获取用户的知识库列表
-获取指定用户上传的所有知识库。
+获取指定用户上传的知识库，支持分页/筛选/排序；管理员和审核员可以查看他人记录。
 
 ```http
-GET /api/knowledge/user/{user_id}
+GET /api/knowledge/user/{user_id}?page=1&page_size=20&name=&tag=&status=all&sort_by=created_at&sort_order=desc
 Authorization: Bearer {token}
 ```
 
-**参数说明**:
+**查询参数说明**:
 - `user_id` (路径参数): 用户ID
+- `page` / `page_size` (可选): 分页参数，默认 `1 / 20`，`page_size` 最大 100
+- `name` (可选): 按名称模糊搜索
+- `tag` (可选): 按标签模糊搜索
+- `status` (可选): `all/pending/approved/rejected`
+- `sort_by` (可选): `created_at/updated_at/name/downloads/star_count`
+- `sort_order` (可选): `asc/desc`
 
 **响应示例**:
 ```json
-[
-  {
-    "id": "kb123",
-    "name": "我的知识库",
-    "description": "用户知识库描述",
-    "uploader_id": "user123",
-    "copyright_owner": "版权所有者",
-    "star_count": 5,
-    "is_public": false,
-    "is_pending": true,
-    "created_at": "2025-11-22T00:00:00",
-    "updated_at": "2025-11-22T00:00:00"
-  }
-]
+{
+  "items": [
+    {
+      "id": "kb123",
+      "name": "我的知识库",
+      "description": "用户知识库描述",
+      "uploader_id": "user123",
+      "copyright_owner": "版权所有者",
+      "content": "正文内容",
+      "tags": ["测试", "样例"],
+      "star_count": 5,
+      "downloads": 12,
+      "is_public": false,
+      "is_pending": true,
+      "created_at": "2025-11-22T00:00:00",
+      "updated_at": "2025-11-22T00:00:00"
+    }
+  ],
+  "total": 32,
+  "page": 1,
+  "page_size": 20
+}
 ```
 
 **错误响应**:
-- `403`: 没有权限查看其他用户的上传记录
+- `403`: 没有权限查看其他用户的上传记录（非管理员/审核员）
 - `401`: 未授权访问
 - `500`: 获取用户知识库失败
 
@@ -615,6 +676,16 @@ Authorization: Bearer {token}
 **参数说明**:
 - `kb_id`: 知识库ID
 - `file_id`: 文件ID
+
+**响应示例**:
+```json
+{
+  "message": "文件删除成功",
+  "knowledge_deleted": false
+}
+```
+
+**特殊说明**: 当删除最后一个文件时，`knowledge_deleted` 为 `true`，系统会自动清理整条知识库记录及其上传记录，等价于调用 `DELETE /api/knowledge/{kb_id}`。
 
 **错误响应**:
 - `401`: 未授权访问
@@ -921,6 +992,8 @@ files: [文件1, 文件2, ...]
 name: 人设卡名称
 description: 人设卡描述
 copyright_owner: 版权所有者（可选）
+content: 人设卡正文（可选）
+tags: 标签，逗号分隔或多值（可选）
 ```
 
 **参数说明**:
@@ -928,6 +1001,8 @@ copyright_owner: 版权所有者（可选）
 - `name` (必填): 人设卡名称
 - `description` (必填): 人设卡描述
 - `copyright_owner` (可选): 版权所有者信息
+- `content` (可选): 正文内容，用于直接存储在数据库中
+- `tags` (可选): 标签，逗号分隔字符串或多值提交，接口会落库为逗号分隔
 
 **响应示例**:
 ```json
@@ -1018,36 +1093,50 @@ GET /api/persona/{pc_id}
 - `500`: 获取人设卡内容失败
 
 ### 获取用户的人设卡列表
-获取指定用户上传的所有人设卡。
+获取指定用户上传的人设卡，支持分页/筛选/排序；管理员和审核员可以查看他人记录。
 
 ```http
-GET /api/persona/user/{user_id}
+GET /api/persona/user/{user_id}?page=1&page_size=20&name=&tag=&status=all&sort_by=created_at&sort_order=desc
 Authorization: Bearer {token}
 ```
 
-**参数说明**:
+**查询参数说明**:
 - `user_id` (路径参数): 用户ID
+- `page` / `page_size` (可选): 分页参数，默认 `1 / 20`，`page_size` 最大 100
+- `name` (可选): 按名称模糊搜索
+- `tag` (可选): 按标签模糊搜索
+- `status` (可选): `all/pending/approved/rejected`
+- `sort_by` (可选): `created_at/updated_at/name/downloads/star_count`
+- `sort_order` (可选): `asc/desc`
 
 **响应示例**:
 ```json
-[
-  {
-    "id": "pc123",
-    "name": "我的人设卡",
-    "description": "用户人设卡描述",
-    "uploader_id": "user123",
-    "copyright_owner": "版权所有者",
-    "star_count": 3,
-    "is_public": false,
-    "is_pending": true,
-    "created_at": "2025-11-22T00:00:00",
-    "updated_at": "2025-11-22T00:00:00"
-  }
-]
+{
+  "items": [
+    {
+      "id": "pc123",
+      "name": "我的人设卡",
+      "description": "用户人设卡描述",
+      "uploader_id": "user123",
+      "copyright_owner": "版权所有者",
+      "content": "正文内容",
+      "tags": ["角色", "冒险"],
+      "star_count": 3,
+      "downloads": 7,
+      "is_public": false,
+      "is_pending": true,
+      "created_at": "2025-11-22T00:00:00",
+      "updated_at": "2025-11-22T00:00:00"
+    }
+  ],
+  "total": 18,
+  "page": 1,
+  "page_size": 20
+}
 ```
 
 **错误响应**:
-- `403`: 没有权限查看其他用户的上传记录
+- `403`: 没有权限查看其他用户的上传记录（非管理员/审核员）
 - `401`: 未授权访问
 - `500`: 获取用户人设卡失败
 
@@ -1381,46 +1470,53 @@ Authorization: Bearer {token}
 ## 用户Star记录接口
 
 ### 获取用户Star的知识库和人设卡
-获取当前用户Star的所有公开知识库和人设卡。
+获取当前用户Star的所有公开知识库和人设卡，支持分页、类型过滤与排序。
 
 ```http
-GET /api/user/stars?includeDetails=false
+GET /api/user/stars?includeDetails=false&page=1&page_size=20&sort_by=created_at&sort_order=desc&type=all
 Authorization: Bearer {token}
 ```
 
 **查询参数说明**:
 - `includeDetails` (可选): 是否包含完整详情，默认为 `false`
+- `page` / `page_size` (可选): 分页参数，默认 `1 / 20`，`page_size` 最大 50
+- `sort_by` (可选): `created_at` 或 `star_count`
+- `sort_order` (可选): `asc/desc`
+- `type` (可选): `knowledge/persona/all`，默认 `all`
 
-**响应示例**（includeDetails=false）:
+**响应示例**:
 ```json
-[
-  {
-    "id": "star123",
-    "type": "knowledge",
-    "target_id": "kb123",
-    "name": "我的知识库",
-    "description": "知识库描述",
-    "star_count": 10,
-    "created_at": "2025-11-22T00:00:00"
-  },
-  {
-    "id": "star456",
-    "type": "persona",
-    "target_id": "pc123",
-    "name": "我的人设卡",
-    "description": "人设卡描述",
-    "star_count": 5,
-    "created_at": "2025-11-22T00:00:00"
-  }
-]
+{
+  "items": [
+    {
+      "id": "star123",
+      "type": "knowledge",
+      "target_id": "kb123",
+      "name": "我的知识库",
+      "description": "知识库描述",
+      "star_count": 10,
+      "created_at": "2025-11-22T00:00:00"
+    },
+    {
+      "id": "star456",
+      "type": "persona",
+      "target_id": "pc123",
+      "name": "我的人设卡",
+      "description": "人设卡描述",
+      "star_count": 5,
+      "created_at": "2025-11-22T00:00:00"
+    }
+  ],
+  "total": 2,
+  "page": 1,
+  "page_size": 20
+}
 ```
 
-**响应示例**（includeDetails=true）:
-返回Star记录的同时包含知识库/人设卡的完整信息（包括文件列表、元数据等）。
-
 **错误响应**:
+- `400`: `type`/`sort_by`/`sort_order` 参数不合法
 - `401`: 未授权访问
-- `500`: 获取用户Star记录失败
+- `500`: 获取收藏记录失败
 
 ## 审核管理接口
 
@@ -1904,13 +2000,18 @@ Content-Type: application/json
 获取所有知识库，包括待审核和已拒绝的（需要管理员权限）。
 
 ```http
-GET /api/admin/knowledge/all?page=1&page_size=20
+GET /api/admin/knowledge/all?page=1&limit=20&status=pending&search=text&uploader=userid-or-name&order_by=created_at&order_dir=desc
 Authorization: Bearer {token}
 ```
 
 **查询参数说明**:
 - `page` (可选): 页码，从1开始，默认为1
-- `page_size` (可选): 每页数量，默认20
+- `limit` (可选): 每页数量，默认20，最大100
+- `status` (可选): 内容状态，可选 `pending` / `approved` / `rejected`
+- `search` (可选): 关键字，匹配名称或描述
+- `uploader` (可选): 上传者筛选，支持精确ID或用户名模糊匹配
+- `order_by` (可选): 排序字段，支持 `created_at`、`updated_at`、`star_count`、`name`、`downloads`、`is_public`，默认为 `created_at`
+- `order_dir` (可选): 排序方向，`asc` 或 `desc`，默认为 `desc`
 
 **响应示例**:
 ```json
@@ -1931,13 +2032,18 @@ Authorization: Bearer {token}
 获取所有人设卡，包括待审核和已拒绝的（需要管理员权限）。
 
 ```http
-GET /api/admin/persona/all?page=1&page_size=20
+GET /api/admin/persona/all?page=1&limit=20&status=approved&uploader=name&order_by=star_count&order_dir=asc
 Authorization: Bearer {token}
 ```
 
 **查询参数说明**:
 - `page` (可选): 页码，从1开始，默认为1
-- `page_size` (可选): 每页数量，默认20
+- `limit` (可选): 每页数量，默认20，最大100
+- `status` (可选): 内容状态，可选 `pending` / `approved` / `rejected`
+- `search` (可选): 关键字，匹配名称或描述
+- `uploader` (可选): 上传者筛选，支持精确ID或用户名模糊匹配
+- `order_by` (可选): 排序字段，支持 `created_at`、`updated_at`、`star_count`、`name`、`downloads`、`is_public`，默认为 `created_at`
+- `order_dir` (可选): 排序方向，`asc` 或 `desc`，默认为 `desc`
 
 **响应示例**:
 ```json
