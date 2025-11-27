@@ -19,7 +19,7 @@ Base = declarative_base()
 class User(Base):
     """用户模型"""
     __tablename__ = "users"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     username = Column(String, unique=True, nullable=False)
     email = Column(String, unique=True, nullable=False)
@@ -28,19 +28,19 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     is_moderator = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now)
-    
+
     # 账户锁定相关字段
     failed_login_attempts = Column(Integer, default=0)
     locked_until = Column(DateTime, nullable=True)
     last_failed_login = Column(DateTime, nullable=True)
-    
+
     # 头像相关字段
     avatar_path = Column(String, nullable=True)  # 头像文件路径（相对路径或URL）
     avatar_updated_at = Column(DateTime, nullable=True)  # 头像最后更新时间
-    
+
     # 密码版本号（用于Token失效机制）
     password_version = Column(Integer, default=0)  # 密码修改次数，每次修改密码时递增
-    
+
     # 添加索引
     __table_args__ = (
         Index('idx_user_username', 'username'),
@@ -49,17 +49,21 @@ class User(Base):
         Index('idx_user_is_admin', 'is_admin'),
         Index('idx_user_is_moderator', 'is_moderator'),
     )
-    
+
     # 关系
-    uploaded_knowledge_bases = relationship("KnowledgeBase", back_populates="uploader")
-    uploaded_persona_cards = relationship("PersonaCard", back_populates="uploader")
-    received_messages = relationship("Message", foreign_keys="Message.recipient_id", back_populates="recipient")
-    sent_messages = relationship("Message", foreign_keys="Message.sender_id", back_populates="sender")
+    uploaded_knowledge_bases = relationship(
+        "KnowledgeBase", back_populates="uploader")
+    uploaded_persona_cards = relationship(
+        "PersonaCard", back_populates="uploader")
+    received_messages = relationship(
+        "Message", foreign_keys="Message.recipient_id", back_populates="recipient")
+    sent_messages = relationship(
+        "Message", foreign_keys="Message.sender_id", back_populates="sender")
     star_records = relationship("StarRecord", back_populates="user")
-    
+
     def __str__(self):
         return f'ID: {self.id}, Username: {self.username}, Email: {self.email}, Admin: {self.is_admin}, Moderator: {self.is_moderator}'
-    
+
     def to_dict(self):
         """将用户对象转换为字典"""
         return {
@@ -75,7 +79,7 @@ class User(Base):
             "avatar_updated_at": self.avatar_updated_at.isoformat() if self.avatar_updated_at else None,
             "password_version": self.password_version or 0
         }
-    
+
     @classmethod
     def from_dict(cls, data):
         """从字典创建用户对象"""
@@ -93,13 +97,13 @@ class User(Base):
             # SQLite的DateTime类型只接受 datetime 或 date 对象，这里做修改
             created_at=data.get("created_at", datetime.now())
         )
-    
+
     def verify_password(self, password):
         """验证密码"""
         from passlib.context import CryptContext
         pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         return pwd_context.verify(password, self.hashed_password)
-    
+
     def update_password(self, new_password):
         """更新密码"""
         from passlib.context import CryptContext
@@ -109,7 +113,7 @@ class User(Base):
         self.hashed_password = pwd_context.hash(new_password)
         # 增加密码版本号，使所有现有Token失效
         self.password_version = (self.password_version or 0) + 1
-    
+
     def to_admin(self, highest_pwd):
         """提升用户为管理员"""
         from passlib.context import CryptContext
@@ -120,7 +124,7 @@ class User(Base):
             return True
         else:
             return False
-    
+
     def to_moderator(self, highest_pwd):
         """提升用户为版主"""
         from passlib.context import CryptContext
@@ -136,7 +140,7 @@ class User(Base):
 class KnowledgeBase(Base):
     """知识库数据模型"""
     __tablename__ = "knowledge_bases"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
     description = Column(Text, nullable=False)
@@ -148,13 +152,13 @@ class KnowledgeBase(Base):
     metadata_path = Column(Text, nullable=True, default="")  # 兼容旧表结构
     star_count = Column(Integer, default=0)
     downloads = Column(Integer, default=0)
-    base_path = Column(Text, default="[]") 
+    base_path = Column(Text, default="[]")
     is_public = Column(Boolean, default=False)
     is_pending = Column(Boolean, default=True)
     rejection_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
+
     # 添加索引
     __table_args__ = (
         Index('idx_kb_uploader_id', 'uploader_id'),
@@ -164,7 +168,7 @@ class KnowledgeBase(Base):
         Index('idx_kb_created_at', 'created_at'),
         Index('idx_kb_updated_at', 'updated_at'),
     )
-    
+
     # 关系
     uploader = relationship("User", back_populates="uploaded_knowledge_bases")
     # 移除star_records关系，因为StarRecord没有正确的外键关系
@@ -198,13 +202,14 @@ class KnowledgeBase(Base):
             "author": None,
             "author_id": self.uploader_id
         }
-        
+
         if include_files:
             # 获取文件列表
             try:
                 # 通过全局变量访问数据库管理器
                 from database_models import sqlite_db_manager
-                files = sqlite_db_manager.get_files_by_knowledge_base_id(self.id)
+                files = sqlite_db_manager.get_files_by_knowledge_base_id(
+                    self.id)
                 result["files"] = [{
                     "file_id": f.id,
                     "original_name": f.original_name,
@@ -217,13 +222,20 @@ class KnowledgeBase(Base):
                 # 如果获取文件失败，使用默认值
                 pass
 
-        if not result["author"]:
-            # 统一作者显示，优先使用数据库中的版权归属
-            result["author"] = self.copyright_owner or self.uploader_id
+        if include_metadata:
+            # 从metadata文件读取额外信息
+            try:
+                if os.path.exists(self.metadata_path):
+                    with open(self.metadata_path, 'r', encoding='utf-8') as f:
+                        metadata = json.load(f)
+                        result["content"] = metadata.get("content")
+                        result["tags"] = metadata.get("tags", [])
+                        result["preview_url"] = metadata.get("preview_url")
+                        result["version"] = metadata.get("version")
+            except Exception:
+                # 如果读取失败，使用默认值
+                pass
 
-        if not result["author_id"]:
-            result["author_id"] = self.uploader_id
-        
         return result
 
     @classmethod
@@ -239,12 +251,15 @@ class KnowledgeBase(Base):
             tags=",".join(data.get("tags", [])) if isinstance(data.get("tags"), list) else data.get("tags"),
             metadata_path=data.get("metadata_path", ""),
             star_count=data.get("star_count", 0),
-            base_path=data.get("bast_path", "[]"),
+            base_path=data.get("base_path", "[]"),
+            metadata_path=data.get("metadata_path", ""),
             is_public=data.get("is_public", False),
             is_pending=data.get("is_pending", True),
             rejection_reason=data.get("rejection_reason", None),
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(),
-            updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else datetime.now()
+            created_at=datetime.fromisoformat(data["created_at"]) if data.get(
+                "created_at") else datetime.now(),
+            updated_at=datetime.fromisoformat(data["updated_at"]) if data.get(
+                "updated_at") else datetime.now()
         )
 
 
@@ -327,7 +342,7 @@ class PersonaCardFile(Base):
 class PersonaCard(Base):
     """人设卡数据模型"""
     __tablename__ = "persona_cards"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
     description = Column(Text, nullable=False)
@@ -344,7 +359,7 @@ class PersonaCard(Base):
     rejection_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
+
     # 添加索引
     __table_args__ = (
         Index('idx_pc_uploader_id', 'uploader_id'),
@@ -354,7 +369,7 @@ class PersonaCard(Base):
         Index('idx_pc_created_at', 'created_at'),
         Index('idx_pc_updated_at', 'updated_at'),
     )
-    
+
     # 关系
     uploader = relationship("User", back_populates="uploaded_persona_cards")
     # 移除star_records关系，因为StarRecord没有正确的外键关系
@@ -388,7 +403,7 @@ class PersonaCard(Base):
             "author_id": self.uploader_id,
             "stars": self.star_count or 0
         }
-        
+
         if include_files:
             # 获取文件列表
             try:
@@ -406,24 +421,30 @@ class PersonaCard(Base):
             except Exception as e:
                 # 如果获取文件失败，使用默认值
                 pass
-        
+
         if include_metadata:
-            # 兼容旧参数，现已不读取外部 metadata 文件
-            pass
+            # 从base_path目录下的metadata.json文件读取额外信息（如果存在）
+            try:
+                metadata_path = os.path.join(self.base_path, "metadata.json")
+                if os.path.exists(metadata_path):
+                    with open(metadata_path, 'r', encoding='utf-8') as f:
+                        metadata = json.load(f)
+                        result["content"] = metadata.get("content")
+                        result["tags"] = metadata.get("tags", [])
+                        result["preview_url"] = metadata.get("preview_url")
+                        result["version"] = metadata.get("version")
+                        result["author"] = metadata.get("author")
+            except Exception:
+                # 如果读取失败，使用默认值
+                pass
 
-        if not result["author"]:
-            result["author"] = self.copyright_owner or self.uploader_id
-
-        if not result["author_id"]:
-            result["author_id"] = self.uploader_id
-        
         return result
 
 
 class Message(Base):
     """信箱消息模型"""
     __tablename__ = "messages"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     recipient_id = Column(String, ForeignKey("users.id"), nullable=False)
     sender_id = Column(String, ForeignKey("users.id"), nullable=False)
@@ -434,7 +455,7 @@ class Message(Base):
     broadcast_scope = Column(String, nullable=True)  # 比如所有用户
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now)
-    
+
     # 添加索引
     __table_args__ = (
         Index('idx_message_recipient_id', 'recipient_id'),
@@ -443,10 +464,12 @@ class Message(Base):
         Index('idx_message_created_at', 'created_at'),
         Index('idx_message_recipient_read', 'recipient_id', 'is_read'),
     )
-    
+
     # 关系
-    recipient = relationship("User", foreign_keys=[recipient_id], back_populates="received_messages")
-    sender = relationship("User", foreign_keys=[sender_id], back_populates="sent_messages")
+    recipient = relationship("User", foreign_keys=[
+                             recipient_id], back_populates="received_messages")
+    sender = relationship("User", foreign_keys=[
+                          sender_id], back_populates="sent_messages")
 
     def to_dict(self):
         """将消息对象转换为字典"""
@@ -468,22 +491,23 @@ class Message(Base):
 class StarRecord(Base):
     """Star记录模型"""
     __tablename__ = "star_records"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     target_id = Column(String, nullable=False)
     target_type = Column(String, nullable=False)  # "knowledge" 或 "persona"
     created_at = Column(DateTime, default=datetime.now)
-    
+
     # 添加索引
     __table_args__ = (
         Index('idx_star_user_id', 'user_id'),
         Index('idx_star_target_id', 'target_id'),
         Index('idx_star_target_type', 'target_type'),
         Index('idx_star_created_at', 'created_at'),
-        Index('idx_star_user_target', 'user_id', 'target_id', 'target_type'),  # 复合索引用于检查用户是否已star某个目标
+        Index('idx_star_user_target', 'user_id', 'target_id',
+              'target_type'),  # 复合索引用于检查用户是否已star某个目标
     )
-    
+
     # 关系
     user = relationship("User", back_populates="star_records")
     # 移除直接关系，因为target_id不是真正的外键
@@ -499,6 +523,7 @@ class StarRecord(Base):
             "target_type": self.target_type,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }
+
 
 class EmailVerification(Base):
     """邮箱验证码记录模型"""
@@ -533,17 +558,18 @@ class EmailVerification(Base):
 class UploadRecord(Base):
     """上传记录模型 - 用于记录所有上传操作，防止恶意删除"""
     __tablename__ = "upload_records"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     uploader_id = Column(String, ForeignKey("users.id"), nullable=False)
     target_id = Column(String, nullable=False)  # 知识库或人设卡的ID
     target_type = Column(String, nullable=False)  # "knowledge" 或 "persona"
     name = Column(String, nullable=False)  # 知识库或人设卡名称
     description = Column(Text, nullable=True)  # 描述
-    status = Column(String, default="pending")  # "pending", "approved", "rejected"
+    # "pending", "approved", "rejected"
+    status = Column(String, default="pending")
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
+
     # 添加索引
     __table_args__ = (
         Index('idx_upload_record_uploader_id', 'uploader_id'),
@@ -552,7 +578,7 @@ class UploadRecord(Base):
         Index('idx_upload_record_status', 'status'),
         Index('idx_upload_record_created_at', 'created_at'),
     )
-    
+
     def to_dict(self):
         """将上传记录对象转换为字典"""
         return {
@@ -570,35 +596,39 @@ class UploadRecord(Base):
 
 class SQLiteDatabaseManager:
     """SQLite数据库管理器"""
-    
+
     def __init__(self, db_path: str = "./data/maimnp.db"):
         self.db_path = db_path
         # 确保数据目录存在
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        
+
         # 创建数据库引擎
-        self.engine = create_engine(f"sqlite:///{db_path}", echo=False, connect_args={"check_same_thread": False})
-        
+        self.engine = create_engine(
+            f"sqlite:///{db_path}", echo=False, connect_args={"check_same_thread": False})
+
         # 创建会话工厂
-        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-        
+        self.SessionLocal = sessionmaker(
+            autocommit=False, autoflush=False, bind=self.engine)
+
         # 创建所有表
         Base.metadata.create_all(bind=self.engine)
-        
+
         # 执行数据库迁移
         self._migrate_database()
-    
+
     def _add_column_if_not_exists(self, table_name: str, column_name: str, column_definition: str):
         """为表添加列（如果不存在）"""
         try:
             inspector = inspect(self.engine)
             if table_name not in inspector.get_table_names():
                 return
-            
-            existing_columns = [col['name'] for col in inspector.get_columns(table_name)]
+
+            existing_columns = [col['name']
+                                for col in inspector.get_columns(table_name)]
             if column_name not in existing_columns:
                 with self.engine.begin() as conn:
-                    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"))
+                    conn.execute(
+                        text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"))
                 # 使用日志系统记录迁移操作（静默执行，不输出到控制台）
         except Exception:
             # 数据库迁移失败时静默处理，不输出到控制台（避免启动时干扰）
@@ -633,41 +663,43 @@ class SQLiteDatabaseManager:
                 ('password_version', 'INTEGER DEFAULT 0'),
             ]),
         ]
-        
+
         # 执行所有迁移
         for table_name, columns in migrations:
             for column_name, column_definition in columns:
-                self._add_column_if_not_exists(table_name, column_name, column_definition)
-    
+                self._add_column_if_not_exists(
+                    table_name, column_name, column_definition)
+
     def get_session(self):
         """获取数据库会话"""
         return self.SessionLocal()
-    
+
     # 知识库相关方法
     def get_all_knowledge_bases(self):
         """获取所有知识库"""
         with self.get_session() as session:
             return session.query(KnowledgeBase).all()
-    
+
     def get_knowledge_base_by_id(self, kb_id: str):
         """根据ID获取知识库"""
         with self.get_session() as session:
             return session.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
-    
+
     def get_pending_knowledge_bases(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
         """获取所有待审核的知识库，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
             # 使用 == True 查询待审核的知识库（SQLAlchemy 的 Boolean 类型应使用 Python 的 True/False）
-            query = session.query(KnowledgeBase).filter(KnowledgeBase.is_pending == True)
-            
+            query = session.query(KnowledgeBase).filter(
+                KnowledgeBase.is_pending == True)
+
             # 按名称搜索
             if name:
                 query = query.filter(KnowledgeBase.name.contains(name))
-            
+
             # 按上传者ID筛选
             if uploader_id:
                 query = query.filter(KnowledgeBase.uploader_id == uploader_id)
-            
+
             # 排序
             if sort_by == "star_count":
                 order_column = KnowledgeBase.star_count
@@ -675,21 +707,21 @@ class SQLiteDatabaseManager:
                 order_column = KnowledgeBase.updated_at
             else:
                 order_column = KnowledgeBase.created_at
-                
+
             if sort_order == "asc":
                 query = query.order_by(order_column.asc())
             else:
                 query = query.order_by(order_column.desc())
-            
+
             # 在应用分页前计算总数
             total = query.count()
-            
+
             # 分页
             offset = (page - 1) * page_size
             items = query.offset(offset).limit(page_size).all()
-            
+
             return items, total
-    
+
     def get_public_knowledge_bases(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
         """获取所有公开的知识库，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
@@ -697,15 +729,15 @@ class SQLiteDatabaseManager:
                 KnowledgeBase.is_public == True,
                 KnowledgeBase.is_pending == False  # 只显示已审核通过的内容
             )
-            
+
             # 按名称搜索
             if name:
                 query = query.filter(KnowledgeBase.name.contains(name))
-            
+
             # 按上传者ID筛选
             if uploader_id:
                 query = query.filter(KnowledgeBase.uploader_id == uploader_id)
-            
+
             # 排序
             if sort_by == "star_count":
                 order_column = KnowledgeBase.star_count
@@ -713,26 +745,26 @@ class SQLiteDatabaseManager:
                 order_column = KnowledgeBase.updated_at
             else:
                 order_column = KnowledgeBase.created_at
-                
+
             if sort_order == "asc":
                 query = query.order_by(order_column.asc())
             else:
                 query = query.order_by(order_column.desc())
-            
+
             # 在应用分页前计算总数
             total = query.count()
-            
+
             # 分页
             offset = (page - 1) * page_size
             items = query.offset(offset).limit(page_size).all()
-            
+
             return items, total
-    
+
     def get_knowledge_bases_by_uploader(self, uploader_id: str):
         """根据上传者ID获取知识库"""
         with self.get_session() as session:
             return session.query(KnowledgeBase).filter(KnowledgeBase.uploader_id == uploader_id).all()
-    
+
     def save_knowledge_base(self, kb_data: dict) -> KnowledgeBase:
         """保存知识库并返回保存后的对象"""
         try:
@@ -747,8 +779,9 @@ class SQLiteDatabaseManager:
                 kb_id = kb_data.get("id")
                 kb = None
                 if kb_id:
-                    kb = session.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
-                
+                    kb = session.query(KnowledgeBase).filter(
+                        KnowledgeBase.id == kb_id).first()
+
                 if kb:
                     # 更新现有记录
                     for key, value in kb_data.items():
@@ -756,43 +789,48 @@ class SQLiteDatabaseManager:
                             setattr(kb, key, value)
                     kb.updated_at = datetime.now()
                 else:
+                    if not kb_data.get("metadata_path"):
+                        # 设置默认值
+                        kb_data["metadata_path"] = "default_metadata_path"
                     # 创建新记录
                     kb = KnowledgeBase(**kb_data)
                     session.add(kb)
-                
+
                 session.commit()
                 session.refresh(kb)  # 刷新对象以获取数据库生成的值
                 return kb
         except Exception as e:
             print(f"保存知识库失败: {str(e)}")
             return None
-    
+
     def delete_knowledge_base(self, kb_id: str) -> bool:
         """删除知识库"""
         try:
             with self.get_session() as session:
-                kb = session.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+                kb = session.query(KnowledgeBase).filter(
+                    KnowledgeBase.id == kb_id).first()
                 if kb:
                     session.delete(kb)
                 # 同时删除相关的文件记录
-                session.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == kb_id).delete()
+                session.query(KnowledgeBaseFile).filter(
+                    KnowledgeBaseFile.knowledge_base_id == kb_id).delete()
                 session.commit()
                 return True
         except Exception as e:
             print(f"删除知识库失败: {str(e)}")
             return False
-    
+
     # KnowledgeBaseFile 相关方法
     def get_files_by_knowledge_base_id(self, knowledge_base_id: str):
         """根据知识库ID获取所有文件"""
         with self.get_session() as session:
             return session.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == knowledge_base_id).all()
-    
+
     def get_knowledge_base_file_by_id(self, file_id: str):
         """根据文件ID获取知识库文件"""
         with self.get_session() as session:
             return session.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.id == file_id).first()
-    
+
     def save_knowledge_base_file(self, file_data: dict) -> KnowledgeBaseFile:
         """保存知识库文件并返回保存后的对象"""
         try:
@@ -800,8 +838,9 @@ class SQLiteDatabaseManager:
                 file_id = file_data.get("id")
                 kb_file = None
                 if file_id:
-                    kb_file = session.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.id == file_id).first()
-                
+                    kb_file = session.query(KnowledgeBaseFile).filter(
+                        KnowledgeBaseFile.id == file_id).first()
+
                 if kb_file:
                     # 更新现有记录
                     for key, value in file_data.items():
@@ -812,19 +851,20 @@ class SQLiteDatabaseManager:
                     # 创建新记录
                     kb_file = KnowledgeBaseFile(**file_data)
                     session.add(kb_file)
-                
+
                 session.commit()
                 session.refresh(kb_file)
                 return kb_file
         except Exception as e:
             print(f"保存知识库文件失败: {str(e)}")
             return None
-    
+
     def delete_knowledge_base_file(self, file_id: str) -> bool:
         """删除知识库文件"""
         try:
             with self.get_session() as session:
-                kb_file = session.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.id == file_id).first()
+                kb_file = session.query(KnowledgeBaseFile).filter(
+                    KnowledgeBaseFile.id == file_id).first()
                 if kb_file:
                     session.delete(kb_file)
                     session.commit()
@@ -832,43 +872,45 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"删除知识库文件失败: {str(e)}")
             return False
-    
+
     def delete_files_by_knowledge_base_id(self, knowledge_base_id: str) -> bool:
         """根据知识库ID删除所有相关文件"""
         try:
             with self.get_session() as session:
-                session.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == knowledge_base_id).delete()
+                session.query(KnowledgeBaseFile).filter(
+                    KnowledgeBaseFile.knowledge_base_id == knowledge_base_id).delete()
                 session.commit()
                 return True
         except Exception as e:
             print(f"删除知识库文件失败: {str(e)}")
             return False
-    
+
     # 人设卡相关方法
     def get_all_persona_cards(self):
         """获取所有人设卡"""
         with self.get_session() as session:
             return session.query(PersonaCard).all()
-    
+
     def get_persona_card_by_id(self, pc_id: str):
         """根据ID获取人设卡"""
         with self.get_session() as session:
             return session.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
-    
+
     def get_pending_persona_cards(self, page: int = 1, page_size: int = 10, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
         """获取所有待审核的人设卡，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
             # 使用 == True 查询待审核的人设卡（SQLAlchemy 的 Boolean 类型应使用 Python 的 True/False）
-            query = session.query(PersonaCard).filter(PersonaCard.is_pending == True)
-            
+            query = session.query(PersonaCard).filter(
+                PersonaCard.is_pending == True)
+
             # 按名称搜索
             if name:
                 query = query.filter(PersonaCard.name.contains(name))
-            
+
             # 按上传者ID筛选
             if uploader_id:
                 query = query.filter(PersonaCard.uploader_id == uploader_id)
-            
+
             # 排序
             if sort_by == "star_count":
                 order_column = PersonaCard.star_count
@@ -876,21 +918,21 @@ class SQLiteDatabaseManager:
                 order_column = PersonaCard.updated_at
             else:
                 order_column = PersonaCard.created_at
-                
+
             if sort_order == "asc":
                 query = query.order_by(order_column.asc())
             else:
                 query = query.order_by(order_column.desc())
-            
+
             # 在应用分页前计算总数
             total = query.count()
-            
+
             # 分页
             offset = (page - 1) * page_size
             items = query.offset(offset).limit(page_size).all()
-            
+
             return items, total
-    
+
     def get_public_persona_cards(self, page: int = 1, page_size: int = 19, name: str = None, uploader_id: str = None, sort_by: str = "created_at", sort_order: str = "desc"):
         """获取所有公开的人设卡，支持分页、搜索、按上传者筛选和排序，返回(items, total)元组"""
         with self.get_session() as session:
@@ -898,15 +940,15 @@ class SQLiteDatabaseManager:
                 PersonaCard.is_public == True,
                 PersonaCard.is_pending == False  # 只显示已审核通过的内容
             )
-            
+
             # 按名称搜索
             if name:
                 query = query.filter(PersonaCard.name.contains(name))
-            
+
             # 按上传者ID筛选
             if uploader_id:
                 query = query.filter(PersonaCard.uploader_id == uploader_id)
-            
+
             # 排序
             if sort_by == "star_count":
                 order_column = PersonaCard.star_count
@@ -914,26 +956,26 @@ class SQLiteDatabaseManager:
                 order_column = PersonaCard.updated_at
             else:
                 order_column = PersonaCard.created_at
-                
+
             if sort_order == "asc":
                 query = query.order_by(order_column.asc())
             else:
                 query = query.order_by(order_column.desc())
-            
+
             # 在应用分页前计算总数
             total = query.count()
-            
+
             # 分页
             offset = (page - 1) * page_size
             items = query.offset(offset).limit(page_size).all()
-            
+
             return items, total
-    
+
     def get_persona_cards_by_uploader(self, uploader_id: str):
         """根据上传者ID获取人设卡"""
         with self.get_session() as session:
             return session.query(PersonaCard).filter(PersonaCard.uploader_id == uploader_id).all()
-    
+
     def save_persona_card(self, pc_data: dict) -> PersonaCard:
         """保存人设卡并返回保存后的对象"""
         try:
@@ -945,8 +987,9 @@ class SQLiteDatabaseManager:
                     pc_data["metadata_path"] = ""
 
                 pc_id = pc_data.get("id")
-                pc = session.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
-                
+                pc = session.query(PersonaCard).filter(
+                    PersonaCard.id == pc_id).first()
+
                 if pc:
                     # 更新现有记录
                     for key, value in pc_data.items():
@@ -957,19 +1000,20 @@ class SQLiteDatabaseManager:
                     # 创建新记录
                     pc = PersonaCard(**pc_data)
                     session.add(pc)
-                
+
                 session.commit()
                 session.refresh(pc)  # 刷新对象以获取数据库生成的值
                 return pc
         except Exception as e:
             print(f"保存人设卡失败: {str(e)}")
             return None
-    
+
     def delete_persona_card(self, pc_id: str) -> bool:
         """删除人设卡"""
         try:
             with self.get_session() as session:
-                pc = session.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
+                pc = session.query(PersonaCard).filter(
+                    PersonaCard.id == pc_id).first()
                 if pc:
                     session.delete(pc)
                     session.commit()
@@ -977,23 +1021,23 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"删除人设卡失败: {str(e)}")
             return False
-    
+
     # 消息相关方法
     def get_all_messages(self):
         """获取所有消息"""
         with self.get_session() as session:
             return session.query(Message).all()
-    
+
     def get_message_by_id(self, message_id: str):
         """根据ID获取消息"""
         with self.get_session() as session:
             return session.query(Message).filter(Message.id == message_id).first()
-    
+
     def get_messages_by_recipient(self, recipient_id: str):
         """根据接收者ID获取消息"""
         with self.get_session() as session:
             return session.query(Message).filter(Message.recipient_id == recipient_id).all()
-    
+
     def create_message(
         self,
         sender_id: str,
@@ -1034,14 +1078,14 @@ class SQLiteDatabaseManager:
                 # 为同一批消息使用同一个时间戳，确保统计查询时能正确匹配
                 from datetime import datetime
                 common_timestamp = datetime.now()
-                
+
                 # 为每个消息设置相同的 created_at 时间戳
                 message_models = []
                 for msg in messages:
                     msg_copy = msg.copy()
                     msg_copy['created_at'] = common_timestamp
                     message_models.append(Message(**msg_copy))
-                
+
                 session.add_all(message_models)
                 session.commit()
                 for msg in message_models:
@@ -1056,24 +1100,26 @@ class SQLiteDatabaseManager:
                     pass
             # 重新抛出异常，让调用者知道具体错误
             raise Exception(f"批量创建消息失败: {str(e)}")
-    
+
     def get_conversation_messages(self, user_id: str, other_user_id: str, limit: int = 50, offset: int = 0):
         """获取与特定用户的对话消息"""
         with self.get_session() as session:
             return session.query(Message).filter(
                 or_(
-                    and_(Message.sender_id == user_id, Message.recipient_id == other_user_id),
-                    and_(Message.sender_id == other_user_id, Message.recipient_id == user_id)
+                    and_(Message.sender_id == user_id,
+                         Message.recipient_id == other_user_id),
+                    and_(Message.sender_id == other_user_id,
+                         Message.recipient_id == user_id)
                 )
             ).order_by(Message.created_at.desc()).offset(offset).limit(limit).all()
-    
+
     def get_user_messages(self, user_id: str, limit: int = 50, offset: int = 0):
         """获取用户收到的消息（仅接收者）"""
         with self.get_session() as session:
             return session.query(Message).filter(
                 Message.recipient_id == user_id
             ).order_by(Message.created_at.desc()).offset(offset).limit(limit).all()
-    
+
     def get_broadcast_messages(self, limit: int = 50, offset: int = 0):
         """获取所有广播消息（按发送者分组，返回每个广播的唯一消息）"""
         with self.get_session() as session:
@@ -1081,23 +1127,25 @@ class SQLiteDatabaseManager:
             messages = session.query(Message).filter(
                 Message.message_type == "announcement",
                 Message.broadcast_scope == "all_users"
-            ).order_by(Message.created_at.desc()).offset(offset).limit(limit * 10).all()  # 获取更多以便去重
-            
+                # 获取更多以便去重
+            ).order_by(Message.created_at.desc()).offset(offset).limit(limit * 10).all()
+
             # 去重：相同sender_id、title、content、created_at的消息只保留一条
             seen = set()
             unique_messages = []
             for msg in messages:
                 # 使用created_at的秒级精度作为key的一部分（因为同一广播的所有消息创建时间相同）
-                created_at_key = msg.created_at.strftime("%Y-%m-%d %H:%M:%S") if msg.created_at else ""
+                created_at_key = msg.created_at.strftime(
+                    "%Y-%m-%d %H:%M:%S") if msg.created_at else ""
                 key = (msg.sender_id, msg.title, msg.content, created_at_key)
                 if key not in seen:
                     seen.add(key)
                     unique_messages.append(msg)
                     if len(unique_messages) >= limit:
                         break
-            
+
             return unique_messages
-    
+
     def get_broadcast_message_stats(self, message_id: str = None, sender_id: str = None, title: str = None):
         """获取广播消息统计信息（发送数量、已读数量等）"""
         with self.get_session() as session:
@@ -1105,11 +1153,12 @@ class SQLiteDatabaseManager:
                 Message.message_type == "announcement",
                 Message.broadcast_scope == "all_users"
             )
-            
+
             # 如果提供了message_id，查找相同广播的所有消息
             if message_id:
                 # 先找到这条消息
-                msg = session.query(Message).filter(Message.id == message_id).first()
+                msg = session.query(Message).filter(
+                    Message.id == message_id).first()
                 if msg:
                     # 使用 sender_id、title、content 来唯一标识一个广播批次
                     # created_at 作为辅助条件，使用时间范围匹配（同一秒内）以应对可能的精度问题
@@ -1142,18 +1191,18 @@ class SQLiteDatabaseManager:
                     Message.sender_id == sender_id,
                     Message.title == title
                 )
-            
+
             messages = query.all()
             total_count = len(messages)
             read_count = sum(1 for msg in messages if msg.is_read)
-            
+
             return {
                 "total_count": total_count,
                 "read_count": read_count,
                 "unread_count": total_count - read_count,
                 "read_rate": (read_count / total_count * 100) if total_count > 0 else 0
             }
-    
+
     def save_message(self, message_data) -> bool:
         """保存单条消息，支持dict或Message对象"""
         try:
@@ -1169,12 +1218,13 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"保存消息失败: {str(e)}")
             return False
-    
+
     def mark_message_read(self, message_id: str, user_id: str) -> bool:
         """标记消息为已读"""
         try:
             with self.get_session() as session:
-                message = session.query(Message).filter(Message.id == message_id).first()
+                message = session.query(Message).filter(
+                    Message.id == message_id).first()
                 if message and message.recipient_id == user_id:
                     message.is_read = True
                     session.commit()
@@ -1183,12 +1233,13 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"标记消息已读失败: {str(e)}")
             return False
-    
+
     def mark_message_as_read(self, message_id: str) -> bool:
         """标记消息为已读（兼容旧方法）"""
         try:
             with self.get_session() as session:
-                message = session.query(Message).filter(Message.id == message_id).first()
+                message = session.query(Message).filter(
+                    Message.id == message_id).first()
                 if message:
                     message.is_read = True
                     session.commit()
@@ -1196,12 +1247,13 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"标记消息已读失败: {str(e)}")
             return False
-    
+
     def delete_message(self, message_id: str, user_id: str) -> bool:
         """删除消息（仅接收者可以删除）"""
         try:
             with self.get_session() as session:
-                message = session.query(Message).filter(Message.id == message_id).first()
+                message = session.query(Message).filter(
+                    Message.id == message_id).first()
                 if message and message.recipient_id == user_id:
                     session.delete(message)
                     session.commit()
@@ -1210,7 +1262,7 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"删除消息失败: {str(e)}")
             return False
-    
+
     def delete_messages(self, message_ids: List[str], user_id: str) -> int:
         """批量删除消息（仅接收者可以删除）"""
         try:
@@ -1228,27 +1280,29 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"批量删除消息失败: {str(e)}")
             return 0
-    
+
     def delete_broadcast_messages(self, message_id: str, user_id: str) -> int:
         """批量删除公告消息（发送者可以删除所有相关消息）"""
         try:
             with self.get_session() as session:
                 # 先找到这条消息
-                message = session.query(Message).filter(Message.id == message_id).first()
+                message = session.query(Message).filter(
+                    Message.id == message_id).first()
                 if not message:
                     return 0
-                
+
                 # 验证权限：只有发送者可以删除公告
                 sender_id = str(message.sender_id) if message.sender_id else ""
                 user_id_str = str(user_id) if user_id else ""
-                
+
                 if sender_id != user_id_str:
                     return 0
-                
+
                 # 如果是公告类型，删除所有相关的消息
                 if message.message_type == "announcement" and message.broadcast_scope == "all_users":
                     # 查找所有相同广播的消息（相同sender_id、title、content、created_at）
-                    created_at_key = message.created_at.strftime("%Y-%m-%d %H:%M:%S") if message.created_at else ""
+                    created_at_key = message.created_at.strftime(
+                        "%Y-%m-%d %H:%M:%S") if message.created_at else ""
                     related_messages = session.query(Message).filter(
                         Message.message_type == "announcement",
                         Message.broadcast_scope == "all_users",
@@ -1256,15 +1310,16 @@ class SQLiteDatabaseManager:
                         Message.title == message.title,
                         Message.content == message.content
                     ).all()
-                    
+
                     # 进一步过滤：只删除相同时间（秒级精度）的消息
                     deleted_count = 0
                     for msg in related_messages:
-                        msg_created_at_key = msg.created_at.strftime("%Y-%m-%d %H:%M:%S") if msg.created_at else ""
+                        msg_created_at_key = msg.created_at.strftime(
+                            "%Y-%m-%d %H:%M:%S") if msg.created_at else ""
                         if msg_created_at_key == created_at_key:
                             session.delete(msg)
                             deleted_count += 1
-                    
+
                     session.commit()
                     return deleted_count
                 else:
@@ -1275,31 +1330,33 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"批量删除公告消息失败: {str(e)}")
             return 0
-    
+
     def update_broadcast_messages(self, message_id: str, user_id: str, title: str = None, content: str = None, summary: str = None) -> int:
         """批量更新公告消息（发送者可以更新所有相关消息）"""
         try:
             with self.get_session() as session:
                 # 先找到这条消息
-                message = session.query(Message).filter(Message.id == message_id).first()
+                message = session.query(Message).filter(
+                    Message.id == message_id).first()
                 if not message:
                     return 0
-                
+
                 # 验证权限：只有发送者可以更新公告
                 sender_id = str(message.sender_id) if message.sender_id else ""
                 user_id_str = str(user_id) if user_id else ""
-                
+
                 if sender_id != user_id_str:
                     return 0
-                
+
                 # 如果没有提供更新内容，返回0
                 if not title and not content and summary is None:
                     return 0
-                
+
                 # 如果是公告类型，更新所有相关的消息
                 if message.message_type == "announcement" and message.broadcast_scope == "all_users":
                     # 查找所有相同广播的消息（相同sender_id、title、content、created_at）
-                    created_at_key = message.created_at.strftime("%Y-%m-%d %H:%M:%S") if message.created_at else ""
+                    created_at_key = message.created_at.strftime(
+                        "%Y-%m-%d %H:%M:%S") if message.created_at else ""
                     related_messages = session.query(Message).filter(
                         Message.message_type == "announcement",
                         Message.broadcast_scope == "all_users",
@@ -1307,11 +1364,12 @@ class SQLiteDatabaseManager:
                         Message.title == message.title,
                         Message.content == message.content
                     ).all()
-                    
+
                     # 进一步过滤：只更新相同时间（秒级精度）的消息
                     updated_count = 0
                     for msg in related_messages:
-                        msg_created_at_key = msg.created_at.strftime("%Y-%m-%d %H:%M:%S") if msg.created_at else ""
+                        msg_created_at_key = msg.created_at.strftime(
+                            "%Y-%m-%d %H:%M:%S") if msg.created_at else ""
                         if msg_created_at_key == created_at_key:
                             if title:
                                 msg.title = title
@@ -1320,7 +1378,7 @@ class SQLiteDatabaseManager:
                             if summary is not None:  # 允许设置为空字符串
                                 msg.summary = summary
                             updated_count += 1
-                    
+
                     session.commit()
                     return updated_count
                 else:
@@ -1334,30 +1392,30 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"批量更新公告消息失败: {str(e)}")
             return 0
-    
+
     # Star记录相关方法
     def get_all_stars(self):
         """获取所有Star记录"""
         with self.get_session() as session:
             return session.query(StarRecord).all()
-    
+
     def get_stars_by_user(self, user_id: str):
         """根据用户ID获取Star记录"""
         with self.get_session() as session:
             return session.query(StarRecord).filter(StarRecord.user_id == user_id).all()
-    
+
     def is_starred(self, user_id: str, target_id: str, target_type: str) -> bool:
         """检查用户是否已star某个目标"""
         with self.get_session() as session:
             star = session.query(StarRecord).filter(
                 and_(
-                StarRecord.user_id == user_id,
-                StarRecord.target_id == target_id,
-                StarRecord.target_type == target_type
+                    StarRecord.user_id == user_id,
+                    StarRecord.target_id == target_id,
+                    StarRecord.target_type == target_type
                 )
             ).first()
             return star is not None
-    
+
     def add_star(self, user_id: str, target_id: str, target_type: str) -> bool:
         """添加Star记录"""
         try:
@@ -1368,10 +1426,10 @@ class SQLiteDatabaseManager:
                     StarRecord.target_id == target_id,
                     StarRecord.target_type == target_type
                 ).first()
-                
+
                 if existing_star:
                     return False  # 已经star过了
-                
+
                 # 添加新star记录
                 star = StarRecord(
                     user_id=user_id,
@@ -1379,23 +1437,25 @@ class SQLiteDatabaseManager:
                     target_type=target_type
                 )
                 session.add(star)
-                
+
                 # 更新目标的star数量
                 if target_type == "knowledge":
-                    kb = session.query(KnowledgeBase).filter(KnowledgeBase.id == target_id).first()
+                    kb = session.query(KnowledgeBase).filter(
+                        KnowledgeBase.id == target_id).first()
                     if kb:
                         kb.star_count += 1
                 elif target_type == "persona":
-                    pc = session.query(PersonaCard).filter(PersonaCard.id == target_id).first()
+                    pc = session.query(PersonaCard).filter(
+                        PersonaCard.id == target_id).first()
                     if pc:
                         pc.star_count += 1
-                
+
                 session.commit()
                 return True
         except Exception as e:
             print(f"添加Star记录失败: {str(e)}")
             return False
-    
+
     def remove_star(self, user_id: str, target_id: str, target_type: str) -> bool:
         """移除Star记录"""
         try:
@@ -1406,20 +1466,22 @@ class SQLiteDatabaseManager:
                     StarRecord.target_id == target_id,
                     StarRecord.target_type == target_type
                 ).first()
-                
+
                 if star:
                     session.delete(star)
-                    
+
                     # 更新目标的star数量
                     if target_type == "knowledge":
-                        kb = session.query(KnowledgeBase).filter(KnowledgeBase.id == target_id).first()
+                        kb = session.query(KnowledgeBase).filter(
+                            KnowledgeBase.id == target_id).first()
                         if kb and kb.star_count > 0:
                             kb.star_count -= 1
                     elif target_type == "persona":
-                        pc = session.query(PersonaCard).filter(PersonaCard.id == target_id).first()
+                        pc = session.query(PersonaCard).filter(
+                            PersonaCard.id == target_id).first()
                         if pc and pc.star_count > 0:
                             pc.star_count -= 1
-                
+
                 session.commit()
                 return True
         except Exception as e:
@@ -1437,12 +1499,12 @@ class SQLiteDatabaseManager:
         """根据人设卡ID获取所有相关文件"""
         with self.get_session() as session:
             return session.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == persona_card_id).all()
-    
+
     def get_persona_card_file_by_id(self, file_id: str):
         """根据文件ID获取人设卡文件"""
         with self.get_session() as session:
             return session.query(PersonaCardFile).filter(PersonaCardFile.id == file_id).first()
-    
+
     def save_persona_card_file(self, file_data: dict) -> PersonaCardFile:
         """保存人设卡文件并返回保存后的对象"""
         try:
@@ -1450,8 +1512,9 @@ class SQLiteDatabaseManager:
                 file_id = file_data.get("id")
                 pc_file = None
                 if file_id:
-                    pc_file = session.query(PersonaCardFile).filter(PersonaCardFile.id == file_id).first()
-                
+                    pc_file = session.query(PersonaCardFile).filter(
+                        PersonaCardFile.id == file_id).first()
+
                 if pc_file:
                     # 更新现有记录
                     for key, value in file_data.items():
@@ -1462,7 +1525,7 @@ class SQLiteDatabaseManager:
                     # 创建新记录
                     pc_file = PersonaCardFile(**file_data)
                     session.add(pc_file)
-                
+
                 session.commit()
                 session.refresh(pc_file)
                 return pc_file
@@ -1477,12 +1540,13 @@ class SQLiteDatabaseManager:
         """根据人设卡ID获取所有相关文件"""
         with self.get_session() as session:
             return session.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == persona_card_id).all()
-    
+
     def delete_persona_card_file(self, file_id: str) -> bool:
         """删除人设卡文件"""
         try:
             with self.get_session() as session:
-                pc_file = session.query(PersonaCardFile).filter(PersonaCardFile.id == file_id).first()
+                pc_file = session.query(PersonaCardFile).filter(
+                    PersonaCardFile.id == file_id).first()
                 if pc_file:
                     session.delete(pc_file)
                     session.commit()
@@ -1490,24 +1554,25 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"删除人设卡文件失败: {str(e)}")
             return False
-    
+
     def delete_files_by_persona_card_id(self, persona_card_id: str) -> bool:
         """根据人设卡ID删除所有相关文件"""
         try:
             with self.get_session() as session:
-                session.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == persona_card_id).delete()
+                session.query(PersonaCardFile).filter(
+                    PersonaCardFile.persona_card_id == persona_card_id).delete()
                 session.commit()
                 return True
         except Exception as e:
             print(f"删除人设卡文件失败: {str(e)}")
             return False
-    
+
     # 用户相关方法
     def get_user_by_username(self, username: str):
         """根据用户名获取用户"""
         with self.get_session() as session:
             return session.query(User).filter(User.username == username).first()
-    
+
     def get_user_by_email(self, email: str):
         """根据邮箱获取用户"""
         with self.get_session() as session:
@@ -1519,7 +1584,7 @@ class SQLiteDatabaseManager:
         """根据ID获取用户"""
         with self.get_session() as session:
             return session.query(User).filter(User.id == user_id).first()
-    
+
     def save_user(self, user_data: dict) -> bool:
         """保存用户"""
         try:
@@ -1527,7 +1592,7 @@ class SQLiteDatabaseManager:
                 # 统一将邮箱转换为小写
                 if "email" in user_data and user_data["email"]:
                     user_data["email"] = user_data["email"].lower()
-                
+
                 # 处理 DateTime 字段：如果传入的是字符串，转换为 datetime 对象
                 datetime_fields = ["created_at", "avatar_updated_at"]
                 for field in datetime_fields:
@@ -1539,14 +1604,17 @@ class SQLiteDatabaseManager:
                                 # 尝试解析 ISO 格式字符串（处理带Z和不带Z的情况）
                                 if value.endswith('Z'):
                                     value = value[:-1] + '+00:00'
-                                user_data[field] = datetime.fromisoformat(value)
+                                user_data[field] = datetime.fromisoformat(
+                                    value)
                             except (ValueError, AttributeError):
                                 # 如果解析失败，尝试其他格式
                                 try:
-                                    user_data[field] = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")
+                                    user_data[field] = datetime.strptime(
+                                        value, "%Y-%m-%dT%H:%M:%S.%f")
                                 except ValueError:
                                     try:
-                                        user_data[field] = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
+                                        user_data[field] = datetime.strptime(
+                                            value, "%Y-%m-%dT%H:%M:%S")
                                     except ValueError:
                                         # 如果还是失败，使用当前时间
                                         user_data[field] = datetime.now()
@@ -1559,10 +1627,10 @@ class SQLiteDatabaseManager:
                         else:
                             # 其他类型，使用当前时间
                             user_data[field] = datetime.now()
-                
+
                 user_id = user_data.get("id")
                 user = session.query(User).filter(User.id == user_id).first()
-                
+
                 if user:
                     # 更新现有记录
                     for key, value in user_data.items():
@@ -1572,13 +1640,13 @@ class SQLiteDatabaseManager:
                     # 创建新记录
                     user = User(**user_data)
                     session.add(user)
-                
+
                 session.commit()
                 return True
         except Exception as e:
             print(f"保存用户失败: {str(e)}")
             return False
-    
+
     def get_all_users(self):
         """获取所有用户"""
         with self.get_session() as session:
@@ -1596,12 +1664,14 @@ class SQLiteDatabaseManager:
         try:
             with self.get_session() as session:
                 # 检查用户名是否已存在
-                user = session.query(User).filter(User.username == username).first()
+                user = session.query(User).filter(
+                    User.username == username).first()
                 if user:
                     return "用户名已存在"
                 # 检查邮箱是否已被注册（统一转换为小写进行查询）
                 email_lower = email.lower()
-                user = session.query(User).filter(User.email == email_lower).first()
+                user = session.query(User).filter(
+                    User.email == email_lower).first()
                 if user:
                     return "该邮箱已被注册"
                 return "ok"
@@ -1659,14 +1729,15 @@ class SQLiteDatabaseManager:
         try:
             from passlib.context import CryptContext
             pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-            
+
             with self.get_session() as session:
                 # 统一转换为小写进行查询
                 email_lower = email.lower()
-                user = session.query(User).filter(User.email == email_lower).first()
+                user = session.query(User).filter(
+                    User.email == email_lower).first()
                 if not user:
                     return False
-                
+
                 # 确保密码不超过72字节（bcrypt限制）
                 new_password = new_password[:72]
                 user.hashed_password = pwd_context.hash(new_password)
@@ -1682,7 +1753,7 @@ class SQLiteDatabaseManager:
             with self.get_session() as session:
                 # 统一转换为小写进行存储
                 email_lower = email.lower()
-                verification=EmailVerification(
+                verification = EmailVerification(
                     email=email_lower,
                     code=code,
                     is_used=False,
@@ -1693,13 +1764,15 @@ class SQLiteDatabaseManager:
                 return verification.id
         except Exception as e:
             print(f"保存验证码失败: {str(e)}")
-            return None    
+            return None
+
     def increment_knowledge_base_downloads(self, kb_id: str) -> bool:
         """原子性地增加知识库下载计数器"""
         try:
             with self.get_session() as session:
                 session.execute(
-                    text("UPDATE knowledge_bases SET downloads = downloads + 1 WHERE id = :kb_id"),
+                    text(
+                        "UPDATE knowledge_bases SET downloads = downloads + 1 WHERE id = :kb_id"),
                     {"kb_id": kb_id}
                 )
                 session.commit()
@@ -1707,13 +1780,14 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"更新知识库下载计数器失败: {str(e)}")
             return False
-    
+
     def increment_persona_card_downloads(self, pc_id: str) -> bool:
         """原子性地增加人设卡下载计数器"""
         try:
             with self.get_session() as session:
                 session.execute(
-                    text("UPDATE persona_cards SET downloads = downloads + 1 WHERE id = :pc_id"),
+                    text(
+                        "UPDATE persona_cards SET downloads = downloads + 1 WHERE id = :pc_id"),
                     {"pc_id": pc_id}
                 )
                 session.commit()
@@ -1721,7 +1795,7 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"更新人设卡下载计数器失败: {str(e)}")
             return False
-    
+
     # 上传记录相关方法
     def create_upload_record(
         self,
@@ -1750,7 +1824,7 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"创建上传记录失败: {str(e)}")
             return None
-    
+
     def update_upload_record_status(self, target_id: str, status: str) -> bool:
         """更新上传记录状态"""
         try:
@@ -1767,7 +1841,7 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"更新上传记录状态失败: {str(e)}")
             return False
-    
+
     def get_all_upload_records(self, page: int = 1, limit: int = 20):
         """获取所有上传记录（分页）"""
         with self.get_session() as session:
@@ -1775,19 +1849,19 @@ class SQLiteDatabaseManager:
             return session.query(UploadRecord).order_by(
                 UploadRecord.created_at.desc()
             ).offset(offset).limit(limit).all()
-    
+
     def get_upload_records_count(self):
         """获取上传记录总数"""
         with self.get_session() as session:
             return session.query(UploadRecord).count()
-    
+
     def get_upload_records_by_status(self, status: str):
         """根据状态获取上传记录"""
         with self.get_session() as session:
             return session.query(UploadRecord).filter(
                 UploadRecord.status == status
             ).all()
-    
+
     def get_total_file_size_by_target(self, target_id: str, target_type: str) -> int:
         """根据目标ID和类型获取总文件大小"""
         try:
@@ -1802,19 +1876,19 @@ class SQLiteDatabaseManager:
                     ).all()
                 else:
                     return 0
-                
+
                 return sum(f.file_size or 0 for f in files)
         except Exception as e:
             print(f"获取文件大小失败: {str(e)}")
             return 0
-    
+
     def get_upload_record_by_id(self, record_id: str) -> Optional[UploadRecord]:
         """根据ID获取上传记录"""
         with self.get_session() as session:
             return session.query(UploadRecord).filter(
                 UploadRecord.id == record_id
             ).first()
-    
+
     def delete_upload_record(self, record_id: str) -> bool:
         """删除上传记录"""
         try:
@@ -1822,7 +1896,7 @@ class SQLiteDatabaseManager:
                 upload_record = session.query(UploadRecord).filter(
                     UploadRecord.id == record_id
                 ).first()
-                
+
                 if upload_record:
                     session.delete(upload_record)
                     session.commit()
@@ -1831,7 +1905,7 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"删除上传记录失败: {str(e)}")
             return False
-    
+
     def delete_upload_records_by_target(self, target_id: str, target_type: str) -> bool:
         """根据目标ID和类型删除上传记录"""
         try:
@@ -1840,7 +1914,7 @@ class SQLiteDatabaseManager:
                     UploadRecord.target_id == target_id,
                     UploadRecord.target_type == target_type
                 ).all()
-                
+
                 if upload_records:
                     for record in upload_records:
                         session.delete(record)
@@ -1850,7 +1924,7 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"根据目标删除上传记录失败: {str(e)}")
             return False
-    
+
     def update_upload_record_status_by_id(self, record_id: str, status: str) -> bool:
         """根据记录ID更新上传记录状态"""
         try:
@@ -1858,7 +1932,7 @@ class SQLiteDatabaseManager:
                 upload_record = session.query(UploadRecord).filter(
                     UploadRecord.id == record_id
                 ).first()
-                
+
                 if upload_record:
                     upload_record.status = status
                     upload_record.updated_at = datetime.now()
@@ -1868,7 +1942,6 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"更新上传记录状态失败: {str(e)}")
             return False
-
 
 
 # 创建全局SQLite数据库管理器实例
