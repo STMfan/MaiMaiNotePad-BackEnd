@@ -3,7 +3,7 @@
 为应用提供统一的数据模型导入接口
 """
 
-from pydantic import BaseModel, EmailStr, model_validator
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
 
@@ -42,6 +42,13 @@ class KnowledgeBaseUpdate(BaseModel):
     description: Optional[str] = None
     copyright_owner: Optional[str] = None
 
+class KnowledgeBaseFileResponse(BaseModel):
+    """知识库文件响应"""
+    file_id: str
+    original_name: str
+    file_size: int
+
+
 class KnowledgeBaseResponse(BaseModel):
     """知识库响应模型"""
     id: str
@@ -56,14 +63,16 @@ class KnowledgeBaseResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     # 扩展字段
-    files: List[Dict[str, Any]] = []
+    files: List[KnowledgeBaseFileResponse] = Field(default_factory=list)
     content: Optional[str] = None
-    tags: List[str] = []
+    tags: List[str] = Field(default_factory=list)
     downloads: int = 0
     download_url: Optional[str] = None
     preview_url: Optional[str] = None
     version: Optional[str] = None
     size: Optional[int] = None
+    author: Optional[str] = None
+    author_id: Optional[str] = None
 
 class PersonaCardCreate(BaseModel):
     """人设卡创建请求模型"""
@@ -179,7 +188,7 @@ __all__ = [
     
     # Pydantic模型
     'UserCreate', 'UserResponse',
-    'KnowledgeBaseCreate', 'KnowledgeBaseUpdate', 'KnowledgeBaseResponse',
+    'KnowledgeBaseCreate', 'KnowledgeBaseUpdate', 'KnowledgeBaseFileResponse', 'KnowledgeBaseResponse',
     'KnowledgeBasePaginatedResponse',
     'PersonaCardCreate', 'PersonaCardResponse',
     'PersonaCardPaginatedResponse',

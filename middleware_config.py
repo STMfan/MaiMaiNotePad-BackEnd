@@ -52,6 +52,7 @@ def setup_middlewares(app: FastAPI) -> None:
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
+            expose_headers=["Content-Disposition"],
         )
         app_logger.info("CORS中间件配置完成")
 

@@ -146,6 +146,10 @@ class KnowledgeBase(Base):
     description = Column(Text, nullable=False)
     uploader_id = Column(String, ForeignKey("users.id"), nullable=False)
     copyright_owner = Column(String, nullable=True)
+    # 直接在数据库中保存内容与标签，避免依赖外部 metadata 文件
+    content = Column(Text, nullable=True)
+    tags = Column(Text, nullable=True)  # 逗号分隔存储
+    metadata_path = Column(Text, nullable=True, default="")  # 兼容旧表结构
     star_count = Column(Integer, default=0)
     downloads = Column(Integer, default=0)
     base_path = Column(Text, default="[]")
@@ -178,6 +182,9 @@ class KnowledgeBase(Base):
             "description": self.description,
             "uploader_id": self.uploader_id,
             "copyright_owner": self.copyright_owner,
+            "content": self.content,
+            "tags": (self.tags or "").split(",") if self.tags else [],
+            "metadata_path": self.metadata_path,
             "star_count": self.star_count or 0,
             "base_path": self.base_path or "[]",
             "is_public": self.is_public,
@@ -187,13 +194,13 @@ class KnowledgeBase(Base):
             "updated_at": self.updated_at if self.updated_at else datetime.now(),
             # 默认值
             "files": [],
-            "content": None,
-            "tags": [],
             "downloads": self.downloads or 0,
             "download_url": None,
             "preview_url": None,
             "version": None,
-            "size": None
+            "size": None,
+            "author": None,
+            "author_id": self.uploader_id
         }
 
         if include_files:
@@ -240,6 +247,9 @@ class KnowledgeBase(Base):
             description=data.get("description", ""),
             uploader_id=data.get("uploader_id", ""),
             copyright_owner=data.get("copyright_owner", None),
+            content=data.get("content"),
+            tags=",".join(data.get("tags", [])) if isinstance(data.get("tags"), list) else data.get("tags"),
+            metadata_path=data.get("metadata_path", ""),
             star_count=data.get("star_count", 0),
             base_path=data.get("base_path", "[]"),
             metadata_path=data.get("metadata_path", ""),
@@ -338,6 +348,9 @@ class PersonaCard(Base):
     description = Column(Text, nullable=False)
     uploader_id = Column(String, ForeignKey("users.id"), nullable=False)
     copyright_owner = Column(String, nullable=True)
+    # 直接存储正文与标签，避免依赖外部 metadata 文件
+    content = Column(Text, nullable=True)
+    tags = Column(Text, nullable=True)  # 逗号分隔
     star_count = Column(Integer, default=0)
     downloads = Column(Integer, default=0)
     base_path = Column(String, nullable=False)
@@ -370,6 +383,8 @@ class PersonaCard(Base):
             "description": self.description,
             "uploader_id": self.uploader_id,
             "copyright_owner": self.copyright_owner,
+            "content": self.content,
+            "tags": (self.tags or "").split(",") if self.tags else [],
             "star_count": self.star_count or 0,
             "base_path": self.base_path,
             "is_public": self.is_public,
@@ -379,8 +394,6 @@ class PersonaCard(Base):
             "updated_at": self.updated_at if self.updated_at else datetime.now(),
             # 默认值
             "files": [],
-            "content": None,
-            "tags": [],
             "downloads": self.downloads or 0,
             "download_url": None,
             "preview_url": None,
@@ -633,9 +646,13 @@ class SQLiteDatabaseManager:
             ]),
             ('knowledge_bases', [
                 ('downloads', 'INTEGER DEFAULT 0'),
+                ('content', 'TEXT'),
+                ('tags', 'TEXT'),
             ]),
             ('persona_cards', [
                 ('downloads', 'INTEGER DEFAULT 0'),
+                ('content', 'TEXT'),
+                ('tags', 'TEXT'),
             ]),
             ('users', [
                 ('failed_login_attempts', 'INTEGER DEFAULT 0'),
@@ -752,6 +769,13 @@ class SQLiteDatabaseManager:
         """保存知识库并返回保存后的对象"""
         try:
             with self.get_session() as session:
+                # 规范化字段，避免非字符串写入SQLite
+                tags_value = kb_data.get("tags")
+                if isinstance(tags_value, list):
+                    kb_data["tags"] = ",".join(tags_value)
+                if kb_data.get("metadata_path") is None:
+                    kb_data["metadata_path"] = ""
+
                 kb_id = kb_data.get("id")
                 kb = None
                 if kb_id:
@@ -770,7 +794,6 @@ class SQLiteDatabaseManager:
                         kb_data["metadata_path"] = "default_metadata_path"
                     # 创建新记录
                     kb = KnowledgeBase(**kb_data)
-                    # 确保file_paths是字符串格式
                     session.add(kb)
 
                 session.commit()
@@ -957,6 +980,12 @@ class SQLiteDatabaseManager:
         """保存人设卡并返回保存后的对象"""
         try:
             with self.get_session() as session:
+                tags_value = pc_data.get("tags")
+                if isinstance(tags_value, list):
+                    pc_data["tags"] = ",".join(tags_value)
+                if pc_data.get("metadata_path") is None:
+                    pc_data["metadata_path"] = ""
+
                 pc_id = pc_data.get("id")
                 pc = session.query(PersonaCard).filter(
                     PersonaCard.id == pc_id).first()
