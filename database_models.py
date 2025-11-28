@@ -248,11 +248,11 @@ class KnowledgeBase(Base):
             uploader_id=data.get("uploader_id", ""),
             copyright_owner=data.get("copyright_owner", None),
             content=data.get("content"),
-            tags=",".join(data.get("tags", [])) if isinstance(data.get("tags"), list) else data.get("tags"),
+            tags=",".join(data.get("tags", [])) if isinstance(
+                data.get("tags"), list) else data.get("tags"),
             metadata_path=data.get("metadata_path", ""),
             star_count=data.get("star_count", 0),
             base_path=data.get("base_path", "[]"),
-            metadata_path=data.get("metadata_path", ""),
             is_public=data.get("is_public", False),
             is_pending=data.get("is_pending", True),
             rejection_reason=data.get("rejection_reason", None),
