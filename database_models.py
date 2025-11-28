@@ -2,7 +2,6 @@
 SQLite数据库模型定义
 包含知识库、人设卡、信箱等数据模型
 """
-import json
 from datetime import datetime, timedelta
 from typing import List, Optional
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey, create_engine, Index, and_, or_, inspect
@@ -149,13 +148,13 @@ class KnowledgeBase(Base):
     # 直接在数据库中保存内容与标签，避免依赖外部 metadata 文件
     content = Column(Text, nullable=True)
     tags = Column(Text, nullable=True)  # 逗号分隔存储
-    metadata_path = Column(Text, nullable=True, default="")  # 兼容旧表结构
     star_count = Column(Integer, default=0)
     downloads = Column(Integer, default=0)
     base_path = Column(Text, default="[]")
     is_public = Column(Boolean, default=False)
     is_pending = Column(Boolean, default=True)
     rejection_reason = Column(Text, nullable=True)
+    version = Column(String, default="1.0")
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -174,7 +173,7 @@ class KnowledgeBase(Base):
     # 移除star_records关系，因为StarRecord没有正确的外键关系
     # star_records = relationship("StarRecord", back_populates="knowledge_base")
 
-    def to_dict(self, include_files: bool = True, include_metadata: bool = True):
+    def to_dict(self, include_files: bool = True):
         """将知识库对象转换为字典"""
         result = {
             "id": self.id,
@@ -184,12 +183,12 @@ class KnowledgeBase(Base):
             "copyright_owner": self.copyright_owner,
             "content": self.content,
             "tags": (self.tags or "").split(",") if self.tags else [],
-            "metadata_path": self.metadata_path,
             "star_count": self.star_count or 0,
             "base_path": self.base_path or "[]",
             "is_public": self.is_public,
             "is_pending": self.is_pending if self.is_pending is not None else True,
             "rejection_reason": self.rejection_reason,
+            "version": self.version,
             "created_at": self.created_at if self.created_at else datetime.now(),
             "updated_at": self.updated_at if self.updated_at else datetime.now(),
             # 默认值
@@ -197,7 +196,6 @@ class KnowledgeBase(Base):
             "downloads": self.downloads or 0,
             "download_url": None,
             "preview_url": None,
-            "version": None,
             "size": None,
             "author": None,
             "author_id": self.uploader_id
@@ -208,8 +206,7 @@ class KnowledgeBase(Base):
             try:
                 # 通过全局变量访问数据库管理器
                 from database_models import sqlite_db_manager
-                files = sqlite_db_manager.get_files_by_knowledge_base_id(
-                    self.id)
+                files = sqlite_db_manager.get_files_by_knowledge_base_id(self.id)
                 result["files"] = [{
                     "file_id": f.id,
                     "original_name": f.original_name,
@@ -220,20 +217,6 @@ class KnowledgeBase(Base):
                 result["download_url"] = f"/api/knowledge/{self.id}/download"
             except Exception as e:
                 # 如果获取文件失败，使用默认值
-                pass
-
-        if include_metadata:
-            # 从metadata文件读取额外信息
-            try:
-                if os.path.exists(self.metadata_path):
-                    with open(self.metadata_path, 'r', encoding='utf-8') as f:
-                        metadata = json.load(f)
-                        result["content"] = metadata.get("content")
-                        result["tags"] = metadata.get("tags", [])
-                        result["preview_url"] = metadata.get("preview_url")
-                        result["version"] = metadata.get("version")
-            except Exception:
-                # 如果读取失败，使用默认值
                 pass
 
         return result
@@ -250,12 +233,12 @@ class KnowledgeBase(Base):
             content=data.get("content"),
             tags=",".join(data.get("tags", [])) if isinstance(
                 data.get("tags"), list) else data.get("tags"),
-            metadata_path=data.get("metadata_path", ""),
             star_count=data.get("star_count", 0),
             base_path=data.get("base_path", "[]"),
             is_public=data.get("is_public", False),
             is_pending=data.get("is_pending", True),
             rejection_reason=data.get("rejection_reason", None),
+            version=data.get("version","1.0"),
             created_at=datetime.fromisoformat(data["created_at"]) if data.get(
                 "created_at") else datetime.now(),
             updated_at=datetime.fromisoformat(data["updated_at"]) if data.get(
@@ -357,6 +340,7 @@ class PersonaCard(Base):
     is_public = Column(Boolean, default=False)
     is_pending = Column(Boolean, default=True)
     rejection_reason = Column(Text, nullable=True)
+    version = Column(String, default="1.0")
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -375,7 +359,7 @@ class PersonaCard(Base):
     # 移除star_records关系，因为StarRecord没有正确的外键关系
     # star_records = relationship("StarRecord", back_populates="persona_card")
 
-    def to_dict(self, include_files: bool = True, include_metadata: bool = True):
+    def to_dict(self, include_files: bool = True):
         """将人设卡对象转换为字典"""
         result = {
             "id": self.id,
@@ -390,6 +374,7 @@ class PersonaCard(Base):
             "is_public": self.is_public,
             "is_pending": self.is_pending if self.is_pending is not None else True,
             "rejection_reason": self.rejection_reason,
+            "version": self.version,
             "created_at": self.created_at if self.created_at else datetime.now(),
             "updated_at": self.updated_at if self.updated_at else datetime.now(),
             # 默认值
@@ -397,7 +382,6 @@ class PersonaCard(Base):
             "downloads": self.downloads or 0,
             "download_url": None,
             "preview_url": None,
-            "version": None,
             "size": None,
             "author": None,
             "author_id": self.uploader_id,
@@ -420,22 +404,6 @@ class PersonaCard(Base):
                 result["download_url"] = f"/api/persona/{self.id}/download"
             except Exception as e:
                 # 如果获取文件失败，使用默认值
-                pass
-
-        if include_metadata:
-            # 从base_path目录下的metadata.json文件读取额外信息（如果存在）
-            try:
-                metadata_path = os.path.join(self.base_path, "metadata.json")
-                if os.path.exists(metadata_path):
-                    with open(metadata_path, 'r', encoding='utf-8') as f:
-                        metadata = json.load(f)
-                        result["content"] = metadata.get("content")
-                        result["tags"] = metadata.get("tags", [])
-                        result["preview_url"] = metadata.get("preview_url")
-                        result["version"] = metadata.get("version")
-                        result["author"] = metadata.get("author")
-            except Exception:
-                # 如果读取失败，使用默认值
                 pass
 
         return result
@@ -773,8 +741,6 @@ class SQLiteDatabaseManager:
                 tags_value = kb_data.get("tags")
                 if isinstance(tags_value, list):
                     kb_data["tags"] = ",".join(tags_value)
-                if kb_data.get("metadata_path") is None:
-                    kb_data["metadata_path"] = ""
 
                 kb_id = kb_data.get("id")
                 kb = None
@@ -789,9 +755,6 @@ class SQLiteDatabaseManager:
                             setattr(kb, key, value)
                     kb.updated_at = datetime.now()
                 else:
-                    if not kb_data.get("metadata_path"):
-                        # 设置默认值
-                        kb_data["metadata_path"] = "default_metadata_path"
                     # 创建新记录
                     kb = KnowledgeBase(**kb_data)
                     session.add(kb)
@@ -983,8 +946,6 @@ class SQLiteDatabaseManager:
                 tags_value = pc_data.get("tags")
                 if isinstance(tags_value, list):
                     pc_data["tags"] = ",".join(tags_value)
-                if pc_data.get("metadata_path") is None:
-                    pc_data["metadata_path"] = ""
 
                 pc_id = pc_data.get("id")
                 pc = session.query(PersonaCard).filter(

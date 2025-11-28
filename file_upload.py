@@ -184,7 +184,6 @@ class FileUploadService:
             "copyright_owner": copyright_owner,
             "content": content,
             "tags": tags,
-            "metadata_path": "",
             "base_path": kb_dir,
             "is_pending": True,  # 新上传的内容默认为待审核状态
             "is_public": False   # 新上传的内容默认为非公开

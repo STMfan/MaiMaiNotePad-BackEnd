@@ -576,8 +576,8 @@ def _migrate_database(self):
 - 上传/下载相关 CORS 暴露 `Content-Disposition` 头，前端可读取文件名
 
 ### 模型 / 存储
-- `KnowledgeBase`、`PersonaCard` 模型新增 `content`、`tags` 字段；`metadata_path` 允许空字符串默认值；返回的作者字段回落到版权人/上传者
-- SQLite 迁移补充 `content`、`tags` 列并在保存前统一将标签列表转逗号字符串，空 `metadata_path` 自动置空串
+- `KnowledgeBase`、`PersonaCard` 模型新增 `content`、`tags` 字段；返回的作者字段回落到版权人/上传者
+- SQLite 迁移补充 `content`、`tags` 列并在保存前统一将标签列表转逗号字符串
 
 ### 文档
 - API 文档补充 content/tags 传参、用户上传/收藏分页参数与响应、删除文件返回字段、管理端筛选与排序参数示例
