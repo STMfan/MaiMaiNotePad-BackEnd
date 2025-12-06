@@ -762,3 +762,167 @@ async def get_user_stars(
             error_message=str(e)
         )
         raise APIError("获取收藏记录失败")
+
+
+# 用户上传历史和统计接口
+@user_router.get("/me/upload-history", response_model=Dict[str, Any])
+async def get_my_upload_history(
+        page: int = Query(1, description="页码，从1开始"),
+        limit: int = Query(20, description="每页条数，最大100"),
+        current_user: dict = Depends(get_current_user)
+):
+    """获取当前用户的个人上传历史记录（分页）"""
+    try:
+        user_id = current_user.get("id", "")
+        app_logger.info(f"Get user upload history: user_id={user_id}, page={page}, limit={limit}")
+
+        # 限制参数范围
+        if limit < 1 or limit > 100:
+            limit = 20
+        if page < 1:
+            page = 1
+
+        # 获取用户的上传记录
+        upload_records = db_manager.get_upload_records_by_uploader(
+            user_id, page=page, limit=limit)
+
+        # 构建返回数据
+        history_list = []
+        for record in upload_records:
+            # 确定状态文本（映射到前端期望的状态）
+            # 前端期望：success, processing, failed
+            # 后端状态：approved, pending, rejected
+            status_text = "processing"  # 默认处理中
+            if record.status == "approved":
+                status_text = "success"  # 已通过 = 成功
+            elif record.status == "rejected":
+                status_text = "failed"  # 已拒绝 = 失败
+            elif record.status == "pending":
+                status_text = "processing"  # 待审核 = 处理中
+
+            # 检查目标（知识库/人设卡）是否存在
+            target_exists = False
+            if record.target_type == "knowledge":
+                kb = db_manager.get_knowledge_base_by_id(record.target_id)
+                target_exists = kb is not None
+            elif record.target_type == "persona":
+                pc = db_manager.get_persona_card_by_id(record.target_id)
+                target_exists = pc is not None
+
+            # 获取文件大小
+            total_file_size = db_manager.get_total_file_size_by_target(
+                record.target_id,
+                record.target_type
+            )
+            has_files = total_file_size > 0
+
+            # 构建记录信息
+            history_list.append({
+                "id": record.id,
+                "target_id": record.target_id,
+                "type": record.target_type,
+                "name": record.name,
+                "description": record.description,
+                "status": status_text,
+                "created_at": record.created_at.isoformat() if record.created_at else None,
+                "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+                "target_exists": target_exists,
+                "has_files": has_files,
+                # 前端期望的字段
+                "fileType": record.target_type,
+                "fileName": record.name,
+                "fileSize": total_file_size,
+                "uploadedAt": record.created_at.isoformat() if record.created_at else None
+            })
+
+        # 获取总数量
+        total_count = db_manager.get_upload_records_count_by_uploader(user_id)
+
+        log_database_operation(
+            app_logger,
+            "read",
+            "upload_record",
+            user_id=user_id,
+            success=True
+        )
+
+        app_logger.info(f"Returning {len(history_list)} items out of {total_count} total items")
+
+        return {
+            "success": True,
+            "data": {
+                "items": history_list,
+                "total": total_count,
+                "page": page,
+                "page_size": limit,
+                "total_pages": (total_count + limit - 1) // limit
+            }
+        }
+
+    except Exception as e:
+        log_exception(app_logger, "Get user upload history error", exception=e)
+        log_database_operation(
+            app_logger,
+            "read",
+            "upload_record",
+            user_id=user_id,
+            success=False,
+            error_message=str(e)
+        )
+        raise APIError("获取上传历史失败")
+
+
+@user_router.get("/me/upload-stats", response_model=Dict[str, Any])
+async def get_my_upload_stats(current_user: dict = Depends(get_current_user)):
+    """获取当前用户的个人上传统计"""
+    try:
+        user_id = current_user.get("id", "")
+        app_logger.info(f"Get user upload stats: user_id={user_id}")
+
+        # 获取用户的统计信息
+        stats = db_manager.get_upload_stats_by_uploader(user_id)
+
+        # 构建返回数据，兼容前端期望的字段名
+        result = {
+            "success": True,
+            "data": {
+                # 使用后端数据库字段名
+                "total": stats["total"],
+                "success": stats["success"],
+                "pending": stats["pending"],
+                "failed": stats["failed"],
+                "knowledge": stats["knowledge"],
+                "persona": stats["persona"],
+                # 前端期望的字段名
+                "totalUploads": stats["total"],
+                "successfulUploads": stats["success"],
+                "failedUploads": stats["failed"],
+                "processingUploads": stats["pending"],
+                "knowledgeBases": stats["knowledge"],
+                "personaCards": stats["persona"]
+            }
+        }
+
+        log_database_operation(
+            app_logger,
+            "read",
+            "upload_stats",
+            user_id=user_id,
+            success=True
+        )
+
+        app_logger.info(f"Upload stats for user {user_id}: {result['data']}")
+
+        return result
+
+    except Exception as e:
+        log_exception(app_logger, "Get user upload stats error", exception=e)
+        log_database_operation(
+            app_logger,
+            "read",
+            "upload_stats",
+            user_id=user_id,
+            success=False,
+            error_message=str(e)
+        )
+        raise APIError("获取上传统计失败")

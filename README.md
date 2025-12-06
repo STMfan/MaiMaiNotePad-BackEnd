@@ -183,6 +183,8 @@ docker run -p 9278:9278 mainnp-backend
 
 ### 用户相关
 - `GET /api/user/stars` - 获取用户Star的知识库和人设卡（分页，支持类型过滤、排序、可选 `includeDetails`）
+- `GET /api/me/upload-history` - 获取当前用户的个人上传历史记录（分页）
+- `GET /api/me/upload-stats` - 获取当前用户的个人上传统计
 
 ### 管理员相关（需要admin权限）
 - `GET /api/admin/broadcast-messages` - 获取广播消息统计

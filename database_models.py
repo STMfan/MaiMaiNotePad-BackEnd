@@ -1816,6 +1816,49 @@ class SQLiteDatabaseManager:
         with self.get_session() as session:
             return session.query(UploadRecord).count()
 
+    def get_upload_records_by_uploader(self, uploader_id: str, page: int = 1, limit: int = 20):
+        """根据上传者ID获取上传记录（分页）"""
+        with self.get_session() as session:
+            offset = (page - 1) * limit
+            return session.query(UploadRecord).filter(
+                UploadRecord.uploader_id == uploader_id
+            ).order_by(
+                UploadRecord.created_at.desc()
+            ).offset(offset).limit(limit).all()
+
+    def get_upload_records_count_by_uploader(self, uploader_id: str):
+        """根据上传者ID获取上传记录总数"""
+        with self.get_session() as session:
+            return session.query(UploadRecord).filter(
+                UploadRecord.uploader_id == uploader_id
+            ).count()
+
+    def get_upload_stats_by_uploader(self, uploader_id: str):
+        """根据上传者ID获取上传统计"""
+        with self.get_session() as session:
+            # 获取该用户的所有上传记录
+            records = session.query(UploadRecord).filter(
+                UploadRecord.uploader_id == uploader_id
+            ).all()
+            
+            total_count = len(records)
+            success_count = len([r for r in records if r.status == "success"])
+            pending_count = len([r for r in records if r.status == "pending"])
+            failed_count = len([r for r in records if r.status == "failed"])
+            
+            # 计算按类型统计
+            knowledge_count = len([r for r in records if r.target_type == "knowledge"])
+            persona_count = len([r for r in records if r.target_type == "persona"])
+            
+            return {
+                "total": total_count,
+                "success": success_count,
+                "pending": pending_count,
+                "failed": failed_count,
+                "knowledge": knowledge_count,
+                "persona": persona_count
+            }
+
     def get_upload_records_by_status(self, status: str):
         """根据状态获取上传记录"""
         with self.get_session() as session:
