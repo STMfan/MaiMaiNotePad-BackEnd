@@ -298,6 +298,9 @@ async def update_user_role(
             user.is_moderator = (new_role == "moderator")
             session.commit()
 
+            # 在 Session 关闭前保存需要的数据
+            username = user.username
+
             log_database_operation(
                 app_logger,
                 "update",
@@ -314,7 +317,7 @@ async def update_user_role(
             "message": "用户角色更新成功",
             "data": {
                 "id": user_id,
-                "username": user.username,
+                "username": username,
                 "role": new_role
             }
         }

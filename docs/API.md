@@ -459,6 +459,11 @@ tags: 标签，逗号分隔或多值（可选）
 - `401`: 未授权访问
 - `500`: 上传知识库失败
 
+**补充说明（2025-12-08 更新）**:
+- 现版本直接将正文与标签写入 `content`、`tags` 字段，历史的 `metadata_path` 列已移除。
+- 启动时 `SQLiteDatabaseManager` 会检查旧表结构，若仍存在 `metadata_path`（NOT NULL、无默认值），会重建表并迁移数据，避免 `NOT NULL constraint failed: knowledge_bases.metadata_path`。
+- 相关迁移细节见 `docs/metadata_cleanup_20251208.md`。
+
 ### 获取公开知识库列表
 获取所有已审核通过的公开知识库列表，支持分页、搜索、筛选和排序。
 
@@ -1024,6 +1029,10 @@ tags: 标签，逗号分隔或多值（可选）
 - `400`: 名称和描述不能为空、至少需要上传一个文件
 - `401`: 未授权访问
 - `500`: 上传人设卡失败
+
+**补充说明（2025-12-08 更新）**:
+- 人设上传遵循与知识库相同的“无独立元数据文件”模式，元数据落库于 `content` 与 `tags`。
+- 不再需要单独的元数据 JSON/TOML；上传表单中的正文和标签会直接存储。
 
 ### 获取公开人设卡列表
 获取所有已审核通过的公开人设卡列表，支持分页、搜索、筛选和排序。
@@ -2186,8 +2195,18 @@ Authorization: Bearer {token}
 - `404`: 人设卡不存在
 - `500`: 恢复审核状态失败
 
+### 上传管理端点（管理员/审核员）
+以下端点供上传管理视图使用，均要求 **角色：admin 或 moderator**（普通用户不得调用）。普通用户只使用 `/api/knowledge/upload` 与 `/api/persona/upload` 进行上传。
+
+**角色说明（2025-12-08 更新）**:
+- `user`：普通用户，只能管理自己的知识库/人设卡。
+- `moderator`：可审核内容，能访问本节上传管理端点。
+- `admin`：系统管理员，拥有全部权限（含用户管理、系统统计等）。
+- 公开/只读端点仍为：`GET /api/knowledge/public`、`GET /api/persona/public`、`GET /api/knowledge/user/{user_id}`、`GET /api/persona/user/{user_id}`。
+
 ### 获取上传历史记录
-获取所有上传历史记录（需要管理员权限）。
+获取所有上传历史记录（管理员/审核员）。
+状态映射：后端的 `pending/approved/rejected` 会在前端展示为 `processing/success/failed`。
 
 ```http
 GET /api/admin/upload-history?page=1&page_size=20
@@ -2201,7 +2220,17 @@ Authorization: Bearer {token}
 **响应示例**:
 ```json
 {
-  "items": [...],
+  "items": [
+    {
+      "id": "upload-1",
+      "uploader": { "id": "u1", "name": "alice" },
+      "target_type": "knowledge|persona",
+      "target_id": "kb123",
+      "status": "processing|success|failed",
+      "size": 123456,
+      "target_exists": true
+    }
+  ],
   "total": 200,
   "page": 1,
   "page_size": 20
@@ -2209,12 +2238,12 @@ Authorization: Bearer {token}
 ```
 
 **错误响应**:
-- `403`: 没有管理员权限
+- `403`: 没有管理员/审核员权限
 - `401`: 未授权访问
 - `500`: 获取上传历史失败
 
 ### 获取上传统计数据
-获取上传相关的统计数据（需要管理员权限）。
+获取上传相关的统计数据（管理员/审核员）。
 
 ```http
 GET /api/admin/upload-stats
@@ -2225,19 +2254,19 @@ Authorization: Bearer {token}
 ```json
 {
   "total_uploads": 200,
-  "pending_uploads": 10,
-  "approved_uploads": 150,
-  "rejected_uploads": 40
+  "success_uploads": 150,
+  "processing_uploads": 10,
+  "failed_uploads": 40
 }
 ```
 
 **错误响应**:
-- `403`: 没有管理员权限
+- `403`: 没有管理员/审核员权限
 - `401`: 未授权访问
 - `500`: 获取统计数据失败
 
 ### 删除上传记录
-删除指定的上传记录（需要管理员权限）。
+删除指定的上传记录（管理员/审核员）。
 
 ```http
 DELETE /api/admin/uploads/{upload_id}
@@ -2255,12 +2284,12 @@ Authorization: Bearer {token}
 ```
 
 **错误响应**:
-- `403`: 没有管理员权限
+- `403`: 没有管理员/审核员权限
 - `404`: 上传记录不存在
 - `500`: 删除上传记录失败
 
 ### 重新处理上传
-重新处理指定的上传记录（需要管理员权限）。
+重新处理指定的上传记录（管理员/审核员）。仅当目标内容与文件仍存在时会重新置为 `pending`。
 
 ```http
 POST /api/admin/uploads/{upload_id}/reprocess
@@ -2278,7 +2307,7 @@ Authorization: Bearer {token}
 ```
 
 **错误响应**:
-- `403`: 没有管理员权限
+- `403`: 没有管理员/审核员权限
 - `404`: 上传记录不存在
 - `500`: 重新处理失败
 
