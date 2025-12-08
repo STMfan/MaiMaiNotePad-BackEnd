@@ -1527,6 +1527,86 @@ Authorization: Bearer {token}
 - `401`: 未授权访问
 - `500`: 获取收藏记录失败
 
+### 获取当前用户个人上传历史记录
+获取当前用户的个人上传历史记录，支持分页查询。
+
+```http
+GET /api/me/upload-history
+Authorization: Bearer {token}
+```
+
+**查询参数**:
+- `page` (可选): 页码，从1开始，默认1
+- `page_size` (可选): 每页记录数，默认20，最大100
+
+**响应示例**:
+```json
+{
+  "data": [
+    {
+      "id": "record123",
+      "target_id": "kb123",
+      "target_type": "knowledge_base",
+      "target_name": "我的知识库",
+      "status": "success",
+      "file_size": 1024000,
+      "created_at": "2025-11-22T12:00:00"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+**响应字段说明**:
+- `id`: 上传记录ID
+- `target_id`: 目标资源ID（知识库或人设卡ID）
+- `target_type`: 目标类型（`knowledge_base` 或 `persona_card`）
+- `target_name`: 目标名称
+- `status`: 上传状态（`success` 成功，`processing` 处理中，`failed` 失败）
+- `file_size`: 文件大小（字节）
+- `created_at`: 创建时间
+
+**错误响应**:
+- `400`: 分页参数不合法
+- `401`: 未授权访问
+- `500`: 获取上传历史记录失败
+
+### 获取当前用户个人上传统计
+获取当前用户的个人上传统计数据。
+
+```http
+GET /api/me/upload-stats
+Authorization: Bearer {token}
+```
+
+**响应示例**:
+```json
+{
+  "totalUploads": 10,
+  "successCount": 8,
+  "processingCount": 1,
+  "failedCount": 1,
+  "successRate": 80.0,
+  "totalFileSize": 10485760,
+  "averageFileSize": 1048576
+}
+```
+
+**响应字段说明**:
+- `totalUploads`: 总上传次数
+- `successCount`: 成功上传次数
+- `processingCount`: 处理中上传次数
+- `failedCount`: 失败上传次数
+- `successRate`: 成功率（百分比）
+- `totalFileSize`: 总文件大小（字节）
+- `averageFileSize`: 平均文件大小（字节）
+
+**错误响应**:
+- `401`: 未授权访问
+- `500`: 获取上传统计失败
+
 ## 审核管理接口
 
 ### 获取待审核知识库
