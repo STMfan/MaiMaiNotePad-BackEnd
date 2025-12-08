@@ -26,53 +26,49 @@ load_dotenv()
 host = os.getenv("HOST", "0.0.0.0")
 port = int(os.getenv("PORT", "9278"))
 
+# 创建必要的目录
+os.makedirs('data', exist_ok=True)
+os.makedirs('logs', exist_ok=True)
+
+# 配置密码哈希（虽然当前未使用，但保留以备将来需要）
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# 初始化FastAPI应用
+app = FastAPI(title="MaiMNP Backend",
+            description="MaiMNP后端服务", version="1.0.0")
+
+# 配置所有中间件（速率限制、CORS、错误处理等）
+setup_middlewares(app)
+
+# 包含API路由，添加/api前缀
+app.include_router(api_router, prefix="/api")
+
+# 设置静态文件路由（安全的头像服务）
+setup_static_routes(app)
+
+# 加载用户数据
+userList = load_users()
+app_logger.info(f"Loaded {len(userList)} users")
+
+# 初始化数据库管理器
+db_manager = sqlite_db_manager
+app_logger.info("SQLite database manager initialized")
+
+# 根路径
+@app.get("/")
+async def root():
+    return {"message": "MaiMNP Backend API"}
+
+# 健康检查
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+# 认证路由已在api_routes.py中定义，无需重复定义
+
 if __name__ == '__main__':
     exit_code = 0  # 用于记录程序最终的退出状态
-    try:    
-        # 创建必要的目录
-        os.makedirs('data', exist_ok=True)
-        os.makedirs('logs', exist_ok=True)
-
-        # 配置密码哈希（虽然当前未使用，但保留以备将来需要）
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-        # 初始化FastAPI应用
-        app = FastAPI(title="MaiMNP Backend",
-                    description="MaiMNP后端服务", version="1.0.0")
-
-        # 配置所有中间件（速率限制、CORS、错误处理等）
-        setup_middlewares(app)
-
-        # 包含API路由，添加/api前缀
-        app.include_router(api_router, prefix="/api")
-        
-        # 设置静态文件路由（安全的头像服务）
-        setup_static_routes(app)
-
-        # 加载用户数据
-        userList = load_users()
-        app_logger.info(f"Loaded {len(userList)} users")
-
-        # 初始化数据库管理器
-        db_manager = sqlite_db_manager
-        app_logger.info("SQLite database manager initialized")
-
-        # 根路径
-
-
-        @app.get("/")
-        async def root():
-            return {"message": "MaiMNP Backend API"}
-
-        # 健康检查
-
-
-        @app.get("/health")
-        async def health_check():
-            return {"status": "healthy"}
-
-        # 认证路由已在api_routes.py中定义，无需重复定义
-
+    try:
         app_logger.info('Server started')
         app_logger.info(f'🌐 访问地址: http://{host}:{port}')
         uvicorn.run(app, host=host, port=port, log_level="critical")

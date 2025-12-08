@@ -616,11 +616,13 @@ class SQLiteDatabaseManager:
                 ('downloads', 'INTEGER DEFAULT 0'),
                 ('content', 'TEXT'),
                 ('tags', 'TEXT'),
+                ('version', "VARCHAR DEFAULT '1.0'"),
             ]),
             ('persona_cards', [
                 ('downloads', 'INTEGER DEFAULT 0'),
                 ('content', 'TEXT'),
                 ('tags', 'TEXT'),
+                ('version', "VARCHAR DEFAULT '1.0'"),
             ]),
             ('users', [
                 ('failed_login_attempts', 'INTEGER DEFAULT 0'),
@@ -637,6 +639,74 @@ class SQLiteDatabaseManager:
             for column_name, column_definition in columns:
                 self._add_column_if_not_exists(
                     table_name, column_name, column_definition)
+
+        # 清理历史 metadata_path 字段（如果存在）
+        self._cleanup_knowledge_bases_metadata_path()
+
+    def _cleanup_knowledge_bases_metadata_path(self):
+        """
+        如果 knowledge_bases 表中仍存在 metadata_path 列，
+        则按当前 ORM 模型结构重建该表，彻底移除该列。
+        """
+        try:
+            inspector = inspect(self.engine)
+            table_name = "knowledge_bases"
+
+            if table_name not in inspector.get_table_names():
+                return
+
+            existing_columns = [col["name"]
+                                for col in inspector.get_columns(table_name)]
+            # 只有在还存在 metadata_path 列时才执行迁移，确保幂等
+            if "metadata_path" not in existing_columns:
+                return
+
+            with self.engine.begin() as conn:
+                # 1. 将旧表重命名
+                conn.execute(
+                    text("ALTER TABLE knowledge_bases RENAME TO knowledge_bases_old"))
+
+                # 1.1 删除旧的索引，避免与新表索引重名
+                index_names = [
+                    "idx_kb_uploader_id",
+                    "idx_kb_is_public",
+                    "idx_kb_is_pending",
+                    "idx_kb_star_count",
+                    "idx_kb_created_at",
+                    "idx_kb_updated_at",
+                ]
+                for index_name in index_names:
+                    try:
+                        conn.execute(
+                            text(f"DROP INDEX IF EXISTS {index_name}")
+                        )
+                    except Exception:
+                        # 索引删除失败不影响整体迁移，继续处理
+                        pass
+
+                # 2. 按当前 ORM 模型结构重建新表（不包含 metadata_path）
+                KnowledgeBase.__table__.create(bind=self.engine)
+
+                # 3. 将数据从旧表复制到新表，只拷贝当前模型使用的列
+                columns_str = (
+                    "id, name, description, uploader_id, "
+                    "copyright_owner, content, tags, "
+                    "star_count, downloads, base_path, "
+                    "is_public, is_pending, rejection_reason, "
+                    "version, created_at, updated_at"
+                )
+
+                insert_sql = text(
+                    f"INSERT INTO knowledge_bases ({columns_str}) "
+                    f"SELECT {columns_str} FROM knowledge_bases_old"
+                )
+                conn.execute(insert_sql)
+
+                # 4. 删除旧表
+                conn.execute(text("DROP TABLE knowledge_bases_old"))
+        except Exception as e:
+            # 迁移失败不阻塞应用启动，打印一条日志便于排查
+            print(f"清理 knowledge_bases.metadata_path 字段失败: {e}")
 
     def get_session(self):
         """获取数据库会话"""
