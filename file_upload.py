@@ -3,9 +3,11 @@
 支持txt、json、toml格式文件的上传和管理
 """
 
+import io
 import os
 import shutil
 import zipfile
+import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Union
 from fastapi import UploadFile, HTTPException, status
@@ -14,6 +16,7 @@ import toml
 import json
 import tempfile
 from werkzeug.utils import secure_filename
+import mimetypes
 
 from models import (
     KnowledgeBase, PersonaCard, KnowledgeBaseFile
@@ -30,6 +33,10 @@ class FileUploadService:
     MAX_PERSONA_FILES = 2  # 人设卡最多文件数
     ALLOWED_KNOWLEDGE_TYPES = ['.txt', '.json']  # 知识库允许的文件类型
     ALLOWED_PERSONA_TYPES = ['.toml']  # 人设卡允许的文件类型
+    # 允许的 MIME 类型（用于实际内容校验）
+    ALLOWED_KNOWLEDGE_MIMES = ['text/plain', 'application/json']
+    # toml 通常检测为 text/plain 或 application/toml
+    ALLOWED_PERSONA_MIMES = ['application/toml', 'text/plain']
 
     def __init__(self):
         # 确保上传目录存在
@@ -39,6 +46,7 @@ class FileUploadService:
         os.makedirs(self.upload_dir, exist_ok=True)
         os.makedirs(self.knowledge_dir, exist_ok=True)
         os.makedirs(self.persona_dir, exist_ok=True)
+        self.logger = logging.getLogger(__name__)
 
     async def _save_uploaded_file(self, file: UploadFile, target_dir: str) -> str:
         """保存上传的文件到目标目录"""
@@ -115,6 +123,72 @@ class FileUploadService:
 
         return len(content) <= self.MAX_FILE_SIZE
 
+    def _detect_mime(self, content: bytes, filename: str) -> Optional[str]:
+        """检测文件 MIME 类型，优先使用 python-magic，失败回退 mimetypes"""
+        try:
+            import magic  # type: ignore
+            mime = magic.from_buffer(content, mime=True)
+            return mime
+        except Exception:
+            # 回退使用文件扩展名推断
+            mime_guess, _ = mimetypes.guess_type(filename)
+            return mime_guess
+
+    def _clamav_scan(self, content: bytes) -> bool:
+        """
+        使用 ClamAV 进行病毒扫描。
+        如果 ClamAV 不可用或扫描失败，返回 True（不阻塞业务），并记录警告。
+        """
+        try:
+            import clamd  # type: ignore
+            # 优先使用本地 socket，其次网络端口，失败则回退
+            try:
+                client = clamd.ClamdUnixSocket()
+                client.ping()
+            except Exception:
+                client = clamd.ClamdNetworkSocket()
+                client.ping()
+
+            result = client.instream(io.BytesIO(content))
+            # result 形如 {'stream': ('OK', None)} 或 ('FOUND', 'MalwareName')
+            stream_result = result.get("stream")
+            if not stream_result:
+                return True
+            status_code = stream_result[0] if isinstance(stream_result, (list, tuple)) else None
+            if status_code == "OK":
+                return True
+            # FOUND
+            self.logger.warning(f"ClamAV 检测到疑似恶意文件: {stream_result}")
+            return False
+        except Exception as exc:
+            # 扫描失败不阻断业务，但做提示
+            self.logger.warning(f"ClamAV 扫描不可用或失败，跳过扫描: {exc}")
+            return True
+
+    async def _validate_security(self, file: UploadFile, allowed_mimes: List[str]) -> None:
+        """
+        进行 MIME 校验与病毒扫描。
+        - 读取文件内容后重置指针，确保后续流程不受影响。
+        - ClamAV 不可用时跳过扫描但记录警告。
+        """
+        content = await file.read()
+        await file.seek(0)
+
+        mime = self._detect_mime(content, file.filename or "")
+        if mime and allowed_mimes and mime not in allowed_mimes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"文件类型与内容不匹配: {file.filename}, 检测到 {mime}"
+            )
+
+        # 病毒扫描
+        safe = self._clamav_scan(content)
+        if not safe:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"文件疑似包含恶意内容: {file.filename}"
+            )
+
     def _create_metadata_file(self, metadata: Dict[str, Any], target_dir: str, prefix: str) -> str:
         """创建元数据文件"""
         try:
@@ -170,6 +244,12 @@ class FileUploadService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"文件内容过大: {file.filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB"
                 )
+
+            # MIME 校验与病毒扫描
+            await self._validate_security(file, self.ALLOWED_KNOWLEDGE_MIMES)
+
+            # MIME 校验与病毒扫描（保持指针复位，不影响后续读取）
+            await self._validate_security(file, self.ALLOWED_KNOWLEDGE_MIMES)
 
         # 创建知识库目录
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -256,6 +336,9 @@ class FileUploadService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"文件内容过大: {file.filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB"
                 )
+
+            # MIME 校验与病毒扫描
+            await self._validate_security(file, self.ALLOWED_PERSONA_MIMES)
 
         # 创建人设卡目录
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
