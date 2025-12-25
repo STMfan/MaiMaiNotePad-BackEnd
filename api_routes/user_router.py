@@ -799,23 +799,23 @@ async def get_user_stars(
 @user_router.get("/me/upload-history", response_model=Dict[str, Any])
 async def get_my_upload_history(
         page: int = Query(1, description="页码，从1开始"),
-        limit: int = Query(20, description="每页条数，最大100"),
+        page_size: int = Query(20, description="每页条数，最大100"),
         current_user: dict = Depends(get_current_user)
 ):
     """获取当前用户的个人上传历史记录（分页）"""
     try:
         user_id = current_user.get("id", "")
-        app_logger.info(f"Get user upload history: user_id={user_id}, page={page}, limit={limit}")
+        app_logger.info(f"Get user upload history: user_id={user_id}, page={page}, page_size={page_size}")
 
         # 限制参数范围
-        if limit < 1 or limit > 100:
-            limit = 20
+        if page_size < 1 or page_size > 100:
+            page_size = 20
         if page < 1:
             page = 1
 
         # 获取用户的上传记录
         upload_records = db_manager.get_upload_records_by_uploader(
-            user_id, page=page, limit=limit)
+            user_id, page=page, limit=page_size)
 
         # 构建返回数据
         history_list = []
@@ -879,15 +879,12 @@ async def get_my_upload_history(
 
         app_logger.info(f"Returning {len(history_list)} items out of {total_count} total items")
 
-        return Success(
+        return Page(
             message="获取上传历史成功",
-            data={
-                "items": history_list,
-                "total": total_count,
-                "page": page,
-                "page_size": limit,
-                "total_pages": (total_count + limit - 1) // limit
-            }
+            data=history_list,
+            total=total_count,
+            page=page,
+            page_size=page_size,
         )
 
     except Exception as e:

@@ -1134,8 +1134,9 @@ class SQLiteDatabaseManager:
             # 重新抛出异常，让调用者知道具体错误
             raise Exception(f"批量创建消息失败: {str(e)}")
 
-    def get_conversation_messages(self, user_id: str, other_user_id: str, limit: int = 50, offset: int = 0):
+    def get_conversation_messages(self, user_id: str, other_user_id: str, page: int = 1, page_size: int = 20):
         """获取与特定用户的对话消息"""
+        offset = (page - 1) * page_size
         with self.get_session() as session:
             return session.query(Message).filter(
                 or_(
@@ -1144,16 +1145,16 @@ class SQLiteDatabaseManager:
                     and_(Message.sender_id == other_user_id,
                          Message.recipient_id == user_id)
                 )
-            ).order_by(Message.created_at.desc()).offset(offset).limit(limit).all()
+            ).order_by(Message.created_at.desc()).offset(offset).limit(page_size).all()
 
-    def get_user_messages(self, user_id: str, limit: int = 50, offset: int = 0):
+    def get_user_messages(self, user_id: str, page: int = 1, page_size: int = 20):
         """获取用户收到的消息（仅接收者）"""
         with self.get_session() as session:
             return session.query(Message).filter(
                 Message.recipient_id == user_id
-            ).order_by(Message.created_at.desc()).offset(offset).limit(limit).all()
+            ).order_by(Message.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
 
-    def get_broadcast_messages(self, limit: int = 50, offset: int = 0):
+    def get_broadcast_messages(self, page: int = 1, page_size: int = 20):
         """获取所有广播消息（按发送者分组，返回每个广播的唯一消息）"""
         with self.get_session() as session:
             # 获取所有广播消息
@@ -1161,7 +1162,7 @@ class SQLiteDatabaseManager:
                 Message.message_type == "announcement",
                 Message.broadcast_scope == "all_users"
                 # 获取更多以便去重
-            ).order_by(Message.created_at.desc()).offset(offset).limit(limit * 10).all()
+            ).order_by(Message.created_at.desc()).offset((page - 1) * page_size).limit(page_size * 10).all()
 
             # 去重：相同sender_id、title、content、created_at的消息只保留一条
             seen = set()
@@ -1174,7 +1175,7 @@ class SQLiteDatabaseManager:
                 if key not in seen:
                     seen.add(key)
                     unique_messages.append(msg)
-                    if len(unique_messages) >= limit:
+                    if len(unique_messages) >= page_size:
                         break
 
             return unique_messages
@@ -1875,28 +1876,28 @@ class SQLiteDatabaseManager:
             print(f"更新上传记录状态失败: {str(e)}")
             return False
 
-    def get_all_upload_records(self, page: int = 1, limit: int = 20):
+    def get_all_upload_records(self, page: int = 1, page_size: int = 20):
         """获取所有上传记录（分页）"""
         with self.get_session() as session:
-            offset = (page - 1) * limit
+            offset = (page - 1) * page_size
             return session.query(UploadRecord).order_by(
                 UploadRecord.created_at.desc()
-            ).offset(offset).limit(limit).all()
+            ).offset(offset).limit(page_size).all()
 
     def get_upload_records_count(self):
         """获取上传记录总数"""
         with self.get_session() as session:
             return session.query(UploadRecord).count()
 
-    def get_upload_records_by_uploader(self, uploader_id: str, page: int = 1, limit: int = 20):
+    def get_upload_records_by_uploader(self, uploader_id: str, page: int = 1, page_size: int = 20):
         """根据上传者ID获取上传记录（分页）"""
         with self.get_session() as session:
-            offset = (page - 1) * limit
+            offset = (page - 1) * page_size
             return session.query(UploadRecord).filter(
                 UploadRecord.uploader_id == uploader_id
             ).order_by(
                 UploadRecord.created_at.desc()
-            ).offset(offset).limit(limit).all()
+            ).offset(offset).limit(page_size).all()
 
     def get_upload_records_count_by_uploader(self, uploader_id: str):
         """根据上传者ID获取上传记录总数"""
@@ -2018,6 +2019,10 @@ class SQLiteDatabaseManager:
         except Exception as e:
             print(f"更新上传记录状态失败: {str(e)}")
             return False
+
+    def count_broadcast_messages(self) -> int:
+        with self.get_session() as session:
+            return session.query(Message).count()
 
 
 # 创建全局SQLite数据库管理器实例

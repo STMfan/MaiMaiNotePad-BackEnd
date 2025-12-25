@@ -222,18 +222,18 @@ async def get_message_detail(
 async def get_messages(
         current_user: dict = Depends(get_current_user),
         other_user_id: Optional[str] = None,
-        limit: int = 50,
-        offset: int = 0
+        page: int = 1,
+        page_size: int = 20
 ):
     """获取消息列表"""
     user_id = current_user.get("id", "")
     try:
         app_logger.info(
-            f"Get messages: user_id={user_id}, other_user_id={other_user_id}, limit={limit}, offset={offset}")
+            f"Get messages: user_id={user_id}, other_user_id={other_user_id}, page={page}, page_size={page_size}")
 
         # 验证参数
-        if limit <= 0 or limit > 100:
-            raise ValidationError("limit必须在1-100之间")
+        if page <= 0 or page_size <= 0 or page_size > 100:
+            raise ValidationError("page和page_size必须大于0，page_size最多100条")
 
         if offset < 0:
             raise ValidationError("offset不能为负数")
@@ -244,15 +244,15 @@ async def get_messages(
             messages = db_manager.get_conversation_messages(
                 user_id=user_id,
                 other_user_id=other_user_id,
-                limit=limit,
-                offset=offset
+                page=page,
+                page_size=page_size
             )
         else:
             # 获取所有消息
             messages = db_manager.get_user_messages(
                 user_id=user_id,
-                limit=limit,
-                offset=offset
+                page=page,
+                page_size=page_size
             )
 
         return Success(
@@ -560,8 +560,8 @@ async def update_message(
 @messages_router.get("/admin/broadcast-messages")
 async def get_broadcast_messages(
         current_user: dict = Depends(get_current_user),
-        limit: int = 50,
-        offset: int = 0
+        page: int = 1,
+        page_size: int = 20
 ):
     """获取广播消息历史（仅限admin和moderator）"""
     # 验证权限：admin或moderator
@@ -572,18 +572,18 @@ async def get_broadcast_messages(
 
     try:
         app_logger.info(
-            f"Get broadcast messages: user_id={current_user.get('id')}, limit={limit}, offset={offset}")
+            f"Get broadcast messages: user_id={current_user.get('id')}, page={page}, page_size={page_size}")
 
         # 验证参数
-        if limit <= 0 or limit > 100:
-            raise ValidationError("limit必须在1-100之间")
+        if page_size <= 0 or page_size > 100:
+            raise ValidationError("page_size必须在1-100之间")
 
-        if offset < 0:
-            raise ValidationError("offset不能为负数")
+        if page < 1:
+            raise ValidationError("page必须大于等于1")
 
         # 获取广播消息
         messages = db_manager.get_broadcast_messages(
-            limit=limit, offset=offset)
+            page=page, page_size=page_size)
 
         # 获取发送者信息
         sender_ids = list(set([msg.sender_id for msg in messages]))
@@ -615,15 +615,15 @@ async def get_broadcast_messages(
                 "created_at": msg.created_at.isoformat() if msg.created_at else "",
                 "stats": stats
             })
+        
+        total = db_manager.count_broadcast_messages()
 
-        return Success(
+        return Page(
             message="广播消息历史获取成功",
-            data={
-                "messages": result,
-                "total": len(result),
-                "limit": limit,
-                "offset": offset
-            }
+            data=result,
+            total=total,
+            page=page,
+            page_size=page_size
         )
 
     except (ValidationError, AuthorizationError, DatabaseError):

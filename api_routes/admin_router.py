@@ -83,7 +83,7 @@ async def get_admin_stats(current_user: dict = Depends(get_current_user)):
 
 @admin_router.get("/admin/recent-users")
 async def get_recent_users(
-        limit: int = 10,
+        page_size: int = 10,
         page: int = 1,
         current_user: dict = Depends(get_current_user)
 ):
@@ -97,11 +97,11 @@ async def get_recent_users(
 
     try:
         app_logger.info(
-            f"Get recent users: user_id={current_user.get('id')}, limit={limit}, page={page}")
+            f"Get recent users: user_id={current_user.get('id')}, page_size={page_size}, page={page}")
 
-        # 限制limit范围
-        if limit < 1 or limit > 100:
-            limit = 10
+        # 限制page_size范围
+        if page_size < 1 or page_size > 100:
+            page_size = 10
         if page < 1:
             page = 1
 
@@ -109,12 +109,12 @@ async def get_recent_users(
             from database_models import User
             from sqlalchemy import desc
 
-            offset = (page - 1) * limit
+            offset = (page - 1) * page_size
             users = session.query(User).filter(
                 User.is_active == True
             ).order_by(
                 desc(User.created_at)
-            ).offset(offset).limit(limit).all()
+            ).offset(offset).limit(page_size).all()
 
             user_list = []
             for user in users:
@@ -128,9 +128,18 @@ async def get_recent_users(
                     "createdAt": user.created_at.isoformat() if user.created_at else None
                 })
 
+        # 统计总用户数
+        with db_manager.get_session() as session:
+            total_users = session.query(User).count()
+
         log_api_request(app_logger, "GET", "/admin/recent-users",
                         current_user.get("id"), status_code=200)
-        return Success(data=user_list)
+        return Page(
+            data=user_list,
+            page=page,
+            page_size=page_size,
+            total=total_users,
+        )
 
     except HTTPException:
         raise
@@ -145,8 +154,8 @@ async def get_recent_users(
 # 用户管理API
 @admin_router.get("/admin/users")
 async def get_all_users(
+        page_size: int = 20,
         page: int = 1,
-        limit: int = 20,
         search: Optional[str] = None,
         role: Optional[str] = None,
         current_user: dict = Depends(get_current_user)
@@ -161,11 +170,11 @@ async def get_all_users(
 
     try:
         app_logger.info(
-            f"Get all users: user_id={current_user.get('id')}, page={page}, limit={limit}, search={search}, role={role}")
+            f"Get all users: user_id={current_user.get('id')}, page={page}, page_size={page_size}, search={search}, role={role}")
 
         # 限制参数范围
-        if limit < 1 or limit > 100:
-            limit = 20
+        if page_size < 1 or page_size > 100:
+            page_size = 20
         if page < 1:
             page = 1
 
@@ -198,9 +207,9 @@ async def get_all_users(
             total = query.count()
 
             # 分页
-            offset = (page - 1) * limit
+            offset = (page - 1) * page_size
             users = query.order_by(User.created_at.desc()).offset(
-                offset).limit(limit).all()
+                offset).limit(page_size).all()
 
             # 构建用户列表
             user_list = []
@@ -226,18 +235,13 @@ async def get_all_users(
                     "personaCount": pc_count
                 })
 
-            total_pages = (total + limit - 1) // limit if total > 0 else 0
-
         log_api_request(app_logger, "GET", "/admin/users",
                         current_user.get("id"), status_code=200)
-        return Success(
-            data={
-                "users": user_list,
-                "total": total,
-                "page": page,
-                "limit": limit,
-                "totalPages": total_pages
-            }
+        return Page(
+            data=user_list,
+            page=page,
+            page_size=page_size,
+            total=total,
         )
 
     except HTTPException:
@@ -496,7 +500,7 @@ async def create_user_by_admin(
 @admin_router.get("/admin/knowledge/all")
 async def get_all_knowledge_bases_admin(
         page: int = 1,
-        limit: int = 20,
+        page_size: int = 20,
         status: Optional[str] = None,
         search: Optional[str] = None,
         uploader: Optional[str] = Query(
@@ -523,11 +527,11 @@ async def get_all_knowledge_bases_admin(
 
     try:
         app_logger.info(
-            f"Get all knowledge bases (admin): user_id={current_user.get('id')}, page={page}, limit={limit}, status={status}, search={search}")
+            f"Get all knowledge bases (admin): user_id={current_user.get('id')}, page={page}, page_size={page_size}, status={status}, search={search}")
 
         # 限制参数范围
-        if limit < 1 or limit > 100:
-            limit = 20
+        if page_size < 1 or page_size > 100:
+            page_size = 20
         if page < 1:
             page = 1
 
@@ -560,9 +564,9 @@ async def get_all_knowledge_bases_admin(
             total = query.count()
 
             # 分页
-            offset = (page - 1) * limit
+            offset = (page - 1) * page_size
             knowledge_bases = query.order_by(
-                KnowledgeBase.created_at.desc()).offset(offset).limit(limit).all()
+                KnowledgeBase.created_at.desc()).offset(offset).limit(page_size).all()
 
             # 获取上传者信息
             uploader_ids = list(
@@ -598,16 +602,11 @@ async def get_all_knowledge_bases_admin(
 
         log_api_request(app_logger, "GET", "/admin/knowledge/all",
                         current_user.get("id"), status_code=200)
-        return Success(
-            data={
-                "knowledgeBases": kb_list,
-                "total": total,
-                "page": page,
-                "limit": limit,
-                "orderBy": order_by,
-                "orderDir": order_dir,
-                "uploader": uploader
-            }
+        return Page(
+            data = kb_list,
+            page = page,
+            page_size = page_size,
+            total = total,
         )
 
     except HTTPException:
@@ -624,7 +623,7 @@ async def get_all_knowledge_bases_admin(
 @admin_router.get("/admin/persona/all")
 async def get_all_personas_admin(
         page: int = 1,
-        limit: int = 20,
+        page_size: int = 20,
         status: Optional[str] = None,
         search: Optional[str] = None,
         uploader: Optional[str] = Query(
@@ -651,11 +650,11 @@ async def get_all_personas_admin(
 
     try:
         app_logger.info(
-            f"Get all personas (admin): user_id={current_user.get('id')}, page={page}, limit={limit}, status={status}, search={search}")
+            f"Get all personas (admin): user_id={current_user.get('id')}, page={page}, page_size={page_size}, status={status}, search={search}")
 
         # 限制参数范围
-        if limit < 1 or limit > 100:
-            limit = 20
+        if page_size < 1 or page_size > 100:
+            page_size = 20
         if page < 1:
             page = 1
 
@@ -688,9 +687,9 @@ async def get_all_personas_admin(
             total = query.count()
 
             # 分页
-            offset = (page - 1) * limit
+            offset = (page - 1) * page_size
             persona_cards = query.order_by(
-                PersonaCard.created_at.desc()).offset(offset).limit(limit).all()
+                PersonaCard.created_at.desc()).offset(offset).limit(page_size).all()
 
             # 获取上传者信息
             uploader_ids = list(set([pc.uploader_id for pc in persona_cards]))
@@ -725,16 +724,12 @@ async def get_all_personas_admin(
 
         log_api_request(app_logger, "GET", "/admin/persona/all",
                         current_user.get("id"), status_code=200)
-        return Success(
-            data={
-                "personas": pc_list,
-                "total": total,
-                "page": page,
-                "limit": limit,
-                "orderBy": order_by,
-                "orderDir": order_dir,
-                "uploader": uploader
-            }
+        return Page(
+            data=pc_list,
+            page=page,
+            page_size=page_size,
+            total=total,
+            message="获取人设卡列表成功"
         )
 
     except HTTPException:
@@ -926,7 +921,7 @@ async def revert_persona_card(
 @admin_router.get("/admin/upload-history")
 async def get_upload_history(
         page: int = 1,
-        limit: int = 20,
+        page_size: int = 20,
         current_user: dict = Depends(get_current_user)
 ):
     """获取上传历史记录（admin和moderator权限，支持分页）"""
@@ -939,17 +934,19 @@ async def get_upload_history(
 
     try:
         app_logger.info(
-            f"Get upload history: user_id={current_user.get('id')}, page={page}, limit={limit}")
+            f"Get upload history: user_id={current_user.get('id')}, page={page}, page_size={page_size}")
 
         # 限制参数范围
-        if limit < 1 or limit > 100:
-            limit = 20
+        if page_size < 1 or page_size > 100:
+            page_size = 20
         if page < 1:
             page = 1
 
         # 获取上传记录
         upload_records = db_manager.get_all_upload_records(
-            page=page, limit=limit)
+            page=page, page_size=page_size)
+
+        total=len(upload_records)
 
         # 获取上传者信息
         uploader_ids = list(
@@ -1023,8 +1020,12 @@ async def get_upload_history(
 
         log_api_request(app_logger, "GET", "/admin/upload-history",
                         current_user.get("id"), status_code=200)
-        return Success(
-            data=history_list
+        return Page(
+            data=history_list,
+            page=page,
+            page_size=page_size,
+            total=total,
+            message="获取上传历史记录成功"
         )
 
     except HTTPException:
@@ -1100,6 +1101,7 @@ async def get_upload_stats(current_user: dict = Depends(get_current_user)):
         log_api_request(app_logger, "GET", "/admin/upload-stats",
                         current_user.get("id"), status_code=200)
         return Success(
+            message="获取上传统计成功",
             data=stats
         )
 
@@ -1145,7 +1147,6 @@ async def delete_messages(
 
         return Success(
             message=f"成功删除 {deleted_count} 条消息",
-            data={"deleted_count": deleted_count}
         )
 
     except (ValidationError, NotFoundError, DatabaseError):
