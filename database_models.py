@@ -184,16 +184,16 @@ class KnowledgeBase(Base):
             "content": self.content,
             "tags": (self.tags or "").split(",") if self.tags else [],
             "star_count": self.star_count or 0,
+            "downloads": self.downloads or 0,
             "base_path": self.base_path or "[]",
             "is_public": self.is_public,
             "is_pending": self.is_pending if self.is_pending is not None else True,
             "rejection_reason": self.rejection_reason,
             "version": self.version,
-            "created_at": self.created_at if self.created_at else datetime.now(),
-            "updated_at": self.updated_at if self.updated_at else datetime.now(),
+            "created_at": self.created_at.isoformat() if self.created_at else datetime.now().isoformat(),
+            "updated_at": self.updated_at.isoformat() if self.updated_at else datetime.now().isoformat(),
             # 默认值
             "files": [],
-            "downloads": self.downloads or 0,
             "download_url": None,
             "preview_url": None,
             "size": None,
@@ -220,6 +220,27 @@ class KnowledgeBase(Base):
                 pass
 
         return result
+
+    def to_db_dict(self):
+        """将知识库对象转换为数据库字典"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "uploader_id": self.uploader_id,
+            "copyright_owner": self.copyright_owner,
+            "content": self.content,
+            "tags": self.tags,
+            "star_count": self.star_count,
+            "downloads": self.downloads,
+            "base_path": self.base_path,
+            "is_public": self.is_public,
+            "is_pending": self.is_pending,
+            "rejection_reason": self.rejection_reason,
+            "version": self.version,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
 
     @classmethod
     def from_dict(cls, data):
@@ -375,8 +396,8 @@ class PersonaCard(Base):
             "is_pending": self.is_pending if self.is_pending is not None else True,
             "rejection_reason": self.rejection_reason,
             "version": self.version,
-            "created_at": self.created_at if self.created_at else datetime.now(),
-            "updated_at": self.updated_at if self.updated_at else datetime.now(),
+            "created_at": self.created_at.isoformat() if self.created_at else datetime.now().isoformat(),
+            "updated_at": self.updated_at.isoformat() if self.updated_at else datetime.now().isoformat(),
             # 默认值
             "files": [],
             "downloads": self.downloads or 0,
@@ -407,6 +428,27 @@ class PersonaCard(Base):
                 pass
 
         return result
+
+    def to_db_dict(self):
+        """将人设卡对象转换为数据库字典"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "uploader_id": self.uploader_id,
+            "copyright_owner": self.copyright_owner,
+            "content": self.content,
+            "tags": self.tags,
+            "star_count": self.star_count,
+            "downloads": self.downloads,
+            "base_path": self.base_path,
+            "is_public": self.is_public,
+            "is_pending": self.is_pending,
+            "rejection_reason": self.rejection_reason,
+            "version": self.version,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
 
 
 class Message(Base):
@@ -451,9 +493,24 @@ class Message(Base):
             "message_type": self.message_type or "direct",
             "broadcast_scope": self.broadcast_scope,
             "is_read": self.is_read or False,
-            "created_at": self.created_at if self.created_at else datetime.now()
+            "created_at": self.created_at.isoformat() if self.created_at else datetime.now().isoformat()
         }
         return data
+
+    def to_db_dict(self):
+        """将消息对象转换为数据库字典"""
+        return {
+            "id": self.id,
+            "recipient_id": self.recipient_id,
+            "sender_id": self.sender_id,
+            "title": self.title,
+            "content": self.content,
+            "summary": self.summary,  # 添加summary字段
+            "message_type": self.message_type or "direct",
+            "broadcast_scope": self.broadcast_scope,
+            "is_read": self.is_read or False,
+            "created_at": self.created_at or datetime.now()
+        }
 
 
 class StarRecord(Base):
@@ -955,11 +1012,26 @@ class SQLiteDatabaseManager:
                     # 更新现有记录
                     for key, value in pc_data.items():
                         if hasattr(pc, key):
-                            setattr(pc, key, value)
+                            # 处理日期时间字段，将其转换为datetime对象
+                            if key in ['created_at', 'updated_at'] and isinstance(value, str):
+                                try:
+                                    setattr(pc, key, datetime.fromisoformat(value.replace('Z', '+00:00')))
+                                except ValueError:
+                                    # 如果格式不正确，使用当前时间
+                                    setattr(pc, key, datetime.now())
+                            else:
+                                setattr(pc, key, value)
                     pc.updated_at = datetime.now()
                 else:
-                    # 创建新记录
-                    pc = PersonaCard(**pc_data)
+                    # 创建新记录，处理日期时间字段
+                    pc_data_for_db = pc_data.copy()
+                    for key in ['created_at', 'updated_at']:
+                        if key in pc_data_for_db and isinstance(pc_data_for_db[key], str):
+                            try:
+                                pc_data_for_db[key] = datetime.fromisoformat(pc_data_for_db[key].replace('Z', '+00:00'))
+                            except ValueError:
+                                pc_data_for_db[key] = datetime.now()
+                    pc = PersonaCard(**pc_data_for_db)
                     session.add(pc)
 
                 session.commit()

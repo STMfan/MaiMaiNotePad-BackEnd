@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 
 from models import (
-    KnowledgeBaseUpdate, KnowledgeBaseResponse, KnowledgeBasePaginatedResponse
+    KnowledgeBaseUpdate, KnowledgeBaseResponse
 )
 from database_models import sqlite_db_manager
 from file_upload import file_upload_service
@@ -18,6 +18,7 @@ from error_handlers import (
     AuthorizationError, NotFoundError, ConflictError,
     FileOperationError, DatabaseError
 )
+from api_routes.response_util import Error, Success, Page
 
 # 创建路由器
 knowledgeBase_router = APIRouter()
@@ -27,7 +28,7 @@ db_manager = sqlite_db_manager
 
 
 # 知识库相关路由
-@knowledgeBase_router.post("/knowledge/upload", response_model=KnowledgeBaseResponse)
+@knowledgeBase_router.post("/knowledge/upload")
 async def upload_knowledge_base(
         files: List[UploadFile] = File(...),
         name: str = Form(...),
@@ -100,7 +101,10 @@ async def upload_knowledge_base(
             success=True
         )
 
-        return KnowledgeBaseResponse(**kb.to_dict())
+        return Success(
+            message="知识库上传成功",
+            data=kb.to_dict()
+        )
 
     except (ValidationError, FileOperationError, DatabaseError):
         raise
@@ -117,7 +121,7 @@ async def upload_knowledge_base(
         raise APIError("上传知识库失败")
 
 
-@knowledgeBase_router.get("/knowledge/public", response_model=KnowledgeBasePaginatedResponse)
+@knowledgeBase_router.get("/knowledge/public")
 async def get_public_knowledge_bases(
         page: int = Query(1, ge=1, description="页码"),
         page_size: int = Query(20, ge=1, le=100, description="每页数量"),
@@ -153,8 +157,9 @@ async def get_public_knowledge_bases(
             sort_by=sort_by,
             sort_order=sort_order
         )
-        return KnowledgeBasePaginatedResponse(
-            items=[KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs],
+        return Page(
+            data=[kb.to_dict() for kb in kbs],
+            message="获取公开知识库成功",
             total=total,
             page=page,
             page_size=page_size
@@ -166,7 +171,7 @@ async def get_public_knowledge_bases(
         raise APIError("获取公开知识库失败")
 
 
-@knowledgeBase_router.get("/knowledge/{kb_id}", response_model=KnowledgeBaseResponse)
+@knowledgeBase_router.get("/knowledge/{kb_id}")
 async def get_knowledge_base(kb_id: str):
     """获取知识库基本信息"""
     try:
@@ -178,7 +183,10 @@ async def get_knowledge_base(kb_id: str):
             raise NotFoundError("知识库不存在")
 
         kb_dict = kb.to_dict(include_files=True)
-        return KnowledgeBaseResponse(**kb_dict)
+        return Success(
+            message="获取知识库成功",
+            data=kb_dict
+        )
 
     except NotFoundError:
         raise
@@ -187,7 +195,7 @@ async def get_knowledge_base(kb_id: str):
         raise APIError("获取知识库失败")
 
 
-@knowledgeBase_router.get("/knowledge/{kb_id}/starred", response_model=Dict[str, bool])
+@knowledgeBase_router.get("/knowledge/{kb_id}/starred")
 async def check_knowledge_starred(
         kb_id: str,
         current_user: dict = Depends(get_current_user)
@@ -198,13 +206,16 @@ async def check_knowledge_starred(
         app_logger.info(
             f"Check knowledge starred: kb_id={kb_id}, user_id={user_id}")
         starred = db_manager.is_starred(user_id, kb_id, "knowledge")
-        return {"starred": starred}
+        return Success(
+            message="检查Star状态成功",
+            data={"starred": starred}
+        )
     except Exception as e:
         log_exception(app_logger, "Check knowledge starred error", exception=e)
         raise APIError("检查Star状态失败")
 
 
-@knowledgeBase_router.get("/knowledge/user/{user_id}", response_model=KnowledgeBasePaginatedResponse)
+@knowledgeBase_router.get("/knowledge/user/{user_id}")
 async def get_user_knowledge_bases(
         user_id: str,
         page: int = Query(1, ge=1, description="页码"),
@@ -216,18 +227,12 @@ async def get_user_knowledge_bases(
         sort_order: str = Query("desc", description="排序方向: asc/desc"),
         current_user: dict = Depends(get_current_user)
 ):
-    """获取指定用户上传的知识库，支持分页/筛选；管理员/审核员可查看他人"""
+    """获取指定用户上传的知识库"""
     current_user_id = current_user.get("id", "")
-    current_role = current_user.get("role", "user")
     try:
         app_logger.info(
             f"Get user knowledge bases: user_id={user_id}, requester={current_user_id}")
 
-        # 验证权限：只能查看自己的知识库
-        if user_id != current_user_id:
-            app_logger.warning(
-                f"Unauthorized access attempt: user={current_user_id} trying to access user={user_id} data")
-            raise AuthorizationError("没有权限查看其他用户的上传记录")
 
         kbs = db_manager.get_knowledge_bases_by_uploader(user_id)
 
@@ -235,9 +240,9 @@ async def get_user_knowledge_bases(
             if status == "pending":
                 return kb.is_pending
             if status == "approved":
-                return (kb.is_pending is False) and kb.is_public
+                return not kb.is_pending and kb.is_public
             if status == "rejected":
-                return (kb.is_pending is False) and (not kb.is_public)
+                return not kb.is_pending and (not kb.is_public)
             return True
 
         # 允许的排序字段
@@ -273,8 +278,9 @@ async def get_user_knowledge_bases(
         end = start + page_size
         page_items = filtered[start:end]
 
-        return KnowledgeBasePaginatedResponse(
-            items=[KnowledgeBaseResponse(**kb.to_dict()) for kb in page_items],
+        return Page(
+            data=[kb.to_dict() for kb in page_items],
+            message="获取用户知识库成功",
             total=total,
             page=page,
             page_size=page_size
@@ -332,7 +338,9 @@ async def star_knowledge_base(
             success=True
         )
 
-        return {"message": message + "成功"}
+        return Success(
+            message=message + "成功"
+        )
     except (NotFoundError, ConflictError, DatabaseError):
         raise
     except Exception as e:
@@ -379,7 +387,9 @@ async def unstar_knowledge_base(
             success=True
         )
 
-        return {"message": "取消Star成功"}
+        return Success(
+            message="取消Star成功"
+        )
     except (NotFoundError, DatabaseError):
         raise
     except Exception as e:
@@ -395,7 +405,7 @@ async def unstar_knowledge_base(
         raise APIError("取消Star知识库失败")
 
 
-@knowledgeBase_router.put("/knowledge/{kb_id}", response_model=KnowledgeBaseResponse)
+@knowledgeBase_router.put("/knowledge/{kb_id}")
 async def update_knowledge_base(
         kb_id: str,
         update_data: KnowledgeBaseUpdate,
@@ -443,7 +453,10 @@ async def update_knowledge_base(
             success=True
         )
 
-        return KnowledgeBaseResponse(**updated_kb.to_dict())
+        return Success(
+            message="修改知识库成功",
+            data=updated_kb.to_dict()
+        )
 
     except (NotFoundError, AuthorizationError, ValidationError, DatabaseError):
         raise
@@ -472,6 +485,8 @@ async def add_files_to_knowledge_base(
     try:
         app_logger.info(
             f"Add files to knowledge base: kb_id={kb_id}, user_id={user_id}")
+        if not files:
+            raise ValidationError("至少需要上传一个文件")
 
         # 检查知识库是否存在
         kb = db_manager.get_knowledge_base_by_id(kb_id)
@@ -511,7 +526,9 @@ async def add_files_to_knowledge_base(
             success=True
         )
 
-        return {"message": "文件添加成功"}
+        return Success(
+            message="文件添加成功",
+        )
 
     except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError):
         raise
@@ -552,7 +569,9 @@ async def delete_files_from_knowledge_base(
             raise AuthorizationError("是你的知识库吗你就删")
 
         if not file_id:
-            return {"message": "文件删除成功", "knowledge_deleted": False}
+            return Success(
+                message="文件删除成功",
+            )
 
         # 删除文件
         success = await file_upload_service.delete_files_from_knowledge_base(kb_id, file_id, user_id)
@@ -616,7 +635,9 @@ async def delete_files_from_knowledge_base(
             )
 
         message = "最后一个文件删除，知识库已自动删除" if knowledge_deleted else "文件删除成功"
-        return {"message": message, "knowledge_deleted": knowledge_deleted}
+        return Success(
+            message=message,
+        )
 
     except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError):
         raise
@@ -786,7 +807,7 @@ async def delete_knowledge_base(
             success=True
         )
 
-        return {"message": "知识库删除成功"}
+        return Success(message="知识库删除成功")
 
     except (NotFoundError, AuthorizationError, FileOperationError, DatabaseError):
         raise

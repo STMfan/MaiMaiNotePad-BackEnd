@@ -4,16 +4,20 @@ import os
 import hashlib
 from datetime import datetime
 
-from database_models import sqlite_db_manager
-from user_management import get_current_user, create_user
-
-# 导入错误处理和日志记录模块
-from logging_config import app_logger, log_exception, log_file_operation, log_database_operation
+from api_routes.response_util import Success, Page
 from error_handlers import (
     APIError, ValidationError, AuthenticationError,
     NotFoundError, DatabaseError
 )
+from database_models import sqlite_db_manager
+from user_management import get_current_user, create_user
+from avatar_utils import (
+    validate_image_file, save_avatar_file,
+    delete_avatar_file, ensure_avatar_dir
+)
 
+# 导入错误处理和日志记录模块
+from logging_config import app_logger, log_exception, log_file_operation, log_database_operation
 # 创建路由器
 user_router = APIRouter()
 
@@ -76,7 +80,9 @@ async def login(request: Request):
             refresh_token = create_refresh_token(user.userID)
 
             # 返回token和用户信息
-            return {
+            return Success(
+                message = "登录成功",
+                data = {
                 "access_token": access_token,
                 "refresh_token": refresh_token,
                 "token_type": "bearer",
@@ -87,7 +93,7 @@ async def login(request: Request):
                     "email": user.email,
                     "role": user.role
                 }
-            }
+            })
 
         # 登录失败（统一错误消息，防止用户枚举）
         app_logger.warning(f"Login failed: username_hash={username_hash}")
@@ -153,11 +159,13 @@ async def refresh_token(request: Request):
 
         app_logger.info(f"Token refreshed: user_id={user.userID}")
 
-        return {
+        return Success(
+            message = "令牌刷新成功",
+            data = {
             "access_token": access_token,
             "token_type": "bearer",
-            "expires_in": 900  # 15分钟
-        }
+            "expires_in": 5184000# 1天
+        })
 
     except (AuthenticationError, ValidationError):
         raise
@@ -207,7 +215,9 @@ async def send_verification_code(
             success=True
         )
 
-        return {"message": "验证码已发送"}
+        return Success(
+            message="验证码已发送"
+        )
 
     except Exception as e:
         log_exception(app_logger, "Send verification code error", exception=e)
@@ -270,7 +280,7 @@ async def send_reset_password_code(
             success=True
         )
 
-        return {"message": "重置密码验证码已发送"}
+        return Success(message="重置密码验证码已发送")
 
     except Exception as e:
         log_exception(
@@ -322,10 +332,9 @@ async def reset_password(
             success=True
         )
 
-        return {
-            "success": True,
-            "message": "密码重置成功"
-        }
+        return Success(
+            message="密码重置成功"
+        )
 
     except Exception as e:
         log_exception(app_logger, "Reset password error", exception=e)
@@ -365,10 +374,9 @@ async def user_register(
             success=True
         )
 
-        return {
-            "success": True,
-            "message": "注册成功"
-        }
+        return Success(
+            message="注册成功"
+        )
 
     except Exception as e:
         log_exception(app_logger, "Register user error", exception=e)
@@ -393,14 +401,17 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
             if user.avatar_updated_at:
                 avatar_updated_at = user.avatar_updated_at.isoformat()
 
-        return {
-            "id": user_id,
-            "username": current_user.get("username", ""),
-            "email": current_user.get("email", ""),
-            "role": current_user.get("role", "user"),
-            "avatar_url": avatar_url,
-            "avatar_updated_at": avatar_updated_at
-        }
+        return Success(
+            message="用户信息获取成功",
+            data={
+                "id": user_id,
+                "username": current_user.get("username", ""),
+                "email": current_user.get("email", ""),
+                "role": current_user.get("role", "user"),
+                "avatar_url": avatar_url,
+                "avatar_updated_at": avatar_updated_at
+            }
+        )
     except Exception as e:
         log_exception(app_logger, "Get user info error", exception=e)
         raise APIError("获取用户信息失败")
@@ -466,10 +477,9 @@ async def change_password(
 
         app_logger.info(f"Password changed successfully: user_id={user_id}")
 
-        return {
-            "success": True,
-            "message": "密码修改成功，请重新登录"
-        }
+        return Success(
+            message="密码修改成功，请重新登录"
+        )
 
     except (ValidationError, AuthenticationError, NotFoundError, DatabaseError):
         raise
@@ -485,11 +495,6 @@ async def upload_avatar(
 ):
     """上传/更新头像"""
     try:
-        from avatar_utils import (
-            validate_image_file, process_avatar_image, save_avatar_file,
-            delete_avatar_file, ensure_avatar_dir
-        )
-
         user_id = current_user.get("id", "")
         app_logger.info(f"Upload avatar request: user_id={user_id}")
 
@@ -538,14 +543,15 @@ async def upload_avatar(
         )
 
         app_logger.info(
-            f"Avatar uploaded successfully: user_id={user_id}, path={file_path}")
+            f"头像上传成功: user_id={user_id}, path={file_path}")
 
-        return {
-            "success": True,
-            "message": "头像上传成功",
-            "avatar_url": f"/{file_path}",
-            "avatar_updated_at": user.avatar_updated_at.isoformat()
-        }
+        return Success(
+            message="头像上传成功",
+            data={
+                "avatar_url": f"/{file_path}",
+                "avatar_updated_at": user.avatar_updated_at.isoformat()
+            }
+        )
 
     except (ValidationError, NotFoundError, DatabaseError):
         raise
@@ -589,10 +595,9 @@ async def delete_avatar(current_user: dict = Depends(get_current_user)):
 
         app_logger.info(f"Avatar deleted successfully: user_id={user_id}")
 
-        return {
-            "success": True,
-            "message": "头像已删除，已恢复为默认头像"
-        }
+        return Success(
+            message="头像已删除，已恢复为默认头像"
+        )
 
     except (NotFoundError, DatabaseError):
         raise
@@ -614,14 +619,39 @@ async def get_user_avatar(user_id: str, size: int = 200):
         if not user:
             raise NotFoundError("用户不存在")
 
-        # 如果用户有上传的头像，返回头像URL
+        # 如果用户已有头像，返回头像URL
         if user.avatar_path and os.path.exists(user.avatar_path):
             from fastapi.responses import RedirectResponse
             return RedirectResponse(url=f"/{user.avatar_path}")
 
-        # 否则生成首字母头像
+        # 否则生成首字母头像作为头像
         username = user.username or "?"
         avatar_bytes = generate_initial_avatar(username, size)
+
+        # 处理并保存首字母头像
+        ensure_avatar_dir()
+        file_path, thumbnail_path = save_avatar_file(
+            user_id, avatar_bytes, ".jpg")
+
+        # 更新数据库
+        user.avatar_path = file_path
+        user.avatar_updated_at = datetime.now()
+        user_data = user.to_dict()
+        if not db_manager.save_user(user_data):
+            # 如果保存失败，删除已上传的文件
+            delete_avatar_file(file_path)
+            raise DatabaseError("保存头像信息失败")
+
+        log_file_operation(
+            app_logger,
+            "upload",
+            file_path,
+            user_id=user_id,
+            success=True
+        )
+
+        app_logger.info(
+            f"默认首字母头像生成并保存成功: user_id={user_id}, path={file_path}")
 
         return Response(
             content=avatar_bytes,
@@ -740,12 +770,13 @@ async def get_user_stars(
 
         app_logger.info(f"Returning {len(page_items)} items out of {total} total items")
 
-        return {
-            "items": page_items,
-            "total": total,
-            "page": page,
-            "page_size": page_size
-        }
+        return Page(
+            data=page_items,
+            page=page,
+            page_size=page_size,
+            total=total,
+            message="获取收藏记录成功"
+        )
     except DatabaseError:
         raise
     except HTTPException:
@@ -848,16 +879,16 @@ async def get_my_upload_history(
 
         app_logger.info(f"Returning {len(history_list)} items out of {total_count} total items")
 
-        return {
-            "success": True,
-            "data": {
+        return Success(
+            message="获取上传历史成功",
+            data={
                 "items": history_list,
                 "total": total_count,
                 "page": page,
                 "page_size": limit,
                 "total_pages": (total_count + limit - 1) // limit
             }
-        }
+        )
 
     except Exception as e:
         log_exception(app_logger, "Get user upload history error", exception=e)
@@ -882,27 +913,6 @@ async def get_my_upload_stats(current_user: dict = Depends(get_current_user)):
         # 获取用户的统计信息
         stats = db_manager.get_upload_stats_by_uploader(user_id)
 
-        # 构建返回数据，兼容前端期望的字段名
-        result = {
-            "success": True,
-            "data": {
-                # 使用后端数据库字段名
-                "total": stats["total"],
-                "success": stats["success"],
-                "pending": stats["pending"],
-                "failed": stats["failed"],
-                "knowledge": stats["knowledge"],
-                "persona": stats["persona"],
-                # 前端期望的字段名
-                "totalUploads": stats["total"],
-                "successfulUploads": stats["success"],
-                "failedUploads": stats["failed"],
-                "processingUploads": stats["pending"],
-                "knowledgeBases": stats["knowledge"],
-                "personaCards": stats["persona"]
-            }
-        }
-
         log_database_operation(
             app_logger,
             "read",
@@ -913,7 +923,17 @@ async def get_my_upload_stats(current_user: dict = Depends(get_current_user)):
 
         app_logger.info(f"Upload stats for user {user_id}: {result['data']}")
 
-        return result
+        return Success(
+            message="获取上传统计成功",
+            data={
+                "total": stats["total"],
+                "success": stats["success"],
+                "pending": stats["pending"],
+                "failed": stats["failed"],
+                "knowledge": stats["knowledge"],
+                "persona": stats["persona"],
+            }
+        )
 
     except Exception as e:
         log_exception(app_logger, "Get user upload stats error", exception=e)

@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
 from typing import Optional
 
+from api_routes.response_util import Page, Success
+
 from models import (
     Message, KnowledgeBaseResponse, PersonaCardResponse,
     KnowledgeBasePaginatedResponse, PersonaCardPaginatedResponse
@@ -19,7 +21,7 @@ db_manager = sqlite_db_manager
 
 
 # 审核相关路由
-@review_router.get("/review/knowledge/pending", response_model=KnowledgeBasePaginatedResponse)
+@review_router.get("/review/knowledge/pending")
 async def get_pending_knowledge_bases(
         page: int = Query(1, ge=1, description="页码，默认为1"),
         page_size: int = Query(10, ge=1, le=100, description="每页数量，默认为10，最大100"),
@@ -47,11 +49,12 @@ async def get_pending_knowledge_bases(
             sort_by=sort_by,
             sort_order=sort_order
         )
-        return KnowledgeBasePaginatedResponse(
-            items=[KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs],
-            total=total,
+        return Page(
+            message="获取待审核知识库成功",
+            data= [KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs],
             page=page,
-            page_size=page_size
+            page_size=page_size,
+            total=total
         )
     except Exception as e:
         raise HTTPException(
@@ -60,7 +63,7 @@ async def get_pending_knowledge_bases(
         )
 
 
-@review_router.get("/review/persona/pending", response_model=PersonaCardPaginatedResponse)
+@review_router.get("/review/persona/pending")
 async def get_pending_persona_cards(
         page: int = Query(1, ge=1, description="页码，默认为1"),
         page_size: int = Query(10, ge=1, le=100, description="每页数量，默认为10，最大100"),
@@ -88,11 +91,12 @@ async def get_pending_persona_cards(
             sort_by=sort_by,
             sort_order=sort_order
         )
-        return PersonaCardPaginatedResponse(
-            items=[PersonaCardResponse(**pc.to_dict()) for pc in pcs],
-            total=total,
+        return Page(
+            message="获取待审核人设卡成功",
+            data= [PersonaCardResponse(**pc.to_dict()) for pc in pcs],
             page=page,
-            page_size=page_size
+            page_size=page_size,
+            total=total
         )
     except Exception as e:
         raise HTTPException(
@@ -141,7 +145,7 @@ async def approve_knowledge_base(
             app_logger.warning(
                 f"Failed to update upload record status: {str(e)}")
 
-        return {"message": "审核通过"}
+        return Success(message="审核通过")
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -202,7 +206,7 @@ async def reject_knowledge_base(
 
         db_manager.save_message(message)
 
-        return {"message": "审核拒绝，已发送通知"}
+        return Success(message="审核拒绝，已发送通知")
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -252,7 +256,7 @@ async def approve_persona_card(
             app_logger.warning(
                 f"Failed to update upload record status: {str(e)}")
 
-        return {"message": "审核通过"}
+        return Success(message="审核通过")
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -313,7 +317,7 @@ async def reject_persona_card(
 
         db_manager.save_message(message)
 
-        return {"message": "审核拒绝，已发送通知"}
+        return Success(message="审核拒绝，已发送通知")
     except HTTPException as e:
         raise e
     except Exception as e:

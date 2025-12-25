@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
+from api_routes.response_util import Success
 from models import (
     MessageCreate, MessageUpdate, MessageResponse
 )
@@ -23,7 +24,7 @@ db_manager = sqlite_db_manager
 
 
 # 消息相关路由
-@messages_router.post("/messages/send", response_model=dict)
+@messages_router.post("/messages/send")
 async def send_message(
         message: MessageCreate,
         current_user: dict = Depends(get_current_user)
@@ -146,11 +147,14 @@ async def send_message(
                 success=True
             )
 
-        return {
-            "message_ids": [msg.id for msg in created_messages],
-            "status": "sent",
-            "count": len(created_messages)
-        }
+        return Success(
+            message="消息发送成功",
+            data={
+                "message_ids": [msg.id for msg in created_messages],
+                "status": "sent",
+                "count": len(created_messages)
+            }
+        )
 
     except (ValidationError, NotFoundError, DatabaseError):
         raise
@@ -167,7 +171,7 @@ async def send_message(
         raise APIError("发送消息失败")
 
 
-@messages_router.get("/messages/{message_id}", response_model=MessageResponse)
+@messages_router.get("/messages/{message_id}")
 async def get_message_detail(
         message_id: str,
         current_user: dict = Depends(get_current_user)
@@ -191,17 +195,20 @@ async def get_message_detail(
         if recipient_id != user_id_str:
             raise AuthorizationError("没有权限查看此消息")
 
-        return MessageResponse(
-            id=message.id,
-            sender_id=message.sender_id,
-            recipient_id=message.recipient_id,
-            title=message.title,
-            content=message.content,
-            summary=message.summary,
-            message_type=message.message_type or "direct",
-            broadcast_scope=message.broadcast_scope,
-            is_read=message.is_read or False,
-            created_at=message.created_at if message.created_at else datetime.now()
+        return Success(
+            message="消息详情获取成功",
+            data={
+                "id": message.id,
+                "sender_id": message.sender_id,
+                "recipient_id": message.recipient_id,
+                "title": message.title,
+                "content": message.content,
+                "summary": message.summary,
+                "message_type": message.message_type or "direct",
+                "broadcast_scope": message.broadcast_scope,
+                "is_read": message.is_read or False,
+                "created_at": message.created_at if message.created_at else datetime.now()
+            }
         )
 
     except (NotFoundError, AuthorizationError):
@@ -211,7 +218,7 @@ async def get_message_detail(
         raise APIError("获取消息详情失败")
 
 
-@messages_router.get("/messages", response_model=List[MessageResponse])
+@messages_router.get("/messages")
 async def get_messages(
         current_user: dict = Depends(get_current_user),
         other_user_id: Optional[str] = None,
@@ -248,7 +255,10 @@ async def get_messages(
                 offset=offset
             )
 
-        return [MessageResponse(**msg.to_dict()) for msg in messages]
+        return Success(
+            message="消息列表获取成功",
+            data=[MessageResponse(**msg.to_dict()) for msg in messages]
+        )
 
     except (ValidationError, DatabaseError):
         raise
@@ -257,7 +267,7 @@ async def get_messages(
         raise APIError("获取消息列表失败")
 
 
-@messages_router.post("/messages/{message_id}/read", response_model=dict)
+@messages_router.post("/messages/{message_id}/read")
 async def mark_message_read(
         message_id: str,
         current_user: dict = Depends(get_current_user)
@@ -306,7 +316,9 @@ async def mark_message_read(
             success=True
         )
 
-        return {"status": "success", "message": "消息已标记为已读"}
+        return Success(
+            message="消息已标记为已读"
+        )
 
     except (ValidationError, NotFoundError, AuthorizationError, DatabaseError):
         raise
@@ -324,7 +336,7 @@ async def mark_message_read(
         raise APIError("标记消息已读失败")
 
 
-@messages_router.delete("/messages/{message_id}", response_model=dict)
+@messages_router.delete("/messages/{message_id}")
 async def delete_message(
         message_id: str,
         current_user: dict = Depends(get_current_user)
@@ -404,11 +416,10 @@ async def delete_message(
             success=True
         )
 
-        return {
-            "status": "success",
-            "message": "消息已删除",
-            "deleted_count": deleted_count
-        }
+        return Success(
+            message="消息已删除",
+            data={"deleted_count": deleted_count}
+        )
 
     except (NotFoundError, AuthorizationError, DatabaseError):
         raise
@@ -426,7 +437,7 @@ async def delete_message(
         raise APIError("删除消息失败")
 
 
-@messages_router.put("/messages/{message_id}", response_model=dict)
+@messages_router.put("/messages/{message_id}")
 async def update_message(
         message_id: str,
         update_data: MessageUpdate,
@@ -525,11 +536,10 @@ async def update_message(
             success=True
         )
 
-        return {
-            "status": "success",
-            "message": "消息已更新",
-            "updated_count": updated_count
-        }
+        return Success(
+            message="消息已更新",
+            data={"updated_count": updated_count}
+        )
 
     except (ValidationError, NotFoundError, AuthorizationError, DatabaseError):
         raise
@@ -547,7 +557,7 @@ async def update_message(
         raise APIError("更新消息失败")
 
 
-@messages_router.get("/admin/broadcast-messages", response_model=Dict[str, Any])
+@messages_router.get("/admin/broadcast-messages")
 async def get_broadcast_messages(
         current_user: dict = Depends(get_current_user),
         limit: int = 50,
@@ -606,13 +616,15 @@ async def get_broadcast_messages(
                 "stats": stats
             })
 
-        return {
-            "success": True,
-            "data": result,
-            "total": len(result),
-            "limit": limit,
-            "offset": offset
-        }
+        return Success(
+            message="广播消息历史获取成功",
+            data={
+                "messages": result,
+                "total": len(result),
+                "limit": limit,
+                "offset": offset
+            }
+        )
 
     except (ValidationError, AuthorizationError, DatabaseError):
         raise

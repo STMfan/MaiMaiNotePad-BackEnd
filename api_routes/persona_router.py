@@ -4,8 +4,9 @@ from typing import List, Optional, Dict
 import os
 from datetime import datetime
 
+from api_routes.response_util import Page, Success
 from models import (
-    PersonaCardResponse, PersonaCardPaginatedResponse
+    PersonaCardResponse
 )
 from database_models import sqlite_db_manager
 from file_upload import file_upload_service
@@ -27,7 +28,7 @@ db_manager = sqlite_db_manager
 
 
 # 人设卡相关路由
-@persona_router.post("/persona/upload", response_model=PersonaCardResponse)
+@persona_router.post("/persona/upload")
 async def upload_persona_card(
         files: List[UploadFile] = File(...),
         name: str = Form(...),
@@ -99,7 +100,10 @@ async def upload_persona_card(
             success=True
         )
 
-        return PersonaCardResponse(**pc.to_dict())
+        return Success(
+            message="人设卡上传成功",
+            data=pc.to_dict()
+        )
 
     except (ValidationError, FileOperationError, DatabaseError, HTTPException):
         raise
@@ -116,7 +120,7 @@ async def upload_persona_card(
         raise APIError("上传人设卡失败")
 
 
-@persona_router.get("/persona/public", response_model=PersonaCardPaginatedResponse)
+@persona_router.get("/persona/public")
 async def get_public_persona_cards(
         page: int = Query(1, ge=1, description="页码"),
         page_size: int = Query(20, ge=1, le=100, description="每页数量"),
@@ -151,11 +155,12 @@ async def get_public_persona_cards(
             sort_by=sort_by,
             sort_order=sort_order
         )
-        return PersonaCardPaginatedResponse(
-            items=[PersonaCardResponse(**pc.to_dict()) for pc in pcs],
-            total=total,
+        return Page(
+            message="公开人设卡获取成功",
+            data= [pc.to_dict() for pc in pcs],
             page=page,
-            page_size=page_size
+            page_size=page_size,
+            total=total,
         )
 
     except Exception as e:
@@ -164,7 +169,7 @@ async def get_public_persona_cards(
         raise APIError("获取公开人设卡失败")
 
 
-@persona_router.get("/persona/{pc_id}", response_model=PersonaCardResponse)
+@persona_router.get("/persona/{pc_id}")
 async def get_persona_card(pc_id: str):
     """获取人设卡详情"""
     try:
@@ -176,8 +181,11 @@ async def get_persona_card(pc_id: str):
             raise NotFoundError("人设卡不存在")
 
         # 返回完整的人设卡信息（包含文件和metadata）
-        pc_dict = pc.to_dict(include_files=True, include_metadata=True)
-        return PersonaCardResponse(**pc_dict)
+        pc_dict = pc.to_dict(include_files=True)
+        return Success(
+            message="人设卡详情获取成功",
+            data=pc_dict
+        )
 
     except NotFoundError:
         raise
@@ -186,7 +194,7 @@ async def get_persona_card(pc_id: str):
         raise APIError("获取人设卡详情失败")
 
 
-@persona_router.get("/persona/{pc_id}/starred", response_model=Dict[str, bool])
+@persona_router.get("/persona/{pc_id}/starred")
 async def check_persona_starred(
         pc_id: str,
         current_user: dict = Depends(get_current_user)
@@ -197,13 +205,16 @@ async def check_persona_starred(
         app_logger.info(
             f"Check persona starred: pc_id={pc_id}, user_id={user_id}")
         starred = db_manager.is_starred(user_id, pc_id, "persona")
-        return {"starred": starred}
+        return Success(
+            message="Star状态检查成功",
+            data={"starred": starred}
+        )
     except Exception as e:
         log_exception(app_logger, "Check persona starred error", exception=e)
         raise APIError("检查Star状态失败")
 
 
-@persona_router.get("/persona/user/{user_id}", response_model=PersonaCardPaginatedResponse)
+@persona_router.get("/persona/user/{user_id}")
 async def get_user_persona_cards(
         user_id: str,
         page: int = Query(1, ge=1, description="页码"),
@@ -217,16 +228,9 @@ async def get_user_persona_cards(
 ):
     """获取指定用户的人设卡，支持分页/筛选；管理员/审核员可查看他人"""
     current_user_id = current_user.get("id", "")
-    current_role = current_user.get("role", "user")
     try:
         app_logger.info(
             f"Get user persona cards: user_id={user_id}, requester={current_user_id}")
-
-        # 验证权限：只能查看自己的人设卡
-        if user_id != current_user_id:
-            app_logger.warning(
-                f"Unauthorized access attempt: user={current_user_id} trying to access user={user_id} data")
-            raise AuthorizationError("没有权限查看其他用户的上传记录")
 
         pcs = db_manager.get_persona_cards_by_uploader(user_id)
 
@@ -271,11 +275,12 @@ async def get_user_persona_cards(
         end = start + page_size
         page_items = filtered[start:end]
 
-        return PersonaCardPaginatedResponse(
-            items=[PersonaCardResponse(**pc.to_dict()) for pc in page_items],
+        return Page(
+            data=[PersonaCardResponse(**pc.to_dict()) for pc in page_items],
             total=total,
             page=page,
-            page_size=page_size
+            page_size=page_size,
+            message="用户人设卡获取成功"
         )
 
     except (AuthorizationError, DatabaseError):
@@ -285,7 +290,7 @@ async def get_user_persona_cards(
         raise APIError("获取用户人设卡失败")
 
 
-@persona_router.put("/persona/{pc_id}", response_model=PersonaCardResponse)
+@persona_router.put("/persona/{pc_id}")
 async def update_persona_card(
         pc_id: str,
         name: str = Form(...),
@@ -336,7 +341,10 @@ async def update_persona_card(
             success=True
         )
 
-        return PersonaCardResponse(**updated_pc.to_dict())
+        return Success(
+            message="人设卡更新成功",
+            data=updated_pc.to_dict()
+        )
 
     except (NotFoundError, AuthorizationError, ValidationError, DatabaseError):
         raise
@@ -397,7 +405,9 @@ async def star_persona_card(
             success=True
         )
 
-        return {"message": message + "成功"}
+        return Success(
+            message=message + "成功",
+        )
 
     except (NotFoundError, ConflictError, DatabaseError):
         raise
@@ -445,7 +455,9 @@ async def unstar_persona_card(
             success=True
         )
 
-        return {"message": "取消Star成功"}
+        return Success(
+            message="取消Star成功",
+        )
 
     except (NotFoundError, DatabaseError):
         raise
@@ -510,7 +522,9 @@ async def delete_persona_card(
             success=True
         )
 
-        return {"message": "人设卡删除成功"}
+        return Success(
+            message="人设卡删除成功",
+        )
 
     except (NotFoundError, AuthorizationError, DatabaseError):
         raise
@@ -578,7 +592,9 @@ async def add_files_to_persona_card(
             success=True
         )
 
-        return {"message": "文件添加成功"}
+        return Success(
+            message="文件添加成功",
+        )
     except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError, HTTPException):
         raise
     except Exception as e:
@@ -645,7 +661,9 @@ async def delete_files_from_persona_card(
             success=True
         )
 
-        return {"message": "文件删除成功"}
+        return Success(
+            message="文件删除成功",
+        )
 
     except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError):
         raise

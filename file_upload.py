@@ -18,6 +18,7 @@ from werkzeug.utils import secure_filename
 from models import (
     KnowledgeBase, PersonaCard, KnowledgeBaseFile
 )
+from error_handlers import ValidationError
 from database_models import sqlite_db_manager
 
 
@@ -364,7 +365,9 @@ class FileUploadService:
         # 获取知识库信息
         kb = sqlite_db_manager.get_knowledge_base_by_id(kb_id)
         if not kb:
-            return None
+            raise ValidationError(
+                message="知识库不存在"
+            )
 
         # 获取知识库现有文件
         current_files = sqlite_db_manager.get_files_by_knowledge_base_id(kb_id)
@@ -372,39 +375,34 @@ class FileUploadService:
 
         # 检查文件数量限制
         if current_file_count + len(files) > self.MAX_KNOWLEDGE_FILES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"文件数量超过限制，当前{current_file_count}个文件，最多允许{self.MAX_KNOWLEDGE_FILES}个文件"
+            raise ValidationError(
+                message=f"文件数量超过限制，当前{current_file_count}个文件，最多允许{self.MAX_KNOWLEDGE_FILES}个文件"
             )
 
         # 检查同名文件
         existing_file_names = {file.original_name for file in current_files}
         for file in files:
             if file.filename in existing_file_names:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"文件名已存在: {file.filename}"
+                raise ValidationError(
+                    message=f"文件名已存在: {file.filename}"
                 )
 
         # 验证文件类型和大小
         for file in files:
             if not self._validate_file_type(file, self.ALLOWED_KNOWLEDGE_TYPES):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"不支持的文件类型: {file.filename}。仅支持{', '.join(self.ALLOWED_KNOWLEDGE_TYPES)}文件"
+                raise ValidationError(
+                    message=f"不支持的文件类型: {file.filename}。仅支持{', '.join(self.ALLOWED_KNOWLEDGE_TYPES)}文件"
                 )
 
             if not self._validate_file_size(file):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"文件过大: {file.filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB"
+                raise ValidationError(
+                    message=f"文件过大: {file.filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB"
                 )
 
             # 验证实际文件内容大小
             if not await self._validate_file_content(file):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"文件内容过大: {file.filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB"
+                raise ValidationError(
+                    message=f"文件内容过大: {file.filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB"
                 )
 
         # 获取知识库目录
@@ -412,7 +410,7 @@ class FileUploadService:
         if not kb_dir or not os.path.exists(kb_dir):
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="知识库目录不存在"
+                message="知识库目录不存在"
             )
 
         # 保存新文件并创建文件记录

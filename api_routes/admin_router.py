@@ -9,6 +9,7 @@ from logging_config import app_logger, log_exception, log_api_request, log_datab
 from error_handlers import (
     APIError, ValidationError, NotFoundError, ConflictError, DatabaseError
 )
+from api_routes.response_util import Success, Page
 
 # 创建路由器
 admin_router = APIRouter()
@@ -18,7 +19,7 @@ db_manager = sqlite_db_manager
 
 
 # 管理员相关路由
-@admin_router.get("/admin/stats", response_model=Dict[str, Any])
+@admin_router.get("/admin/stats")
 async def get_admin_stats(current_user: dict = Depends(get_current_user)):
     """获取管理员统计数据（仅限admin）"""
     # 验证权限：仅admin
@@ -68,7 +69,7 @@ async def get_admin_stats(current_user: dict = Depends(get_current_user)):
 
         log_api_request(app_logger, "GET", "/admin/stats",
                         current_user.get("id"), status_code=200)
-        return {"success": True, "data": stats}
+        return Success(data=stats)
 
     except HTTPException:
         raise
@@ -80,7 +81,7 @@ async def get_admin_stats(current_user: dict = Depends(get_current_user)):
         )
 
 
-@admin_router.get("/admin/recent-users", response_model=Dict[str, Any])
+@admin_router.get("/admin/recent-users")
 async def get_recent_users(
         limit: int = 10,
         page: int = 1,
@@ -129,7 +130,7 @@ async def get_recent_users(
 
         log_api_request(app_logger, "GET", "/admin/recent-users",
                         current_user.get("id"), status_code=200)
-        return {"success": True, "data": user_list}
+        return Success(data=user_list)
 
     except HTTPException:
         raise
@@ -142,7 +143,7 @@ async def get_recent_users(
 
 
 # 用户管理API
-@admin_router.get("/admin/users", response_model=Dict[str, Any])
+@admin_router.get("/admin/users")
 async def get_all_users(
         page: int = 1,
         limit: int = 20,
@@ -229,16 +230,15 @@ async def get_all_users(
 
         log_api_request(app_logger, "GET", "/admin/users",
                         current_user.get("id"), status_code=200)
-        return {
-            "success": True,
-            "data": {
+        return Success(
+            data={
                 "users": user_list,
                 "total": total,
                 "page": page,
                 "limit": limit,
                 "totalPages": total_pages
             }
-        }
+        )
 
     except HTTPException:
         raise
@@ -250,7 +250,7 @@ async def get_all_users(
         )
 
 
-@admin_router.put("/admin/users/{user_id}/role", response_model=Dict[str, Any])
+@admin_router.put("/admin/users/{user_id}/role")
 async def update_user_role(
         user_id: str,
         role_data: dict = Body(...),
@@ -309,15 +309,14 @@ async def update_user_role(
 
         log_api_request(
             app_logger, "PUT", f"/admin/users/{user_id}/role", current_user.get("id"), status_code=200)
-        return {
-            "success": True,
-            "message": "用户角色更新成功",
-            "data": {
+        return Success(
+            message="用户角色更新成功",
+            data={
                 "id": user_id,
                 "username": user.username,
                 "role": new_role
             }
-        }
+        )
 
     except (ValidationError, NotFoundError):
         raise
@@ -331,7 +330,7 @@ async def update_user_role(
         )
 
 
-@admin_router.delete("/admin/users/{user_id}", response_model=Dict[str, Any])
+@admin_router.delete("/admin/users/{user_id}")
 async def delete_user(
         user_id: str,
         current_user: dict = Depends(get_current_user)
@@ -384,10 +383,9 @@ async def delete_user(
 
         log_api_request(app_logger, "DELETE",
                         f"/admin/users/{user_id}", current_user.get("id"), status_code=200)
-        return {
-            "success": True,
-            "message": "用户删除成功"
-        }
+        return Success(
+            message="用户删除成功"
+        )
 
     except (ValidationError, NotFoundError):
         raise
@@ -401,7 +399,7 @@ async def delete_user(
         )
 
 
-@admin_router.post("/admin/users", response_model=Dict[str, Any])
+@admin_router.post("/admin/users")
 async def create_user_by_admin(
         user_data: dict = Body(...),
         current_user: dict = Depends(get_current_user)
@@ -472,16 +470,15 @@ async def create_user_by_admin(
 
         log_api_request(app_logger, "POST", "/admin/users",
                         current_user.get("id"), status_code=200)
-        return {
-            "success": True,
-            "message": "用户创建成功",
-            "data": {
+        return Success(
+            message="用户创建成功",
+            data={
                 "id": new_user.userID,
                 "username": new_user.username,
                 "email": new_user.email,
                 "role": role
             }
-        }
+        )
 
     except (ValidationError, ConflictError, DatabaseError):
         raise
@@ -496,7 +493,7 @@ async def create_user_by_admin(
 
 
 # 内容管理API
-@admin_router.get("/admin/knowledge/all", response_model=Dict[str, Any])
+@admin_router.get("/admin/knowledge/all")
 async def get_all_knowledge_bases_admin(
         page: int = 1,
         limit: int = 20,
@@ -601,9 +598,8 @@ async def get_all_knowledge_bases_admin(
 
         log_api_request(app_logger, "GET", "/admin/knowledge/all",
                         current_user.get("id"), status_code=200)
-        return {
-            "success": True,
-            "data": {
+        return Success(
+            data={
                 "knowledgeBases": kb_list,
                 "total": total,
                 "page": page,
@@ -612,7 +608,7 @@ async def get_all_knowledge_bases_admin(
                 "orderDir": order_dir,
                 "uploader": uploader
             }
-        }
+        )
 
     except HTTPException:
         raise
@@ -625,7 +621,7 @@ async def get_all_knowledge_bases_admin(
         )
 
 
-@admin_router.get("/admin/persona/all", response_model=Dict[str, Any])
+@admin_router.get("/admin/persona/all")
 async def get_all_personas_admin(
         page: int = 1,
         limit: int = 20,
@@ -729,9 +725,8 @@ async def get_all_personas_admin(
 
         log_api_request(app_logger, "GET", "/admin/persona/all",
                         current_user.get("id"), status_code=200)
-        return {
-            "success": True,
-            "data": {
+        return Success(
+            data={
                 "personas": pc_list,
                 "total": total,
                 "page": page,
@@ -740,7 +735,7 @@ async def get_all_personas_admin(
                 "orderDir": order_dir,
                 "uploader": uploader
             }
-        }
+        )
 
     except HTTPException:
         raise
@@ -753,7 +748,7 @@ async def get_all_personas_admin(
         )
 
 
-@admin_router.post("/admin/knowledge/{kb_id}/revert", response_model=Dict[str, Any])
+@admin_router.post("/admin/knowledge/{kb_id}/revert")
 async def revert_knowledge_base(
         kb_id: str,
         reason_data: Optional[dict] = Body(None),
@@ -825,10 +820,9 @@ async def revert_knowledge_base(
 
         log_api_request(
             app_logger, "POST", f"/admin/knowledge/{kb_id}/revert", current_user.get("id"), status_code=200)
-        return {
-            "success": True,
-            "message": "知识库已退回待审核"
-        }
+        return Success(
+            message="知识库已退回待审核"
+        )
 
     except (ValidationError, NotFoundError, DatabaseError):
         raise
@@ -842,7 +836,7 @@ async def revert_knowledge_base(
         )
 
 
-@admin_router.post("/admin/persona/{pc_id}/revert", response_model=Dict[str, Any])
+@admin_router.post("/admin/persona/{pc_id}/revert")
 async def revert_persona_card(
         pc_id: str,
         reason_data: Optional[dict] = Body(None),
@@ -913,10 +907,9 @@ async def revert_persona_card(
 
         log_api_request(
             app_logger, "POST", f"/admin/persona/{pc_id}/revert", current_user.get("id"), status_code=200)
-        return {
-            "success": True,
-            "message": "人设卡已退回待审核"
-        }
+        return Success(
+            message="人设卡已退回待审核"
+        )
 
     except (ValidationError, NotFoundError, DatabaseError):
         raise
@@ -930,7 +923,7 @@ async def revert_persona_card(
         )
 
 
-@admin_router.get("/admin/upload-history", response_model=Dict[str, Any])
+@admin_router.get("/admin/upload-history")
 async def get_upload_history(
         page: int = 1,
         limit: int = 20,
@@ -1030,7 +1023,9 @@ async def get_upload_history(
 
         log_api_request(app_logger, "GET", "/admin/upload-history",
                         current_user.get("id"), status_code=200)
-        return {"success": True, "data": history_list}
+        return Success(
+            data=history_list
+        )
 
     except HTTPException:
         raise
@@ -1042,7 +1037,7 @@ async def get_upload_history(
         )
 
 
-@admin_router.get("/admin/upload-stats", response_model=Dict[str, Any])
+@admin_router.get("/admin/upload-stats")
 async def get_upload_stats(current_user: dict = Depends(get_current_user)):
     """获取上传统计数据（admin和moderator权限）
 
@@ -1104,7 +1099,9 @@ async def get_upload_stats(current_user: dict = Depends(get_current_user)):
 
         log_api_request(app_logger, "GET", "/admin/upload-stats",
                         current_user.get("id"), status_code=200)
-        return {"success": True, "data": stats}
+        return Success(
+            data=stats
+        )
 
     except HTTPException:
         raise
@@ -1116,7 +1113,7 @@ async def get_upload_stats(current_user: dict = Depends(get_current_user)):
         )
 
 
-@admin_router.post("/messages/batch-delete", response_model=dict)
+@admin_router.post("/messages/batch-delete")
 async def delete_messages(
         message_ids: List[str] = Body(...),
         current_user: dict = Depends(get_current_user)
@@ -1146,11 +1143,10 @@ async def delete_messages(
             success=True
         )
 
-        return {
-            "status": "success",
-            "message": f"成功删除 {deleted_count} 条消息",
-            "deleted_count": deleted_count
-        }
+        return Success(
+            message=f"成功删除 {deleted_count} 条消息",
+            data={"deleted_count": deleted_count}
+        )
 
     except (ValidationError, NotFoundError, DatabaseError):
         raise
@@ -1168,7 +1164,7 @@ async def delete_messages(
         raise APIError("批量删除消息失败")
 
 
-@admin_router.delete("/admin/uploads/{upload_id}", response_model=Dict[str, Any])
+@admin_router.delete("/admin/uploads/{upload_id}")
 async def delete_upload_record(
         upload_id: str,
         current_user: dict = Depends(get_current_user)
@@ -1203,7 +1199,9 @@ async def delete_upload_record(
 
         log_api_request(app_logger, "DELETE",
                         f"/admin/uploads/{upload_id}", current_user.get("id"), status_code=200)
-        return {"success": True, "message": "上传记录已删除"}
+        return Success(
+            message="上传记录已删除"
+        )
 
     except HTTPException:
         raise
@@ -1215,7 +1213,7 @@ async def delete_upload_record(
         )
 
 
-@admin_router.post("/admin/uploads/{upload_id}/reprocess", response_model=Dict[str, Any])
+@admin_router.post("/admin/uploads/{upload_id}/reprocess")
 async def reprocess_upload_record(
         upload_id: str,
         current_user: dict = Depends(get_current_user)
@@ -1284,7 +1282,9 @@ async def reprocess_upload_record(
 
         log_api_request(
             app_logger, "POST", f"/admin/uploads/{upload_id}/reprocess", current_user.get("id"), status_code=200)
-        return {"success": True, "message": "已提交重新处理，等待审核"}
+        return Success(
+            message="已提交重新处理，等待审核"
+        )
 
     except HTTPException:
         raise
