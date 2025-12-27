@@ -1,24 +1,24 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
-from fastapi.responses import FileResponse
-from typing import List, Optional, Dict
 import os
 from datetime import datetime
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status as HTTPStatus, UploadFile, File, Form, Query
+from fastapi.responses import FileResponse
 
 from api_routes.response_util import Page, Success
-from models import (
-    PersonaCardResponse
-)
 from database_models import sqlite_db_manager
-from file_upload import file_upload_service
-from user_management import get_current_user, get_current_user_optional
-
-# 导入错误处理和日志记录模块
-from logging_config import app_logger, log_exception, log_file_operation, log_database_operation
 from error_handlers import (
     APIError, ValidationError, AuthenticationError,
     AuthorizationError, NotFoundError, ConflictError,
     FileOperationError, DatabaseError
 )
+from file_upload import file_upload_service
+# 导入错误处理和日志记录模块
+from logging_config import app_logger, log_exception, log_file_operation, log_database_operation
+from models import (
+    PersonaCardResponse
+)
+from user_management import get_current_user, get_current_user_optional
 
 # 创建路由器
 persona_router = APIRouter()
@@ -725,7 +725,7 @@ async def download_persona_card_files(
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"下载失败: {str(e)}"
         )
 

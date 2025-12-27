@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, status as HTTPStatus, Body, Query
 from typing import Optional
 
 from api_routes.response_util import Page, Success
@@ -36,7 +36,7 @@ async def get_pending_knowledge_bases(
     # 验证权限
     if current_user.get("role", "user") not in ["admin", "moderator"]:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="没有审核权限"
         )
 
@@ -58,7 +58,7 @@ async def get_pending_knowledge_bases(
         )
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取待审核知识库失败: {str(e)}"
         )
 
@@ -78,7 +78,7 @@ async def get_pending_persona_cards(
     # 验证权限
     if current_user.get("role", "user") not in ["admin", "moderator"]:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="没有审核权限"
         )
 
@@ -100,7 +100,7 @@ async def get_pending_persona_cards(
         )
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取待审核人设卡失败: {str(e)}"
         )
 
@@ -114,7 +114,7 @@ async def approve_knowledge_base(
     # 验证权限
     if current_user.get("role", "user") not in ["admin", "moderator"]:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="没有审核权限"
         )
 
@@ -122,7 +122,7 @@ async def approve_knowledge_base(
         kb = db_manager.get_knowledge_base_by_id(kb_id)
         if not kb:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=HTTPStatus.HTTP_404_NOT_FOUND,
                 detail="知识库不存在"
             )
 
@@ -134,7 +134,7 @@ async def approve_knowledge_base(
         updated_kb = db_manager.save_knowledge_base(kb.to_dict())
         if not updated_kb:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="更新知识库状态失败"
             )
 
@@ -150,7 +150,7 @@ async def approve_knowledge_base(
         raise e
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"审核知识库失败: {str(e)}"
         )
 
@@ -165,7 +165,7 @@ async def reject_knowledge_base(
     # 验证权限
     if current_user.get("role", "user") not in ["admin", "moderator"]:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="没有审核权限"
         )
 
@@ -173,7 +173,7 @@ async def reject_knowledge_base(
         kb = db_manager.get_knowledge_base_by_id(kb_id)
         if not kb:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=HTTPStatus.HTTP_404_NOT_FOUND,
                 detail="知识库不存在"
             )
 
@@ -185,7 +185,7 @@ async def reject_knowledge_base(
         updated_kb = db_manager.save_knowledge_base(kb.to_dict())
         if not updated_kb:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="更新知识库状态失败"
             )
 
@@ -211,7 +211,7 @@ async def reject_knowledge_base(
         raise e
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"审核知识库失败: {str(e)}"
         )
 
@@ -225,7 +225,7 @@ async def approve_persona_card(
     # 验证权限
     if current_user.get("role", "user") not in ["admin", "moderator"]:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="没有审核权限"
         )
 
@@ -233,7 +233,7 @@ async def approve_persona_card(
         pc = db_manager.get_persona_card_by_id(pc_id)
         if not pc:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=HTTPStatus.HTTP_404_NOT_FOUND,
                 detail="人设卡不存在"
             )
 
@@ -245,7 +245,7 @@ async def approve_persona_card(
         updated_pc = db_manager.save_persona_card(pc.to_dict())
         if not updated_pc:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="更新人设卡状态失败"
             )
 
@@ -261,7 +261,7 @@ async def approve_persona_card(
         raise e
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"审核人设卡失败: {str(e)}"
         )
 
@@ -276,7 +276,7 @@ async def reject_persona_card(
     # 验证权限
     if current_user.get("role", "user") not in ["admin", "moderator"]:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="没有审核权限"
         )
 
@@ -284,7 +284,7 @@ async def reject_persona_card(
         pc = db_manager.get_persona_card_by_id(pc_id)
         if not pc:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=HTTPStatus.HTTP_404_NOT_FOUND,
                 detail="人设卡不存在"
             )
 
@@ -296,7 +296,7 @@ async def reject_persona_card(
         updated_pc = db_manager.save_persona_card(pc.to_dict())
         if not updated_pc:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="更新人设卡状态失败"
             )
 
@@ -322,6 +322,6 @@ async def reject_persona_card(
         raise e
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"审核人设卡失败: {str(e)}"
         )

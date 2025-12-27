@@ -1,15 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
+from fastapi import APIRouter, Depends, HTTPException, status as HTTPStatus, Body, Query
+
+from api_routes.response_util import Success, Page
 from database_models import sqlite_db_manager
-from user_management import get_current_user
-
-# 导入错误处理和日志记录模块
-from logging_config import app_logger, log_exception, log_api_request, log_database_operation
 from error_handlers import (
     APIError, ValidationError, NotFoundError, ConflictError, DatabaseError
 )
-from api_routes.response_util import Success, Page
+# 导入错误处理和日志记录模块
+from logging_config import app_logger, log_exception, log_api_request, log_database_operation
+from user_management import get_current_user
 
 # 创建路由器
 admin_router = APIRouter()
@@ -25,7 +25,7 @@ async def get_admin_stats(current_user: dict = Depends(get_current_user)):
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="需要管理员权限"
         )
 
@@ -76,7 +76,7 @@ async def get_admin_stats(current_user: dict = Depends(get_current_user)):
     except Exception as e:
         log_exception(app_logger, "Get admin stats error", exception=e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取统计数据失败: {str(e)}"
         )
 
@@ -91,7 +91,7 @@ async def get_recent_users(
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="需要管理员权限"
         )
 
@@ -146,7 +146,7 @@ async def get_recent_users(
     except Exception as e:
         log_exception(app_logger, "Get recent users error", exception=e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取最近用户失败: {str(e)}"
         )
 
@@ -164,7 +164,7 @@ async def get_all_users(
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="需要管理员权限"
         )
 
@@ -249,7 +249,7 @@ async def get_all_users(
     except Exception as e:
         log_exception(app_logger, "Get all users error", exception=e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取用户列表失败: {str(e)}"
         )
 
@@ -264,7 +264,7 @@ async def update_user_role(
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="需要管理员权限"
         )
 
@@ -329,7 +329,7 @@ async def update_user_role(
     except Exception as e:
         log_exception(app_logger, "Update user role error", exception=e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"更新用户角色失败: {str(e)}"
         )
 
@@ -343,7 +343,7 @@ async def delete_user(
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="需要管理员权限"
         )
 
@@ -398,7 +398,7 @@ async def delete_user(
     except Exception as e:
         log_exception(app_logger, "Delete user error", exception=e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"删除用户失败: {str(e)}"
         )
 
@@ -412,7 +412,7 @@ async def create_user_by_admin(
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="需要管理员权限"
         )
 
@@ -491,7 +491,7 @@ async def create_user_by_admin(
     except Exception as e:
         log_exception(app_logger, "Create user by admin error", exception=e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"创建用户失败: {str(e)}"
         )
 
@@ -521,7 +521,7 @@ async def get_all_knowledge_bases_admin(
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="需要管理员权限"
         )
 
@@ -615,7 +615,7 @@ async def get_all_knowledge_bases_admin(
         log_exception(
             app_logger, "Get all knowledge bases (admin) error", exception=e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取知识库列表失败: {str(e)}"
         )
 
@@ -644,7 +644,7 @@ async def get_all_personas_admin(
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="需要管理员权限"
         )
 
@@ -738,7 +738,7 @@ async def get_all_personas_admin(
         log_exception(
             app_logger, "Get all personas (admin) error", exception=e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取人设卡列表失败: {str(e)}"
         )
 
@@ -753,7 +753,7 @@ async def revert_knowledge_base(
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="需要管理员权限"
         )
 
@@ -826,7 +826,7 @@ async def revert_knowledge_base(
     except Exception as e:
         log_exception(app_logger, "Revert knowledge base error", exception=e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"退回知识库失败: {str(e)}"
         )
 
@@ -841,7 +841,7 @@ async def revert_persona_card(
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="需要管理员权限"
         )
 
@@ -913,7 +913,7 @@ async def revert_persona_card(
     except Exception as e:
         log_exception(app_logger, "Revert persona card error", exception=e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"退回人设卡失败: {str(e)}"
         )
 
@@ -928,7 +928,7 @@ async def get_upload_history(
     # 验证权限：admin或moderator
     if not (current_user.get("is_admin", False) or current_user.get("is_moderator", False)):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="需要管理员或审核员权限"
         )
 
@@ -1033,7 +1033,7 @@ async def get_upload_history(
     except Exception as e:
         log_exception(app_logger, "Get upload history error", exception=e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取上传历史失败: {str(e)}"
         )
 
@@ -1047,7 +1047,7 @@ async def get_upload_stats(current_user: dict = Depends(get_current_user)):
     # 验证权限：admin或moderator
     if not (current_user.get("is_admin", False) or current_user.get("is_moderator", False)):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="需要管理员或审核员权限"
         )
 
@@ -1110,7 +1110,7 @@ async def get_upload_stats(current_user: dict = Depends(get_current_user)):
     except Exception as e:
         log_exception(app_logger, "Get upload stats error", exception=e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取上传统计失败: {str(e)}"
         )
 
@@ -1174,7 +1174,7 @@ async def delete_upload_record(
     # 验证权限
     if not (current_user.get("is_admin", False) or current_user.get("is_moderator", False)):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="需要管理员或审核员权限"
         )
 
@@ -1186,7 +1186,7 @@ async def delete_upload_record(
         upload_record = db_manager.get_upload_record_by_id(upload_id)
         if not upload_record:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=HTTPStatus.HTTP_404_NOT_FOUND,
                 detail="上传记录不存在"
             )
 
@@ -1194,7 +1194,7 @@ async def delete_upload_record(
         success = db_manager.delete_upload_record(upload_id)
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="删除上传记录失败"
             )
 
@@ -1209,7 +1209,7 @@ async def delete_upload_record(
     except Exception as e:
         log_exception(app_logger, "Delete upload record error", exception=e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"删除上传记录失败: {str(e)}"
         )
 
@@ -1223,7 +1223,7 @@ async def reprocess_upload_record(
     # 验证权限
     if not (current_user.get("is_admin", False) or current_user.get("is_moderator", False)):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="需要管理员或审核员权限"
         )
 
@@ -1235,14 +1235,14 @@ async def reprocess_upload_record(
         upload_record = db_manager.get_upload_record_by_id(upload_id)
         if not upload_record:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=HTTPStatus.HTTP_404_NOT_FOUND,
                 detail="上传记录不存在"
             )
 
         # 只有失败状态的记录才能重新处理
         if upload_record.status != "rejected":
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=HTTPStatus.HTTP_400_BAD_REQUEST,
                 detail="只能重新处理失败的上传记录"
             )
 
@@ -1257,7 +1257,7 @@ async def reprocess_upload_record(
 
         if not target_exists:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=HTTPStatus.HTTP_404_NOT_FOUND,
                 detail="目标（知识库或人设卡）不存在，无法重新处理"
             )
 
@@ -1268,7 +1268,7 @@ async def reprocess_upload_record(
         )
         if total_file_size == 0:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=HTTPStatus.HTTP_400_BAD_REQUEST,
                 detail="目标没有文件，无法重新处理"
             )
 
@@ -1277,7 +1277,7 @@ async def reprocess_upload_record(
             upload_id, "pending")
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="重新处理失败"
             )
 
@@ -1292,6 +1292,6 @@ async def reprocess_upload_record(
     except Exception as e:
         log_exception(app_logger, "Reprocess upload record error", exception=e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"重新处理失败: {str(e)}"
         )

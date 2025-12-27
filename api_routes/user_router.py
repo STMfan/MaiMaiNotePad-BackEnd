@@ -18,6 +18,7 @@ from avatar_utils import (
 
 # 导入错误处理和日志记录模块
 from logging_config import app_logger, log_exception, log_file_operation, log_database_operation
+
 # 创建路由器
 user_router = APIRouter()
 
@@ -81,19 +82,19 @@ async def login(request: Request):
 
             # 返回token和用户信息
             return Success(
-                message = "登录成功",
-                data = {
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "token_type": "bearer",
-                "expires_in": 5184000,  # 1天
-                "user": {
-                    "id": user.userID,
-                    "username": user.username,
-                    "email": user.email,
-                    "role": user.role
-                }
-            })
+                message="登录成功",
+                data={
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
+                    "token_type": "bearer",
+                    "expires_in": 5184000,  # 1天
+                    "user": {
+                        "id": user.userID,
+                        "username": user.username,
+                        "email": user.email,
+                        "role": user.role
+                    }
+                })
 
         # 登录失败（统一错误消息，防止用户枚举）
         app_logger.warning(f"Login failed: username_hash={username_hash}")
@@ -160,12 +161,12 @@ async def refresh_token(request: Request):
         app_logger.info(f"Token refreshed: user_id={user.userID}")
 
         return Success(
-            message = "令牌刷新成功",
-            data = {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "expires_in": 5184000# 1天
-        })
+            message="令牌刷新成功",
+            data={
+                "access_token": access_token,
+                "token_type": "bearer",
+                "expires_in": 5184000  # 1天
+            })
 
     except (AuthenticationError, ValidationError):
         raise
@@ -377,7 +378,8 @@ async def user_register(
         return Success(
             message="注册成功"
         )
-
+    except ValidationError:
+        raise
     except Exception as e:
         log_exception(app_logger, "Register user error", exception=e)
         raise APIError("注册用户失败")
@@ -918,7 +920,7 @@ async def get_my_upload_stats(current_user: dict = Depends(get_current_user)):
             success=True
         )
 
-        app_logger.info(f"Upload stats for user {user_id}: {result['data']}")
+        app_logger.info(f"Upload stats for user {user_id}")
 
         return Success(
             message="获取上传统计成功",

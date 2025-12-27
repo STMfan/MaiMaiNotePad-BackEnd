@@ -1,20 +1,20 @@
-from fastapi import APIRouter, Depends
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from typing import Optional
 
-from api_routes.response_util import Success
-from models import (
-    MessageCreate, MessageUpdate, MessageResponse
-)
+from fastapi import APIRouter, Depends
+
+from api_routes.response_util import Success, Page
 from database_models import sqlite_db_manager
-from user_management import get_current_user
-
-# 导入错误处理和日志记录模块
-from logging_config import app_logger, log_exception, log_database_operation
 from error_handlers import (
     APIError, ValidationError,
     AuthorizationError, NotFoundError, DatabaseError
 )
+# 导入错误处理和日志记录模块
+from logging_config import app_logger, log_exception, log_database_operation
+from models import (
+    MessageCreate, MessageUpdate, MessageResponse
+)
+from user_management import get_current_user
 
 # 创建路由器
 messages_router = APIRouter()
@@ -234,9 +234,6 @@ async def get_messages(
         # 验证参数
         if page <= 0 or page_size <= 0 or page_size > 100:
             raise ValidationError("page和page_size必须大于0，page_size最多100条")
-
-        if offset < 0:
-            raise ValidationError("offset不能为负数")
 
         # 获取消息列表
         if other_user_id:
