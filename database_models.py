@@ -143,7 +143,7 @@ class KnowledgeBase(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
     description = Column(Text, nullable=False)
-    uploader_id = Column(String, nullable=False)
+    uploader_id = Column(String, ForeignKey("users.id"), nullable=False)
     copyright_owner = Column(String, nullable=True)
     # 直接在数据库中保存内容与标签，避免依赖外部 metadata 文件
     content = Column(Text, nullable=True)
@@ -350,7 +350,7 @@ class PersonaCard(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
     description = Column(Text, nullable=False)
-    uploader_id = Column(String, nullable=False)
+    uploader_id = Column(String, ForeignKey("users.id"), nullable=False)
     copyright_owner = Column(String, nullable=True)
     # 直接存储正文与标签，避免依赖外部 metadata 文件
     content = Column(Text, nullable=True)
@@ -456,8 +456,8 @@ class Message(Base):
     __tablename__ = "messages"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    recipient_id = Column(String, nullable=False)
-    sender_id = Column(String, nullable=False)
+    recipient_id = Column(String, ForeignKey("users.id"), nullable=False)
+    sender_id = Column(String, ForeignKey("users.id"), nullable=False)
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     summary = Column(Text, nullable=True)  # 消息简介，可选
@@ -518,7 +518,7 @@ class StarRecord(Base):
     __tablename__ = "star_records"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
     target_id = Column(String, nullable=False)
     target_type = Column(String, nullable=False)  # "knowledge" 或 "persona"
     created_at = Column(DateTime, default=datetime.now)
