@@ -49,16 +49,37 @@ class User(Base):
         Index('idx_user_is_moderator', 'is_moderator'),
     )
 
-    # 关系
+    # 关系（通过显式主连接条件，而不是物理外键约束）
     uploaded_knowledge_bases = relationship(
-        "KnowledgeBase", back_populates="uploader")
+        "KnowledgeBase",
+        back_populates="uploader",
+        primaryjoin="User.id==KnowledgeBase.uploader_id",
+        foreign_keys="KnowledgeBase.uploader_id",
+    )
     uploaded_persona_cards = relationship(
-        "PersonaCard", back_populates="uploader")
+        "PersonaCard",
+        back_populates="uploader",
+        primaryjoin="User.id==PersonaCard.uploader_id",
+        foreign_keys="PersonaCard.uploader_id",
+    )
     received_messages = relationship(
-        "Message", foreign_keys="Message.recipient_id", back_populates="recipient")
+        "Message",
+        foreign_keys="Message.recipient_id",
+        back_populates="recipient",
+        primaryjoin="User.id==Message.recipient_id",
+    )
     sent_messages = relationship(
-        "Message", foreign_keys="Message.sender_id", back_populates="sender")
-    star_records = relationship("StarRecord", back_populates="user")
+        "Message",
+        foreign_keys="Message.sender_id",
+        back_populates="sender",
+        primaryjoin="User.id==Message.sender_id",
+    )
+    star_records = relationship(
+        "StarRecord",
+        back_populates="user",
+        primaryjoin="User.id==StarRecord.user_id",
+        foreign_keys="StarRecord.user_id",
+    )
 
     def __str__(self):
         return f'ID: {self.id}, Username: {self.username}, Email: {self.email}, Admin: {self.is_admin}, Moderator: {self.is_moderator}'
@@ -169,7 +190,12 @@ class KnowledgeBase(Base):
     )
 
     # 关系
-    uploader = relationship("User", back_populates="uploaded_knowledge_bases")
+    uploader = relationship(
+        "User",
+        back_populates="uploaded_knowledge_bases",
+        primaryjoin="KnowledgeBase.uploader_id==User.id",
+        foreign_keys=[uploader_id],
+    )
     # 移除star_records关系，因为StarRecord没有正确的外键关系
     # star_records = relationship("StarRecord", back_populates="knowledge_base")
 
@@ -376,7 +402,12 @@ class PersonaCard(Base):
     )
 
     # 关系
-    uploader = relationship("User", back_populates="uploaded_persona_cards")
+    uploader = relationship(
+        "User",
+        back_populates="uploaded_persona_cards",
+        primaryjoin="PersonaCard.uploader_id==User.id",
+        foreign_keys=[uploader_id],
+    )
     # 移除star_records关系，因为StarRecord没有正确的外键关系
     # star_records = relationship("StarRecord", back_populates="persona_card")
 
@@ -476,10 +507,18 @@ class Message(Base):
     )
 
     # 关系
-    recipient = relationship("User", foreign_keys=[
-                             recipient_id], back_populates="received_messages")
-    sender = relationship("User", foreign_keys=[
-                          sender_id], back_populates="sent_messages")
+    recipient = relationship(
+        "User",
+        foreign_keys=[recipient_id],
+        back_populates="received_messages",
+        primaryjoin="Message.recipient_id==User.id",
+    )
+    sender = relationship(
+        "User",
+        foreign_keys=[sender_id],
+        back_populates="sent_messages",
+        primaryjoin="Message.sender_id==User.id",
+    )
 
     def to_dict(self):
         """将消息对象转换为字典"""
@@ -534,7 +573,12 @@ class StarRecord(Base):
     )
 
     # 关系
-    user = relationship("User", back_populates="star_records")
+    user = relationship(
+        "User",
+        back_populates="star_records",
+        primaryjoin="StarRecord.user_id==User.id",
+        foreign_keys=[user_id],
+    )
     # 移除直接关系，因为target_id不是真正的外键
     # knowledge_base = relationship("KnowledgeBase", back_populates="star_records", foreign_keys=[target_id])
     # persona_card = relationship("PersonaCard", back_populates="star_records", foreign_keys=[target_id])
