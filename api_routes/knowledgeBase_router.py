@@ -443,7 +443,7 @@ async def update_knowledge_base(
         update_data: KnowledgeBaseUpdate,
         current_user: dict = Depends(get_current_user)
 ):
-    """修改知识库的基本信息"""
+    """修改知识库的基本信息（补充说明在公开/审核中也允许修改）"""
     user_id = current_user.get("id", "")
     try:
         app_logger.info(
@@ -459,14 +459,18 @@ async def update_knowledge_base(
                 "is_moderator", False):
             raise AuthorizationError("是你的知识库吗你就改")
 
-        # 仅私有知识库允许修改，公开或审核中的知识库不允许通过此接口修改
-        if kb.is_public or kb.is_pending:
-            raise AuthorizationError("公开或审核中的知识库不允许修改")
-
         # 更新知识库信息
         update_dict = update_data.dict(exclude_unset=True)
         if not update_dict:
             raise ValidationError("没有提供要更新的字段")
+
+        # 仅私有知识库允许修改基础信息和文件；
+        # 公开或审核中的知识库仅允许修改补充说明（content）
+        if kb.is_public or kb.is_pending:
+            allowed_fields = {"content"}
+            disallowed_fields = [key for key in update_dict.keys() if key not in allowed_fields]
+            if disallowed_fields:
+                raise AuthorizationError("公开或审核中的知识库仅允许修改补充说明")
 
         # 版权所有者不可通过该接口修改
         if "copyright_owner" in update_dict:
@@ -476,19 +480,21 @@ async def update_knowledge_base(
         if "name" in update_dict:
             update_dict.pop("name", None)
 
-        # 业务规则：
+        # 业务规则（仅对非公开/非审核中的私有知识库生效）：
         # - 普通用户可以修改名称、描述等基础信息
         # - 普通用户可以将私有知识库标记为待审核（is_pending=True）以申请公开
         # - 只有管理员或审核员可以直接修改 is_public 状态
-        if "is_public" in update_dict and not (current_user.get("is_admin", False) or current_user.get("is_moderator", False)):
-            raise AuthorizationError("只有管理员可以直接修改公开状态")
+        if not (kb.is_public or kb.is_pending):
+            if "is_public" in update_dict and not (current_user.get("is_admin", False) or current_user.get("is_moderator", False)):
+                raise AuthorizationError("只有管理员可以直接修改公开状态")
 
         # 更新数据库记录
         for key, value in update_dict.items():
             if hasattr(kb, key):
                 setattr(kb, key, value)
 
-        kb.updated_at = datetime.now()
+        if any(field != "content" for field in update_dict.keys()):
+            kb.updated_at = datetime.now()
 
         updated_kb = db_manager.save_knowledge_base(kb.to_dict())
         if not updated_kb:
