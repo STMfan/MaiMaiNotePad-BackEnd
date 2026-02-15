@@ -36,9 +36,15 @@ async def upload_knowledge_base(
         copyright_owner: Optional[str] = Form(None),
         content: Optional[str] = Form(None),
         tags: Optional[str] = Form(None),
+        is_public: Optional[bool] = Form(False),
         current_user: dict = Depends(get_current_user)
 ):
-    """上传知识库"""
+    """上传知识库
+
+    业务规则：
+    - 未显式声明公开：默认作为私有上传（is_public=False, is_pending=False）
+    - is_public=True：视为申请公开，进入审核队列（is_public=False, is_pending=True）
+    """
     user_id = current_user.get("id", "")
     username = current_user.get("username", "")
     try:
@@ -69,6 +75,24 @@ async def upload_knowledge_base(
             tags=tags
         )
 
+        # 根据是否公开调整状态：
+        # - 私有：直接可用，不进入审核（is_public=False, is_pending=False）
+        # - 申请公开：进入审核列表（is_public=False, is_pending=True）
+        try:
+            kb_dict = kb.to_dict()
+            if is_public:
+                kb_dict["is_public"] = False
+                kb_dict["is_pending"] = True
+                upload_status = "pending"
+            else:
+                kb_dict["is_public"] = False
+                kb_dict["is_pending"] = False
+                upload_status = "success"
+            kb = db_manager.save_knowledge_base(kb_dict)
+        except Exception as e:
+            log_exception(app_logger, "Update knowledge base visibility after upload error", exception=e)
+            raise DatabaseError("更新知识库可见性状态失败")
+
         # 创建上传记录
         try:
             db_manager.create_upload_record(
@@ -77,7 +101,7 @@ async def upload_knowledge_base(
                 target_type="knowledge",
                 name=name,
                 description=description,
-                status="pending"
+                status=upload_status
             )
         except Exception as e:
             app_logger.warning(f"Failed to create upload record: {str(e)}")
@@ -431,6 +455,13 @@ async def update_knowledge_base(
         update_dict = update_data.dict(exclude_unset=True)
         if not update_dict:
             raise ValidationError("没有提供要更新的字段")
+
+        # 业务规则：
+        # - 普通用户可以修改名称、描述等基础信息
+        # - 普通用户可以将私有知识库标记为待审核（is_pending=True）以申请公开
+        # - 只有管理员或审核员可以直接修改 is_public 状态
+        if "is_public" in update_dict and not (current_user.get("is_admin", False) or current_user.get("is_moderator", False)):
+            raise AuthorizationError("只有管理员可以直接修改公开状态")
 
         # 更新数据库记录
         for key, value in update_dict.items():

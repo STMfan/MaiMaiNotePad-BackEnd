@@ -41,6 +41,8 @@ class KnowledgeBaseUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     copyright_owner: Optional[str] = None
+    is_public: Optional[bool] = None
+    is_pending: Optional[bool] = None
 
 class KnowledgeBaseFileResponse(BaseModel):
     """知识库文件响应"""

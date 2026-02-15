@@ -428,6 +428,7 @@ description: 知识库描述
 copyright_owner: 版权所有者（可选）
 content: 知识库正文（可选）
 tags: 标签，逗号分隔或多值（可选）
+is_public: 是否申请公开（可选，默认为 false）
 ```
 
 **参数说明**:
@@ -437,6 +438,7 @@ tags: 标签，逗号分隔或多值（可选）
 - `copyright_owner` (可选): 版权所有者信息
 - `content` (可选): 正文内容，用于直接存储在数据库中
 - `tags` (可选): 标签，逗号分隔字符串或多值提交，接口会落库为逗号分隔
+- `is_public` (可选): 是否申请公开到知识库广场。缺省或为 `false` 时，知识库将以“私有”形式直接可用（`is_public=false, is_pending=false`）；当为 `true` 时，知识库会进入审核队列（`is_public=false, is_pending=true`），通过审核后才会公开展示。
 
 **响应示例**:
 ```json
@@ -448,7 +450,7 @@ tags: 标签，逗号分隔或多值（可选）
   "copyright_owner": "版权所有者",
   "star_count": 0,
   "is_public": false,
-  "is_pending": true,
+  "is_pending": false,
   "created_at": "2025-11-22T00:00:00",
   "updated_at": "2025-11-22T00:00:00"
 }
