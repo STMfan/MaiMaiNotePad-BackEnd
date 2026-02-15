@@ -80,6 +80,11 @@ async def upload_knowledge_base(
         # - 申请公开：进入审核列表（is_public=False, is_pending=True）
         try:
             kb_dict = kb.to_dict()
+
+            # 避免将已序列化的时间字段写回数据库，交由 ORM 自己管理
+            kb_dict.pop("created_at", None)
+            kb_dict.pop("updated_at", None)
+
             if is_public:
                 kb_dict["is_public"] = False
                 kb_dict["is_pending"] = True
@@ -88,7 +93,10 @@ async def upload_knowledge_base(
                 kb_dict["is_public"] = False
                 kb_dict["is_pending"] = False
                 upload_status = "success"
+
             kb = db_manager.save_knowledge_base(kb_dict)
+            if not kb:
+                raise DatabaseError("保存知识库失败")
         except Exception as e:
             log_exception(app_logger, "Update knowledge base visibility after upload error", exception=e)
             raise DatabaseError("更新知识库可见性状态失败")

@@ -843,6 +843,14 @@ class SQLiteDatabaseManager:
                 if isinstance(tags_value, list):
                     kb_data["tags"] = ",".join(tags_value)
 
+                # 清理时间字段，避免将已序列化的字符串写回 DateTime 列
+                created_at_value = kb_data.get("created_at")
+                if isinstance(created_at_value, str):
+                    kb_data.pop("created_at", None)
+                updated_at_value = kb_data.get("updated_at")
+                if isinstance(updated_at_value, str):
+                    kb_data.pop("updated_at", None)
+
                 kb_id = kb_data.get("id")
                 kb = None
                 if kb_id:
