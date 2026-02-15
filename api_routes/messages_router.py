@@ -15,6 +15,7 @@ from models import (
     MessageCreate, MessageUpdate, MessageResponse
 )
 from user_management import get_current_user
+from websocket_manager import message_ws_manager
 
 # 创建路由器
 messages_router = APIRouter()
@@ -133,7 +134,6 @@ async def send_message(
             if not created_messages:
                 raise DatabaseError("消息创建失败")
         except Exception as e:
-            # 将数据库异常转换为DatabaseError
             raise DatabaseError(f"消息创建失败: {str(e)}")
 
         # 记录数据库操作成功
@@ -146,6 +146,8 @@ async def send_message(
                 user_id=sender_id,
                 success=True
             )
+
+        await message_ws_manager.broadcast_user_update(recipient_ids)
 
         return Success(
             message="消息发送成功",
@@ -254,7 +256,7 @@ async def get_messages(
 
         return Success(
             message="消息列表获取成功",
-            data=[MessageResponse(**msg.to_dict()) for msg in messages]
+            data=[msg.to_dict() for msg in messages]
         )
 
     except (ValidationError, DatabaseError):
@@ -312,6 +314,8 @@ async def mark_message_read(
             user_id=user_id,
             success=True
         )
+
+        await message_ws_manager.broadcast_user_update({user_id})
 
         return Success(
             message="消息已标记为已读"

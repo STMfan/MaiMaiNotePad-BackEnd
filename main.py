@@ -2,7 +2,7 @@
 from user_management import load_users
 from api_routes import api_router
 from database_models import sqlite_db_manager
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import uvicorn
 from logger import log
 import os
@@ -18,6 +18,8 @@ from error_handlers import setup_exception_handlers
 # 导入中间件配置和静态文件路由模块
 from middleware_config import setup_middlewares
 from static_routes import setup_static_routes
+from jwt_utils import get_user_from_token
+from websocket_manager import message_ws_manager
 
 # 加载环境变量
 log("加载环境变量", importance='info')
@@ -47,6 +49,31 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+
+@app.websocket("/api/ws/{token}")
+async def message_websocket_endpoint(websocket: WebSocket, token: str):
+    payload = get_user_from_token(token)
+    if not payload:
+        await websocket.close(code=1008)
+        return
+
+    user_id = payload.get("sub")
+    if not user_id:
+        await websocket.close(code=1008)
+        return
+
+    await message_ws_manager.connect(str(user_id), websocket)
+    await message_ws_manager.send_message_update(str(user_id))
+
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        message_ws_manager.disconnect(str(user_id), websocket)
+    except Exception:
+        message_ws_manager.disconnect(str(user_id), websocket)
+        await websocket.close()
 
 
 if __name__ == '__main__':
