@@ -9,6 +9,7 @@ from models import (
 )
 from database_models import sqlite_db_manager
 from user_management import get_current_user
+from websocket_manager import message_ws_manager
 
 # 导入错误处理和日志记录模块
 from logging_config import app_logger
@@ -51,7 +52,7 @@ async def get_pending_knowledge_bases(
         )
         return Page(
             message="获取待审核知识库成功",
-            data= [KnowledgeBaseResponse(**kb.to_dict()) for kb in kbs],
+            data=[kb.to_dict() for kb in kbs],
             page=page,
             page_size=page_size,
             total=total
@@ -93,7 +94,7 @@ async def get_pending_persona_cards(
         )
         return Page(
             message="获取待审核人设卡成功",
-            data= [PersonaCardResponse(**pc.to_dict()) for pc in pcs],
+            data=[pc.to_dict() for pc in pcs],
             page=page,
             page_size=page_size,
             total=total
@@ -144,8 +145,24 @@ async def approve_knowledge_base(
         except Exception as e:
             app_logger.warning(
                 f"Failed to update upload record status: {str(e)}")
+        # 发送审核通过通知并通过 WebSocket 推送
+        try:
+            if kb.uploader_id:
+                message = Message(
+                    recipient_id=kb.uploader_id,
+                    sender_id=current_user.get("id", ""),
+                    title="知识库审核通过",
+                    content=f"您上传的知识库《{kb.name}》已通过审核并公开至知识库广场。"
+                )
+                saved = db_manager.save_message(message)
+                if saved:
+                    await message_ws_manager.broadcast_user_update({kb.uploader_id})
+        except Exception as e:
+            app_logger.warning(
+                f"Failed to send approve notification for knowledge base {kb_id}: {str(e)}"
+            )
 
-        return Success(message="审核通过")
+        return Success(message="审核通过，已发送通知")
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -204,7 +221,16 @@ async def reject_knowledge_base(
             content=f"您上传的知识库《{kb.name}》未通过审核。\n\n拒绝原因：{reason}"
         )
 
-        db_manager.save_message(message)
+        saved = db_manager.save_message(message)
+
+        # 通过 WebSocket 推送最新消息状态
+        try:
+            if saved and kb.uploader_id:
+                await message_ws_manager.broadcast_user_update({kb.uploader_id})
+        except Exception as e:
+            app_logger.warning(
+                f"Failed to send reject notification for knowledge base {kb_id}: {str(e)}"
+            )
 
         return Success(message="审核拒绝，已发送通知")
     except HTTPException as e:
@@ -255,8 +281,24 @@ async def approve_persona_card(
         except Exception as e:
             app_logger.warning(
                 f"Failed to update upload record status: {str(e)}")
+        # 发送审核通过通知并通过 WebSocket 推送
+        try:
+            if pc.uploader_id:
+                message = Message(
+                    recipient_id=pc.uploader_id,
+                    sender_id=current_user.get("id", ""),
+                    title="人设卡审核通过",
+                    content=f"您上传的人设卡《{pc.name}》已通过审核并公开至人设广场。"
+                )
+                saved = db_manager.save_message(message)
+                if saved:
+                    await message_ws_manager.broadcast_user_update({pc.uploader_id})
+        except Exception as e:
+            app_logger.warning(
+                f"Failed to send approve notification for persona card {pc_id}: {str(e)}"
+            )
 
-        return Success(message="审核通过")
+        return Success(message="审核通过，已发送通知")
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -315,7 +357,16 @@ async def reject_persona_card(
             content=f"您上传的人设卡《{pc.name}》未通过审核。\n\n拒绝原因：{reason}"
         )
 
-        db_manager.save_message(message)
+        saved = db_manager.save_message(message)
+
+        # 通过 WebSocket 推送最新消息状态
+        try:
+            if saved and pc.uploader_id:
+                await message_ws_manager.broadcast_user_update({pc.uploader_id})
+        except Exception as e:
+            app_logger.warning(
+                f"Failed to send reject notification for persona card {pc_id}: {str(e)}"
+            )
 
         return Success(message="审核拒绝，已发送通知")
     except HTTPException as e:

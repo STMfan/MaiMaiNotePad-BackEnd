@@ -201,6 +201,12 @@ class KnowledgeBase(Base):
 
     def to_dict(self, include_files: bool = True):
         """将知识库对象转换为字典"""
+        author_name = None
+        if self.copyright_owner:
+            author_name = self.copyright_owner
+        elif self.uploader and getattr(self.uploader, "is_active", True):
+            author_name = self.uploader.username
+
         result = {
             "id": self.id,
             "name": self.name,
@@ -223,7 +229,7 @@ class KnowledgeBase(Base):
             "download_url": None,
             "preview_url": None,
             "size": None,
-            "author": None,
+            "author": author_name,
             "author_id": self.uploader_id
         }
 

@@ -459,10 +459,22 @@ async def update_knowledge_base(
                 "is_moderator", False):
             raise AuthorizationError("是你的知识库吗你就改")
 
+        # 仅私有知识库允许修改，公开或审核中的知识库不允许通过此接口修改
+        if kb.is_public or kb.is_pending:
+            raise AuthorizationError("公开或审核中的知识库不允许修改")
+
         # 更新知识库信息
         update_dict = update_data.dict(exclude_unset=True)
         if not update_dict:
             raise ValidationError("没有提供要更新的字段")
+
+        # 版权所有者不可通过该接口修改
+        if "copyright_owner" in update_dict:
+            update_dict.pop("copyright_owner", None)
+
+        # 名称不可通过该接口修改
+        if "name" in update_dict:
+            update_dict.pop("name", None)
 
         # 业务规则：
         # - 普通用户可以修改名称、描述等基础信息
@@ -537,6 +549,10 @@ async def add_files_to_knowledge_base(
                 "is_moderator", False):
             raise AuthorizationError("是你的知识库吗你就加")
 
+        # 仅私有知识库允许追加文件，公开或审核中的知识库不允许修改文件
+        if kb.is_public or kb.is_pending:
+            raise AuthorizationError("公开或审核中的知识库不允许修改文件")
+
         if not files:
             raise ValidationError("至少需要上传一个文件")
 
@@ -596,7 +612,6 @@ async def delete_files_from_knowledge_base(
     try:
         app_logger.info(
             f"Delete files from knowledge base: kb_id={kb_id}, user_id={user_id}")
-
         # 检查知识库是否存在
         kb = db_manager.get_knowledge_base_by_id(kb_id)
         if not kb:
@@ -606,6 +621,10 @@ async def delete_files_from_knowledge_base(
         if kb.uploader_id != user_id and not current_user.get("is_admin", False) and not current_user.get(
                 "is_moderator", False):
             raise AuthorizationError("是你的知识库吗你就删")
+
+        # 仅私有知识库允许删除文件，公开或审核中的知识库不允许修改文件
+        if kb.is_public or kb.is_pending:
+            raise AuthorizationError("公开或审核中的知识库不允许修改文件")
 
         if not file_id:
             return Success(
