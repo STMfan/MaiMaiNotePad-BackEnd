@@ -234,6 +234,30 @@ async def send_verification_code(
             raise APIError(f"发送验证码失败: {error_msg}")
 
 
+@user_router.post("/user/check_register")
+async def check_register(
+        username: str = Form(...),
+        email: str = Form(...),
+):
+    try:
+        if not username or not email:
+            raise ValidationError("有未填写的字段")
+
+        email = email.lower()
+        message = db_manager.check_user_register_legality(username, email)
+        if message != "ok":
+            raise ValidationError(message)
+
+        return Success(
+            message="可以注册"
+        )
+    except ValidationError:
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Check user register legality error", exception=e)
+        raise APIError("检查注册信息失败")
+
+
 @user_router.post("/send_reset_password_code")
 async def send_reset_password_code(
         email: str = Form(...),
