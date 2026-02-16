@@ -638,33 +638,31 @@ async def get_user_avatar(user_id: str, size: int = 200):
     try:
         from fastapi.responses import Response
         from avatar_utils import generate_initial_avatar
+        from static_routes import static_file_security
         import os
 
-        # 获取用户信息
         user = db_manager.get_user_by_id(user_id)
         if not user:
             raise NotFoundError("用户不存在")
 
-        # 如果用户已有头像，返回头像URL
         if user.avatar_path and os.path.exists(user.avatar_path):
-            from fastapi.responses import RedirectResponse
-            return RedirectResponse(url=f"/{user.avatar_path}")
+            avatar_path = user.avatar_path
+            prefix = "uploads/avatars/"
+            if avatar_path.startswith(prefix):
+                avatar_path = avatar_path[len(prefix):]
+            return static_file_security.serve_avatar(avatar_path)
 
-        # 否则生成首字母头像作为头像
         username = user.username or "?"
         avatar_bytes = generate_initial_avatar(username, size)
 
-        # 处理并保存首字母头像
         ensure_avatar_dir()
         file_path, thumbnail_path = save_avatar_file(
             user_id, avatar_bytes, ".jpg")
 
-        # 更新数据库
         user.avatar_path = file_path
         user.avatar_updated_at = datetime.now()
         user_data = user.to_dict()
         if not db_manager.save_user(user_data):
-            # 如果保存失败，删除已上传的文件
             delete_avatar_file(file_path)
             raise DatabaseError("保存头像信息失败")
 
