@@ -15,12 +15,8 @@ import uuid
 Base = declarative_base()
 
 
-engine = create_engine("sqlite:///./maimai.db", connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
 def get_db():
-    db = SessionLocal()
+    db = sqlite_db_manager.get_session()  # type: ignore[name-defined]
     try:
         yield db
     finally:
