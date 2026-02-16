@@ -28,7 +28,7 @@ class FileUploadService:
     # 配置常量
     MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
     MAX_KNOWLEDGE_FILES = 100  # 知识库最多文件数
-    MAX_PERSONA_FILES = 2  # 人设卡最多文件数
+    MAX_PERSONA_FILES = 1  # 人设卡最多文件数
     ALLOWED_KNOWLEDGE_TYPES = ['.txt', '.json']  # 知识库允许的文件类型
     ALLOWED_PERSONA_TYPES = ['.toml']  # 人设卡允许的文件类型
 
@@ -115,6 +115,42 @@ class FileUploadService:
         await file.seek(0)  # 重置文件指针
 
         return len(content) <= self.MAX_FILE_SIZE
+
+    def _extract_version_from_toml(self, data: Dict[str, Any]) -> Optional[str]:
+        if not isinstance(data, dict):
+            return None
+        for key in ["version", "Version", "schema_version", "card_version"]:
+            value = data.get(key)
+            if isinstance(value, (str, int, float)):
+                return str(value)
+        meta_candidates = []
+        for meta_key in ["meta", "Meta", "card", "Card"]:
+            meta_value = data.get(meta_key)
+            if isinstance(meta_value, dict):
+                meta_candidates.append(meta_value)
+        for meta in meta_candidates:
+            for key in ["version", "Version", "schema_version", "card_version"]:
+                value = meta.get(key)
+                if isinstance(value, (str, int, float)):
+                    return str(value)
+        visited = set()
+        stack = [data]
+        while stack:
+            current = stack.pop()
+            if id(current) in visited:
+                continue
+            visited.add(id(current))
+            if isinstance(current, dict):
+                for k, v in current.items():
+                    if isinstance(k, str) and k.lower() == "version" and isinstance(v, (str, int, float)):
+                        return str(v)
+                    if isinstance(v, (dict, list)):
+                        stack.append(v)
+            elif isinstance(current, list):
+                for v in current:
+                    if isinstance(v, (dict, list)):
+                        stack.append(v)
+        return None
 
     def _create_metadata_file(self, metadata: Dict[str, Any], target_dir: str, prefix: str) -> str:
         """创建元数据文件"""
@@ -231,14 +267,20 @@ class FileUploadService:
     ) -> PersonaCard:
         """上传人设卡"""
         # 验证文件数量
-        if len(files) < 1 or len(files) > self.MAX_PERSONA_FILES:
+        if len(files) != 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"人设卡必须包含1-{self.MAX_PERSONA_FILES}个.toml文件"
+                detail="人设卡必须且仅包含一个 bot_config.toml 文件"
             )
 
-        # 验证文件类型和大小
+        # 验证文件类型、名称和大小
         for file in files:
+            if file.filename != "bot_config.toml":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="人设卡配置文件名必须为 bot_config.toml"
+                )
+
             if not self._validate_file_type(file, self.ALLOWED_PERSONA_TYPES):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -264,6 +306,7 @@ class FileUploadService:
         os.makedirs(pc_dir, exist_ok=True)
 
         try:
+            persona_version: Optional[str] = None
             # 保存人设卡基本信息到数据库
             pc_data = {
                 "name": name,
@@ -284,11 +327,35 @@ class FileUploadService:
                     detail="人设卡保存失败"
                 )
 
-            # 保存上传的文件并创建文件记录
+            # 保存上传的文件并创建文件记录，同时解析 TOML 版本号
             saved_files = []
             for file in files:
                 file_path, file_size_b = await self._save_uploaded_file_with_size(file, pc_dir)
                 file_ext = os.path.splitext(file.filename)[1].lower()
+
+                if file_ext == ".toml":
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            toml_data = toml.load(f)
+                        parsed_version = self._extract_version_from_toml(toml_data)
+                        if not parsed_version:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="人设卡 TOML 文件中未找到版本号字段，请在 TOML 文件中添加 version 等版本字段"
+                            )
+                        if persona_version and parsed_version != persona_version:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="多个 TOML 文件的版本号不一致，请统一版本号后再上传"
+                            )
+                        persona_version = parsed_version
+                    except HTTPException:
+                        raise
+                    except Exception:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="人设卡 TOML 文件解析失败，请检查 TOML 格式是否正确"
+                        )
 
                 # 创建文件记录
                 file_data = {
@@ -309,6 +376,21 @@ class FileUploadService:
                         detail="人设卡文件保存失败"
                     )
                 saved_files.append(saved_file)
+
+            if not persona_version:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="人设卡 TOML 文件中未找到版本号字段，请在 TOML 文件中添加 version 等版本字段"
+                )
+
+            try:
+                saved_pc.version = persona_version
+                saved_pc = sqlite_db_manager.save_persona_card(saved_pc.to_dict())
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="保存人设卡版本号失败"
+                )
 
             return saved_pc
         except Exception as e:
@@ -616,24 +698,21 @@ class FileUploadService:
             pc_id)
         current_file_count = len(current_files)
 
-        # 检查文件数量限制
-        if current_file_count + len(files) > self.MAX_PERSONA_FILES:
+        # 只允许一次上传一个文件
+        if len(files) != 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"文件数量超过限制，当前{current_file_count}个文件，最多允许{self.MAX_PERSONA_FILES}个文件"
+                detail="人设卡一次仅支持上传一个配置文件"
             )
 
-        # 检查同名文件
-        existing_file_names = {file.original_name for file in current_files}
+        # 验证文件类型、名称和大小
         for file in files:
-            if file.filename in existing_file_names:
+            if file.filename != "bot_config.toml":
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"文件名已存在: {file.filename}"
+                    detail="人设卡配置文件名必须为 bot_config.toml"
                 )
 
-        # 验证文件类型和大小
-        for file in files:
             if not self._validate_file_type(file, self.ALLOWED_PERSONA_TYPES):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -661,31 +740,73 @@ class FileUploadService:
                 detail="人设卡目录不存在"
             )
 
-        # 保存新文件并创建文件记录
-        saved_files = []
-        for file in files:
-            file_path, file_size_b = await self._save_uploaded_file_with_size(file, pc_dir)
-            file_ext = os.path.splitext(file.filename)[1].lower()
+        # 保存新文件并创建文件记录，同时校验 TOML 版本号
+        new_file = files[0]
+        persona_version: Optional[str] = None
+        file_path, file_size_b = await self._save_uploaded_file_with_size(new_file, pc_dir)
+        file_ext = os.path.splitext(new_file.filename)[1].lower()
 
-            # 创建文件记录
+        try:
+            if file_ext == ".toml":
+                with open(file_path, "r", encoding="utf-8") as f:
+                    toml_data = toml.load(f)
+                parsed_version = self._extract_version_from_toml(toml_data)
+                if not parsed_version:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="人设卡 TOML 文件中未找到版本号字段，请在 TOML 文件中添加 version 等版本字段"
+                    )
+                persona_version = parsed_version
+
+            # 创建新文件记录
             file_data = {
                 "persona_card_id": pc_id,
-                "file_name": file.filename,
-                "original_name": file.filename,
+                "file_name": new_file.filename,
+                "original_name": new_file.filename,
                 "file_path": os.path.basename(file_path),  # 只存储文件名，相对于人设卡目录
                 "file_type": file_ext,
                 "file_size": file_size_b  # 添加文件大小(B)
             }
 
             saved_file = sqlite_db_manager.save_persona_card_file(file_data)
-            if saved_file:
-                saved_files.append(saved_file)
+            if not saved_file:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="人设卡文件保存失败"
+                )
 
-        # 更新人设卡时间戳
-        pc.updated_at = datetime.now()
-        updated_pc = sqlite_db_manager.save_persona_card(pc.to_dict())
+            # 新文件保存成功后，删除旧文件及记录（实现“替换”）
+            for old_file in current_files:
+                try:
+                    old_full_path = os.path.join(pc_dir, old_file.file_path)
+                    if os.path.exists(old_full_path):
+                        os.remove(old_full_path)
+                    sqlite_db_manager.delete_persona_card_file(old_file.id)
+                except Exception as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"删除旧人设卡文件失败 {old_file.original_name}: {str(e)}"
+                    )
 
-        return updated_pc
+            # 更新人设卡时间戳和版本号（使用新文件的版本）
+            pc.updated_at = datetime.now()
+            if persona_version:
+                pc.version = persona_version
+            updated_pc = sqlite_db_manager.save_persona_card(pc.to_dict())
+
+            return updated_pc
+        except HTTPException:
+            # 删除新文件，保留旧文件不变
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            raise
+        except Exception:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="人设卡 TOML 文件解析失败，请检查 TOML 格式是否正确"
+            )
 
     async def delete_files_from_persona_card(self, pc_id: str, file_id: str, user_id: str) -> bool:
         """从人设卡删除文件"""

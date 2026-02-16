@@ -470,6 +470,8 @@ class PersonaCard(Base):
                     "file_id": f.id,
                     "original_name": f.original_name,
                     "file_size": f.file_size or 0,
+                    "created_at": f.created_at.isoformat() if getattr(f, "created_at", None) else datetime.now().isoformat(),
+                    "updated_at": f.updated_at.isoformat() if getattr(f, "updated_at", None) else datetime.now().isoformat(),
                 }for f in files]
                 result["size"] = sum(f.file_size or 0 for f in files)
                 # 构建下载URL
