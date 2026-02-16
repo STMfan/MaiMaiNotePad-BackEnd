@@ -427,6 +427,12 @@ class PersonaCard(Base):
 
     def to_dict(self, include_files: bool = True):
         """将人设卡对象转换为字典"""
+        author_name = None
+        if self.copyright_owner:
+            author_name = self.copyright_owner
+        elif self.uploader and getattr(self.uploader, "is_active", True):
+            author_name = self.uploader.username
+
         result = {
             "id": self.id,
             "name": self.name,
@@ -449,7 +455,7 @@ class PersonaCard(Base):
             "download_url": None,
             "preview_url": None,
             "size": None,
-            "author": None,
+            "author": author_name,
             "author_id": self.uploader_id,
             "stars": self.star_count or 0
         }
