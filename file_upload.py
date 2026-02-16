@@ -268,36 +268,36 @@ class FileUploadService:
         """上传人设卡"""
         # 验证文件数量
         if len(files) != 1:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="人设卡必须且仅包含一个 bot_config.toml 文件"
+            raise ValidationError(
+                message="人设卡配置错误：必须且仅包含一个 bot_config.toml 文件",
+                details={"code": "PERSONA_FILE_COUNT_INVALID"}
             )
 
         # 验证文件类型、名称和大小
         for file in files:
             if file.filename != "bot_config.toml":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="人设卡配置文件名必须为 bot_config.toml"
+                raise ValidationError(
+                    message="人设卡配置错误：配置文件名必须为 bot_config.toml",
+                    details={"code": "PERSONA_FILE_NAME_INVALID", "filename": file.filename}
                 )
 
             if not self._validate_file_type(file, self.ALLOWED_PERSONA_TYPES):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"不支持的文件类型: {file.filename}。人设卡仅支持{', '.join(self.ALLOWED_PERSONA_TYPES)}文件"
+                raise ValidationError(
+                    message=f"人设卡配置错误：不支持的文件类型 {file.filename}，仅支持{', '.join(self.ALLOWED_PERSONA_TYPES)} 文件",
+                    details={"code": "PERSONA_FILE_TYPE_INVALID", "filename": file.filename}
                 )
 
             if not self._validate_file_size(file):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"文件过大: {file.filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB"
+                raise ValidationError(
+                    message=f"人设卡配置错误：文件过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
+                    details={"code": "PERSONA_FILE_SIZE_EXCEEDED", "filename": file.filename}
                 )
 
             # 验证实际文件内容大小
             if not await self._validate_file_content(file):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"文件内容过大: {file.filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB"
+                raise ValidationError(
+                    message=f"人设卡配置错误：文件内容过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
+                    details={"code": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED", "filename": file.filename}
                 )
 
         # 创建人设卡目录
@@ -322,9 +322,8 @@ class FileUploadService:
 
             saved_pc = sqlite_db_manager.save_persona_card(pc_data)
             if not saved_pc:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="人设卡保存失败"
+                raise DatabaseError(
+                    message="人设卡保存失败，请稍后重试或联系管理员"
                 )
 
             # 保存上传的文件并创建文件记录，同时解析 TOML 版本号
@@ -339,22 +338,17 @@ class FileUploadService:
                             toml_data = toml.load(f)
                         parsed_version = self._extract_version_from_toml(toml_data)
                         if not parsed_version:
-                            raise HTTPException(
-                                status_code=status.HTTP_400_BAD_REQUEST,
-                                detail="人设卡 TOML 文件中未找到版本号字段，请在 TOML 文件中添加 version 等版本字段"
-                            )
-                        if persona_version and parsed_version != persona_version:
-                            raise HTTPException(
-                                status_code=status.HTTP_400_BAD_REQUEST,
-                                detail="多个 TOML 文件的版本号不一致，请统一版本号后再上传"
+                            raise ValidationError(
+                                message="人设卡配置错误：TOML 中未找到版本号字段，请在 bot_config.toml 中添加 version 等版本字段后重试",
+                                details={"code": "PERSONA_TOML_VERSION_MISSING"}
                             )
                         persona_version = parsed_version
                     except HTTPException:
                         raise
                     except Exception:
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="人设卡 TOML 文件解析失败，请检查 TOML 格式是否正确"
+                        raise ValidationError(
+                            message="人设卡配置解析失败：TOML 语法错误，请检查 bot_config.toml 格式是否正确",
+                            details={"code": "PERSONA_TOML_PARSE_ERROR"}
                         )
 
                 # 创建文件记录
@@ -368,28 +362,25 @@ class FileUploadService:
                     "file_size": file_size_b  # 添加文件大小(B)
                 }
 
-                saved_file = sqlite_db_manager.save_persona_card_file(
-                    file_data)
+                saved_file = sqlite_db_manager.save_persona_card_file(file_data)
                 if not saved_file:
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail="人设卡文件保存失败"
+                    raise DatabaseError(
+                        message="人设卡文件保存失败，请稍后重试或联系管理员"
                     )
                 saved_files.append(saved_file)
 
             if not persona_version:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="人设卡 TOML 文件中未找到版本号字段，请在 TOML 文件中添加 version 等版本字段"
+                raise ValidationError(
+                    message="人设卡配置错误：未能从 TOML 中解析出版本号，请在 bot_config.toml 中添加 version 等版本字段后重试",
+                    details={"code": "PERSONA_TOML_VERSION_MISSING"}
                 )
 
             try:
                 saved_pc.version = persona_version
                 saved_pc = sqlite_db_manager.save_persona_card(saved_pc.to_dict())
             except Exception:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="保存人设卡版本号失败"
+                raise DatabaseError(
+                    message="保存人设卡版本号失败，请稍后重试或联系管理员"
                 )
 
             return saved_pc
@@ -693,51 +684,45 @@ class FileUploadService:
         if not pc:
             return None
 
-        # 获取人设卡现有文件
-        current_files = sqlite_db_manager.get_persona_card_files_by_persona_card_id(
-            pc_id)
-        current_file_count = len(current_files)
-
         # 只允许一次上传一个文件
         if len(files) != 1:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="人设卡一次仅支持上传一个配置文件"
+            raise ValidationError(
+                message="人设卡配置错误：一次仅支持上传一个 bot_config.toml 文件",
+                details={"code": "PERSONA_FILE_COUNT_INVALID"}
             )
 
         # 验证文件类型、名称和大小
         for file in files:
             if file.filename != "bot_config.toml":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="人设卡配置文件名必须为 bot_config.toml"
+                raise ValidationError(
+                    message=f"人设卡配置错误：文件名必须为 bot_config.toml，当前为 {file.filename}",
+                    details={"code": "PERSONA_FILE_NAME_INVALID", "filename": file.filename}
                 )
 
             if not self._validate_file_type(file, self.ALLOWED_PERSONA_TYPES):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"不支持的文件类型: {file.filename}。人设卡仅支持{', '.join(self.ALLOWED_PERSONA_TYPES)}文件"
+                raise ValidationError(
+                    message=f"人设卡配置错误：不支持的文件类型 {file.filename}，仅支持{', '.join(self.ALLOWED_PERSONA_TYPES)} 文件",
+                    details={"code": "PERSONA_FILE_TYPE_INVALID", "filename": file.filename}
                 )
 
             if not self._validate_file_size(file):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"文件过大: {file.filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB"
+                raise ValidationError(
+                    message=f"人设卡配置错误：文件过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
+                    details={"code": "PERSONA_FILE_SIZE_EXCEEDED", "filename": file.filename}
                 )
 
             # 验证实际文件内容大小
             if not await self._validate_file_content(file):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"文件内容过大: {file.filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB"
+                raise ValidationError(
+                    message=f"人设卡配置错误：文件内容过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
+                    details={"code": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED", "filename": file.filename}
                 )
 
         # 获取人设卡目录
         pc_dir = pc.base_path  # 人设卡主文件所在目录
         if not pc_dir or not os.path.exists(pc_dir):
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="人设卡目录不存在"
+            raise DatabaseError(
+                message="人设卡目录不存在，请稍后重试或联系管理员"
             )
 
         # 保存新文件并创建文件记录，同时校验 TOML 版本号
@@ -752,9 +737,9 @@ class FileUploadService:
                     toml_data = toml.load(f)
                 parsed_version = self._extract_version_from_toml(toml_data)
                 if not parsed_version:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="人设卡 TOML 文件中未找到版本号字段，请在 TOML 文件中添加 version 等版本字段"
+                    raise ValidationError(
+                        message="人设卡配置错误：TOML 中未找到版本号字段，请在 bot_config.toml 中添加 version 等版本字段后重试",
+                        details={"code": "PERSONA_TOML_VERSION_MISSING"}
                     )
                 persona_version = parsed_version
 
@@ -770,9 +755,8 @@ class FileUploadService:
 
             saved_file = sqlite_db_manager.save_persona_card_file(file_data)
             if not saved_file:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="人设卡文件保存失败"
+                raise DatabaseError(
+                    message="人设卡文件保存失败，请稍后重试或联系管理员"
                 )
 
             # 新文件保存成功后，删除旧文件及记录（实现“替换”）
@@ -783,9 +767,8 @@ class FileUploadService:
                         os.remove(old_full_path)
                     sqlite_db_manager.delete_persona_card_file(old_file.id)
                 except Exception as e:
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"删除旧人设卡文件失败 {old_file.original_name}: {str(e)}"
+                    raise DatabaseError(
+                        message=f"删除旧人设卡文件失败：{old_file.original_name}，请稍后重试或联系管理员"
                     )
 
             # 更新人设卡时间戳和版本号（使用新文件的版本）
@@ -803,9 +786,9 @@ class FileUploadService:
         except Exception:
             if os.path.exists(file_path):
                 os.remove(file_path)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="人设卡 TOML 文件解析失败，请检查 TOML 格式是否正确"
+            raise ValidationError(
+                message="人设卡配置解析失败：TOML 语法错误，请检查 bot_config.toml 格式是否正确",
+                details={"code": "PERSONA_TOML_PARSE_ERROR"}
             )
 
     async def delete_files_from_persona_card(self, pc_id: str, file_id: str, user_id: str) -> bool:
