@@ -58,10 +58,11 @@ def authenticated_client(test_user):
     """创建已认证的测试客户端"""
     # 登录获取token
     response = client.post(
-        "/api/auth/login",
+        "/api/token",
         data={"username": "testuser", "password": "testpassword123"}
     )
-    token = response.json()["access_token"]
+    resp_data = response.json()
+    token = resp_data["data"]["access_token"]
     
     # 创建带有认证头的客户端
     client.headers.update({"Authorization": f"Bearer {token}"})

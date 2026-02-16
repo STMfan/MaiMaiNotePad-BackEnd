@@ -12,7 +12,7 @@ from error_handlers import (
 # 导入错误处理和日志记录模块
 from logging_config import app_logger, log_exception, log_database_operation
 from models import (
-    MessageCreate, MessageUpdate, MessageResponse
+    MessageCreate, MessageUpdate, MessageResponse, BaseResponse, PageResponse
 )
 from user_management import get_current_user
 from websocket_manager import message_ws_manager
@@ -25,7 +25,10 @@ db_manager = sqlite_db_manager
 
 
 # 消息相关路由
-@messages_router.post("/messages/send")
+@messages_router.post(
+    "/messages/send",
+    response_model=BaseResponse[dict]
+)
 async def send_message(
         message: MessageCreate,
         current_user: dict = Depends(get_current_user)
@@ -173,7 +176,10 @@ async def send_message(
         raise APIError("发送消息失败")
 
 
-@messages_router.get("/messages/{message_id}")
+@messages_router.get(
+    "/messages/{message_id}",
+    response_model=BaseResponse[MessageResponse]
+)
 async def get_message_detail(
         message_id: str,
         current_user: dict = Depends(get_current_user)
@@ -199,18 +205,18 @@ async def get_message_detail(
 
         return Success(
             message="消息详情获取成功",
-            data={
-                "id": message.id,
-                "sender_id": message.sender_id,
-                "recipient_id": message.recipient_id,
-                "title": message.title,
-                "content": message.content,
-                "summary": message.summary,
-                "message_type": message.message_type or "direct",
-                "broadcast_scope": message.broadcast_scope,
-                "is_read": message.is_read or False,
-                "created_at": message.created_at if message.created_at else datetime.now()
-            }
+            data=MessageResponse(
+                id=message.id,
+                sender_id=message.sender_id,
+                recipient_id=message.recipient_id,
+                title=message.title,
+                content=message.content,
+                summary=message.summary,
+                message_type=message.message_type or "direct",
+                broadcast_scope=message.broadcast_scope,
+                is_read=message.is_read or False,
+                created_at=message.created_at if message.created_at else datetime.now()
+            )
         )
 
     except (NotFoundError, AuthorizationError):
@@ -220,7 +226,10 @@ async def get_message_detail(
         raise APIError("获取消息详情失败")
 
 
-@messages_router.get("/messages")
+@messages_router.get(
+    "/messages",
+    response_model=BaseResponse[list[MessageResponse]]
+)
 async def get_messages(
         current_user: dict = Depends(get_current_user),
         other_user_id: Optional[str] = None,
@@ -256,7 +265,21 @@ async def get_messages(
 
         return Success(
             message="消息列表获取成功",
-            data=[msg.to_dict() for msg in messages]
+            data=[
+                MessageResponse(
+                    id=msg.id,
+                    sender_id=msg.sender_id,
+                    recipient_id=msg.recipient_id,
+                    title=msg.title,
+                    content=msg.content,
+                    summary=msg.summary,
+                    message_type=msg.message_type or "direct",
+                    broadcast_scope=msg.broadcast_scope,
+                    is_read=msg.is_read or False,
+                    created_at=msg.created_at if msg.created_at else datetime.now()
+                )
+                for msg in messages
+            ]
         )
 
     except (ValidationError, DatabaseError):
@@ -266,7 +289,10 @@ async def get_messages(
         raise APIError("获取消息列表失败")
 
 
-@messages_router.post("/messages/{message_id}/read")
+@messages_router.post(
+    "/messages/{message_id}/read",
+    response_model=BaseResponse[None]
+)
 async def mark_message_read(
         message_id: str,
         current_user: dict = Depends(get_current_user)
@@ -558,7 +584,10 @@ async def update_message(
         raise APIError("更新消息失败")
 
 
-@messages_router.get("/admin/broadcast-messages")
+@messages_router.get(
+    "/admin/broadcast-messages",
+    response_model=PageResponse[dict]
+)
 async def get_broadcast_messages(
         current_user: dict = Depends(get_current_user),
         page: int = 1,

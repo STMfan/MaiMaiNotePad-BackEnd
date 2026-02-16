@@ -4,7 +4,8 @@
 """
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
-from typing import List, Optional, Dict, Any, Literal
+from pydantic.generics import GenericModel
+from typing import List, Optional, Dict, Any, Literal, Generic, TypeVar
 from datetime import datetime
 
 # 从 database_models 导入SQLAlchemy模型
@@ -20,6 +21,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
 
+
 class UserResponse(BaseModel):
     """用户响应模型"""
     id: str
@@ -29,6 +31,32 @@ class UserResponse(BaseModel):
     is_admin: bool
     is_moderator: bool
     created_at: datetime
+
+
+class LoginResponse(BaseModel):
+    """登录成功返回的数据"""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    user: Dict[str, Any]
+
+
+class TokenResponse(BaseModel):
+    """刷新令牌返回的数据"""
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+class CurrentUserResponse(BaseModel):
+    """当前用户信息返回的数据"""
+    id: str
+    username: str
+    email: str
+    role: str
+    avatar_url: Optional[str] = None
+    avatar_updated_at: Optional[str] = None
 
 class KnowledgeBaseCreate(BaseModel):
     """知识库创建请求模型"""
@@ -41,6 +69,20 @@ class KnowledgeBaseUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     copyright_owner: Optional[str] = None
+    is_public: Optional[bool] = None
+    is_pending: Optional[bool] = None
+    content: Optional[str] = None
+    tags: Optional[str] = None
+
+class PersonaCardUpdate(BaseModel):
+    """人设卡更新请求模型"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    copyright_owner: Optional[str] = None
+    is_public: Optional[bool] = None
+    is_pending: Optional[bool] = None
+    content: Optional[str] = None
+    tags: Optional[str] = None
 
 class KnowledgeBaseFileResponse(BaseModel):
     """知识库文件响应"""
@@ -104,6 +146,35 @@ class PersonaCardResponse(BaseModel):
     author: Optional[str] = None
     author_id: Optional[str] = None
     stars: int = 0
+
+
+class AvatarInfo(BaseModel):
+    """头像相关返回数据"""
+    avatar_url: str
+    avatar_updated_at: str
+
+
+T = TypeVar("T")
+
+
+class Pagination(BaseModel):
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+
+
+class BaseResponse(GenericModel, Generic[T]):
+    success: bool = True
+    message: str = ""
+    data: Optional[T] = None
+
+
+class PageResponse(GenericModel, Generic[T]):
+    success: bool = True
+    message: str = ""
+    data: List[T]
+    pagination: Pagination
 
 class MessageCreate(BaseModel):
     """消息创建请求模型"""
@@ -188,9 +259,10 @@ __all__ = [
     
     # Pydantic模型
     'UserCreate', 'UserResponse',
+    'LoginResponse', 'TokenResponse', 'CurrentUserResponse', 'AvatarInfo',
     'KnowledgeBaseCreate', 'KnowledgeBaseUpdate', 'KnowledgeBaseFileResponse', 'KnowledgeBaseResponse',
     'KnowledgeBasePaginatedResponse',
-    'PersonaCardCreate', 'PersonaCardResponse',
+    'PersonaCardCreate', 'PersonaCardUpdate', 'PersonaCardResponse',
     'PersonaCardPaginatedResponse',
     'MessageCreate', 'MessageResponse',
     'StarRecordCreate', 'StarResponse',

@@ -15,6 +15,14 @@ import uuid
 Base = declarative_base()
 
 
+def get_db():
+    db = sqlite_db_manager.get_session()  # type: ignore[name-defined]
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 class User(Base):
     """用户模型"""
     __tablename__ = "users"
@@ -201,6 +209,12 @@ class KnowledgeBase(Base):
 
     def to_dict(self, include_files: bool = True):
         """将知识库对象转换为字典"""
+        author_name = None
+        if self.copyright_owner:
+            author_name = self.copyright_owner
+        elif self.uploader and getattr(self.uploader, "is_active", True):
+            author_name = self.uploader.username
+
         result = {
             "id": self.id,
             "name": self.name,
@@ -223,7 +237,7 @@ class KnowledgeBase(Base):
             "download_url": None,
             "preview_url": None,
             "size": None,
-            "author": None,
+            "author": author_name,
             "author_id": self.uploader_id
         }
 
@@ -413,6 +427,12 @@ class PersonaCard(Base):
 
     def to_dict(self, include_files: bool = True):
         """将人设卡对象转换为字典"""
+        author_name = None
+        if self.copyright_owner:
+            author_name = self.copyright_owner
+        elif self.uploader and getattr(self.uploader, "is_active", True):
+            author_name = self.uploader.username
+
         result = {
             "id": self.id,
             "name": self.name,
@@ -435,7 +455,7 @@ class PersonaCard(Base):
             "download_url": None,
             "preview_url": None,
             "size": None,
-            "author": None,
+            "author": author_name,
             "author_id": self.uploader_id,
             "stars": self.star_count or 0
         }
@@ -532,7 +552,7 @@ class Message(Base):
             "message_type": self.message_type or "direct",
             "broadcast_scope": self.broadcast_scope,
             "is_read": self.is_read or False,
-            "created_at": self.created_at.isoformat() if self.created_at else datetime.now().isoformat()
+            "created_at": self.created_at if self.created_at else datetime.now()
         }
         return data
 
@@ -842,6 +862,14 @@ class SQLiteDatabaseManager:
                 tags_value = kb_data.get("tags")
                 if isinstance(tags_value, list):
                     kb_data["tags"] = ",".join(tags_value)
+
+                # 清理时间字段，避免将已序列化的字符串写回 DateTime 列
+                created_at_value = kb_data.get("created_at")
+                if isinstance(created_at_value, str):
+                    kb_data.pop("created_at", None)
+                updated_at_value = kb_data.get("updated_at")
+                if isinstance(updated_at_value, str):
+                    kb_data.pop("updated_at", None)
 
                 kb_id = kb_data.get("id")
                 kb = None

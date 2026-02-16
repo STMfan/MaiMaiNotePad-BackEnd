@@ -16,7 +16,7 @@ from file_upload import file_upload_service
 # 导入错误处理和日志记录模块
 from logging_config import app_logger, log_exception, log_file_operation, log_database_operation
 from models import (
-    PersonaCardResponse
+    PersonaCardUpdate
 )
 from user_management import get_current_user, get_current_user_optional
 
@@ -36,6 +36,7 @@ async def upload_persona_card(
         copyright_owner: Optional[str] = Form(None),
         content: Optional[str] = Form(None),
         tags: Optional[str] = Form(None),
+        is_public: Optional[bool] = Form(False),
         current_user: dict = Depends(get_current_user)
 ):
     """上传人设卡"""
@@ -57,7 +58,6 @@ async def upload_persona_card(
             if existing_pc.name == name:
                 raise ValidationError("人设卡名称不可以重复哦")
 
-        # 上传人设卡
         pc = await file_upload_service.upload_persona_card(
             files=files,
             name=name,
@@ -68,6 +68,27 @@ async def upload_persona_card(
             tags=tags
         )
 
+        try:
+            pc_data = pc.to_dict()
+            pc_data.pop("created_at", None)
+            pc_data.pop("updated_at", None)
+
+            if is_public:
+                pc_data["is_public"] = False
+                pc_data["is_pending"] = True
+                upload_status = "pending"
+            else:
+                pc_data["is_public"] = False
+                pc_data["is_pending"] = False
+                upload_status = "success"
+
+            pc = db_manager.save_persona_card(pc_data)
+            if not pc:
+                raise DatabaseError("保存人设卡失败")
+        except Exception as e:
+            log_exception(app_logger, "Update persona card visibility after upload error", exception=e)
+            raise DatabaseError("更新人设卡可见性状态失败")
+
         # 创建上传记录
         try:
             db_manager.create_upload_record(
@@ -76,7 +97,7 @@ async def upload_persona_card(
                 target_type="persona",
                 name=name,
                 description=description,
-                status="pending"
+                status=upload_status
             )
         except Exception as e:
             app_logger.warning(f"Failed to create upload record: {str(e)}")
@@ -156,11 +177,11 @@ async def get_public_persona_cards(
             sort_order=sort_order
         )
         return Page(
-            message="公开人设卡获取成功",
-            data= [pc.to_dict() for pc in pcs],
+            data=[pc.to_dict() for pc in pcs],
             page=page,
             page_size=page_size,
             total=total,
+            message="公开人设卡获取成功",
         )
 
     except Exception as e:
@@ -276,7 +297,7 @@ async def get_user_persona_cards(
         page_items = filtered[start:end]
 
         return Page(
-            data=[PersonaCardResponse(**pc.to_dict()) for pc in page_items],
+            data=[pc.to_dict() for pc in page_items],
             total=total,
             page=page,
             page_size=page_size,
@@ -293,9 +314,7 @@ async def get_user_persona_cards(
 @persona_router.put("/persona/{pc_id}")
 async def update_persona_card(
         pc_id: str,
-        name: str = Form(...),
-        description: str = Form(...),
-        copyright_owner: Optional[str] = Form(None),
+        update_data: PersonaCardUpdate,
         current_user: dict = Depends(get_current_user)
 ):
     """修改人设卡信息"""
@@ -304,34 +323,45 @@ async def update_persona_card(
         app_logger.info(
             f"Update persona card: pc_id={pc_id}, user_id={user_id}")
 
-        # 检查人设卡是否存在
         pc = db_manager.get_persona_card_by_id(pc_id)
         if not pc:
             raise NotFoundError("人设卡不存在")
 
-        # 验证权限：只有上传者和管理员可以修改人设卡
         if pc.uploader_id != user_id and not current_user.get("is_admin", False) and not current_user.get(
                 "is_moderator", False):
             raise AuthorizationError("没有权限修改此人设卡")
 
-        # 验证输入参数
-        if not name or not description:
-            raise ValidationError("名称和描述不能为空")
+        update_dict = update_data.dict(exclude_unset=True)
+        if not update_dict:
+            raise ValidationError("没有提供要更新的字段")
 
-        # 更新人设卡信息
-        pc_data = pc.to_dict()
-        pc_data.update({
-            "name": name,
-            "description": description,
-            "copyright_owner": copyright_owner,
-            "updated_at": datetime.now()
-        })
+        if pc.is_public or pc.is_pending:
+            allowed_fields = {"content"}
+            disallowed_fields = [key for key in update_dict.keys() if key not in allowed_fields]
+            if disallowed_fields:
+                raise AuthorizationError("公开或审核中的人设卡仅允许修改补充说明")
 
-        updated_pc = db_manager.save_persona_card(pc_data)
+        if "copyright_owner" in update_dict:
+            update_dict.pop("copyright_owner", None)
+
+        if "name" in update_dict:
+            update_dict.pop("name", None)
+
+        if not (pc.is_public or pc.is_pending):
+            if "is_public" in update_dict and not (current_user.get("is_admin", False) or current_user.get("is_moderator", False)):
+                raise AuthorizationError("只有管理员可以直接修改公开状态")
+
+        for key, value in update_dict.items():
+            if hasattr(pc, key):
+                setattr(pc, key, value)
+
+        if any(field != "content" for field in update_dict.keys()):
+            pc.updated_at = datetime.now()
+
+        updated_pc = db_manager.save_persona_card(pc.to_dict())
         if not updated_pc:
             raise DatabaseError("更新人设卡失败")
 
-        # 记录数据库操作成功
         log_database_operation(
             app_logger,
             "update",
@@ -559,10 +589,12 @@ async def add_files_to_persona_card(
         if not pc:
             raise ValidationError("人设卡不存在")
 
-        # 验证权限：只有上传者和管理员可以添加文件
         if pc.uploader_id != user_id and not current_user.get("is_admin", False) and not current_user.get(
                 "is_moderator", False):
             raise AuthorizationError("没有权限向此人设卡添加文件")
+
+        if pc.is_public or pc.is_pending:
+            raise AuthorizationError("公开或审核中的人设卡不允许修改文件")
 
         if not files:
             raise ValidationError("至少需要上传一个文件")
@@ -628,19 +660,35 @@ async def delete_files_from_persona_card(
         if not pc:
             raise NotFoundError("人设卡不存在")
 
-        # 验证权限：只有上传者和管理员可以删除文件
         if pc.uploader_id != user_id and not current_user.get("is_admin", False) and not current_user.get(
                 "is_moderator", False):
             raise AuthorizationError("没有权限从此人设卡删除文件")
 
-        if not file_id:
-            return {"message": "文件删除成功"}
+        if pc.is_public or pc.is_pending:
+            raise AuthorizationError("公开或审核中的人设卡不允许修改文件")
 
         # 删除文件
         success = await file_upload_service.delete_files_from_persona_card(pc_id, file_id, user_id)
 
         if not success:
             raise FileOperationError("删除文件失败")
+
+        persona_deleted = False
+
+        # 检查是否还有剩余文件，没有则自动删除整个人设卡
+        remaining_files = db_manager.get_files_by_persona_card_id(pc_id)
+        if not remaining_files:
+            # 删除人设卡记录
+            if not db_manager.delete_persona_card(pc_id):
+                raise DatabaseError("删除人设卡记录失败")
+
+            # 删除相关的上传记录
+            try:
+                db_manager.delete_upload_records_by_target(pc_id, "persona")
+            except Exception as e:
+                app_logger.warning(f"删除人设卡上传记录失败: {str(e)}")
+
+            persona_deleted = True
 
         # 记录文件操作成功
         log_file_operation(
@@ -661,8 +709,20 @@ async def delete_files_from_persona_card(
             success=True
         )
 
+        if persona_deleted:
+            # 补充记录人设卡删除日志
+            log_database_operation(
+                app_logger,
+                "delete",
+                "persona_card",
+                record_id=pc_id,
+                user_id=user_id,
+                success=True
+            )
+
+        message = "最后一个文件删除，人设卡已自动删除" if persona_deleted else "文件删除成功"
         return Success(
-            message="文件删除成功",
+            message=message,
         )
 
     except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError):

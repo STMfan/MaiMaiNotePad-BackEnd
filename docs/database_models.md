@@ -182,7 +182,7 @@
 | `target_type` | `String` | 非空 | 目标类型：`knowledge` 或 `persona` |
 | `name` | `String` | 非空 | 知识库或人设卡名称 |
 | `description` | `Text` | 可空 | 描述信息 |
-| `status` | `String` | `default="pending"` | 状态：`pending`（待审核）、`approved`（已通过）、`rejected`（已拒绝） |
+| `status` | `String` | `default="pending"` | 状态：`pending`（待审核）、`approved`（已通过）、`rejected`（已驳回） |
 | `created_at` | `DateTime` | 默认当前时间 | 创建时间 |
 | `updated_at` | `DateTime` | 自动更新时间 | 最后修改时间 |
 

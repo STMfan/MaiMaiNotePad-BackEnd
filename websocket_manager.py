@@ -1,6 +1,7 @@
 from typing import Dict, List, Iterable
 
 from fastapi import WebSocket
+from fastapi.encoders import jsonable_encoder
 
 from database_models import sqlite_db_manager, Message
 from logging_config import app_logger
@@ -59,9 +60,11 @@ class MessageWebSocketManager:
             if latest:
                 payload["last_message"] = latest.to_dict()
 
+        encoded_payload = jsonable_encoder(payload)
+
         for ws in list(connections):
             try:
-                await ws.send_json(payload)
+                await ws.send_json(encoded_payload)
             except Exception as exc:  # noqa: BLE001
                 app_logger.warning(
                     f"Send WebSocket message failed: user_id={key}, error={exc}"
@@ -75,4 +78,3 @@ class MessageWebSocketManager:
 
 
 message_ws_manager = MessageWebSocketManager()
-

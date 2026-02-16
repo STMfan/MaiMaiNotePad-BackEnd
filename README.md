@@ -1,6 +1,8 @@
-# MaiMNP-rereremake-Flutter 后端服务
+# MaiMaiNotePad 后端服务
 
 这是一个基于 FastAPI 构建的后端服务，提供知识库管理、人设卡功能、用户管理、消息系统和审核功能。
+
+对应的前端项目位于：`../MaiMaiNotePad-FrontEnd`，两者配合运行即可完成完整功能体验。
 
 ## 🚀 功能特性
 
@@ -48,23 +50,30 @@
 ## 📁 项目结构
 
 ```
-backend-python-remake/
-├── main.py              # FastAPI应用入口
-├── api_routes.py        # API路由定义
-├── database_models.py   # 数据库模型定义
-├── database_manager.py  # 数据库管理器
-├── file_upload.py       # 文件上传服务
-├── user_management.py   # 用户管理模块
-├── email_service.py     # 邮件服务模块
-├── logger.py           # 日志记录模块
-├── requirements.txt    # Python依赖
-├── README.md          # 项目文档
-├── TODO.md           # 待办事项
-├── .gitignore        # Git忽略配置
-├── .env               # 环境变量配置
-├── .env.template      # 环境变量模板
-└── data/             # 数据存储目录
-    └── mainnp.db     # SQLite数据库文件
+MaiMaiNotePad-BackEnd/
+├── main.py                # FastAPI 应用入口
+├── api_routes/            # 按模块拆分的路由
+│   ├── user_router.py     # 用户与认证相关接口
+│   ├── knowledgeBase_router.py  # 知识库相关接口
+│   ├── persona_router.py  # 人设卡相关接口
+│   ├── messages_router.py # 站内消息相关接口
+│   ├── review_router.py   # 审核相关接口
+│   └── admin_router.py    # 管理员相关接口
+├── database_models.py     # 数据库模型定义与 SQLite 管理
+├── file_upload.py         # 文件上传服务
+├── user_management.py     # 用户管理模块
+├── email_service.py       # 邮件服务模块
+├── websocket_manager.py   # WebSocket 连接与消息推送
+├── logger.py              # 日志记录模块
+├── logging_config.py      # 日志配置
+├── docs/                  # API 文档与测试说明
+├── scripts/               # 辅助脚本（测试数据等）
+├── requirements.txt       # Python 依赖
+├── README.md              # 项目文档（本文件）
+├── TODO.md                # 待办事项
+├── .gitignore             # Git 忽略配置
+├── .env.template          # 环境变量模板
+└── data/                  # 数据存储目录（运行时创建）
 ```
 
 ## 🚀 快速开始
@@ -75,8 +84,8 @@ backend-python-remake/
 
 ### 1. 克隆项目
 ```bash
-git clone <repository-url>
-cd backend-python-remake
+git clone https://github.com/STMfan/MaiMaiNotePad-BackEnd.git
+cd MaiMaiNotePad/MaiMaiNotePad-BackEnd
 ```
 
 ### 2. 安装依赖
@@ -139,7 +148,7 @@ docker run -p 9278:9278 mainnp-backend
 - `PUT /api/knowledge/{kb_id}` - 更新知识库信息
 - `POST /api/knowledge/{kb_id}/files` - 添加知识库文件
 - `DELETE /api/knowledge/{kb_id}/{file_id}` - 删除知识库文件（删除最后一个文件时自动清理整条知识库）
-- `GET /api/knowledge/{kb_id}/download` - 下载知识库全部文件（ZIP）
+- `GET /api/knowledge/{kb_id}/download` - 下载知识库全部文件（ZIP，文件名规则：`知识库_{名称}_{作者}_{最后更新时间yyyyMMddHHmmss}.zip`）
 - `GET /api/knowledge/{kb_id}/file/{file_id}` - 下载知识库单个文件
 - `DELETE /api/knowledge/{kb_id}` - 删除知识库
 - `POST /api/knowledge/{kb_id}/star` - Star知识库
@@ -154,7 +163,7 @@ docker run -p 9278:9278 mainnp-backend
 - `PUT /api/persona/{pc_id}` - 更新人设卡信息
 - `POST /api/persona/{pc_id}/files` - 添加人设卡文件
 - `DELETE /api/persona/{pc_id}/{file_id}` - 删除人设卡文件
-- `GET /api/persona/{pc_id}/download` - 下载人设卡全部文件（ZIP）
+- `GET /api/persona/{pc_id}/download` - 下载人设卡全部文件（ZIP，文件名规则：`人设卡_{名称}_{作者}_{最后更新时间yyyyMMddHHmmss}.zip`）
 - `GET /api/persona/{pc_id}/file/{file_id}` - 下载人设卡单个文件
 - `DELETE /api/persona/{pc_id}` - 删除人设卡
 - `POST /api/persona/{pc_id}/star` - Star人设卡

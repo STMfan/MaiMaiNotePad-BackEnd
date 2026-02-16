@@ -1,57 +1,44 @@
-from typing import Any, Dict, Optional
-from fastapi.responses import JSONResponse
+from typing import Any, Optional, TypeVar, List
 
-def create_response(
-    success: bool = False,
-    message: Optional[str] = None,
-    data: Optional[Any] = None,
-    pagination: Optional[Dict[str, Any]] = None
-) -> JSONResponse:
-    response_data: Dict[str, Any] = {
-        "success": success,
-        "message": "",
-        "data": {}
-    }
-    
-    if message is not None:
-        response_data["message"] = message
-    
-    if data is not None:
-        response_data["data"] = data
-    
-    if pagination is not None:
-        response_data["pagination"] = pagination
-    
-    return JSONResponse(content=response_data)
+from models import BaseResponse, PageResponse, Pagination
+
+T = TypeVar("T")
 
 
-def Success(message: Optional[str] = None, data: Optional[Any] = None) -> JSONResponse:
-    return create_response(success=True,message=message,data=data)
+def Success(message: Optional[str] = None, data: Optional[T] = None) -> BaseResponse[Optional[T]]:
+    return BaseResponse[Optional[T]](
+        success=True,
+        message=message or "",
+        data=data
+    )
 
-def Error(message: Optional[str] = None, data: Optional[Any] = None) -> JSONResponse:
-    return create_response(success=False,message=message,data=data)
 
+def Error(message: Optional[str] = None, data: Optional[T] = None) -> BaseResponse[Optional[T]]:
+    return BaseResponse[Optional[T]](
+        success=False,
+        message=message or "",
+        data=data
+    )
 
 
 def Page(
-    data: Any,
+    data: List[T],
     page: int,
     page_size: int,
     total: int,
     message: Optional[str] = None
-) -> JSONResponse:
-    pagination = {
-        "page": page,
-        "page_size": page_size,
-        "total": total,
-        "total_pages": (total + page_size - 1) // page_size if page_size > 0 else 0
-    }
-    
-    return create_response(
+) -> PageResponse[T]:
+    pagination = Pagination(
+        page=page,
+        page_size=page_size,
+        total=total,
+        total_pages=(total + page_size - 1) // page_size if page_size > 0 else 0
+    )
+
+    return PageResponse[T](
         success=True,
-        message=message,
+        message=message or "",
         data=data,
         pagination=pagination
     )
-
 

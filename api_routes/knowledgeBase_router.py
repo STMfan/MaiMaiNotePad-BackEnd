@@ -36,9 +36,15 @@ async def upload_knowledge_base(
         copyright_owner: Optional[str] = Form(None),
         content: Optional[str] = Form(None),
         tags: Optional[str] = Form(None),
+        is_public: Optional[bool] = Form(False),
         current_user: dict = Depends(get_current_user)
 ):
-    """上传知识库"""
+    """上传知识库
+
+    业务规则：
+    - 未显式声明公开：默认作为私有上传（is_public=False, is_pending=False）
+    - is_public=True：视为申请公开，进入审核队列（is_public=False, is_pending=True）
+    """
     user_id = current_user.get("id", "")
     username = current_user.get("username", "")
     try:
@@ -69,6 +75,32 @@ async def upload_knowledge_base(
             tags=tags
         )
 
+        # 根据是否公开调整状态：
+        # - 私有：直接可用，不进入审核（is_public=False, is_pending=False）
+        # - 申请公开：进入审核列表（is_public=False, is_pending=True）
+        try:
+            kb_dict = kb.to_dict()
+
+            # 避免将已序列化的时间字段写回数据库，交由 ORM 自己管理
+            kb_dict.pop("created_at", None)
+            kb_dict.pop("updated_at", None)
+
+            if is_public:
+                kb_dict["is_public"] = False
+                kb_dict["is_pending"] = True
+                upload_status = "pending"
+            else:
+                kb_dict["is_public"] = False
+                kb_dict["is_pending"] = False
+                upload_status = "success"
+
+            kb = db_manager.save_knowledge_base(kb_dict)
+            if not kb:
+                raise DatabaseError("保存知识库失败")
+        except Exception as e:
+            log_exception(app_logger, "Update knowledge base visibility after upload error", exception=e)
+            raise DatabaseError("更新知识库可见性状态失败")
+
         # 创建上传记录
         try:
             db_manager.create_upload_record(
@@ -77,7 +109,7 @@ async def upload_knowledge_base(
                 target_type="knowledge",
                 name=name,
                 description=description,
-                status="pending"
+                status=upload_status
             )
         except Exception as e:
             app_logger.warning(f"Failed to create upload record: {str(e)}")
@@ -280,10 +312,10 @@ async def get_user_knowledge_bases(
 
         return Page(
             data=[kb.to_dict() for kb in page_items],
-            message="获取用户知识库成功",
-            total=total,
             page=page,
-            page_size=page_size
+            page_size=page_size,
+            total=total,
+            message="获取用户知识库成功"
         )
 
     except (AuthorizationError, DatabaseError):
@@ -411,7 +443,7 @@ async def update_knowledge_base(
         update_data: KnowledgeBaseUpdate,
         current_user: dict = Depends(get_current_user)
 ):
-    """修改知识库的基本信息"""
+    """修改知识库的基本信息（补充说明在公开/审核中也允许修改）"""
     user_id = current_user.get("id", "")
     try:
         app_logger.info(
@@ -432,12 +464,37 @@ async def update_knowledge_base(
         if not update_dict:
             raise ValidationError("没有提供要更新的字段")
 
+        # 仅私有知识库允许修改基础信息和文件；
+        # 公开或审核中的知识库仅允许修改补充说明（content）
+        if kb.is_public or kb.is_pending:
+            allowed_fields = {"content"}
+            disallowed_fields = [key for key in update_dict.keys() if key not in allowed_fields]
+            if disallowed_fields:
+                raise AuthorizationError("公开或审核中的知识库仅允许修改补充说明")
+
+        # 版权所有者不可通过该接口修改
+        if "copyright_owner" in update_dict:
+            update_dict.pop("copyright_owner", None)
+
+        # 名称不可通过该接口修改
+        if "name" in update_dict:
+            update_dict.pop("name", None)
+
+        # 业务规则（仅对非公开/非审核中的私有知识库生效）：
+        # - 普通用户可以修改名称、描述等基础信息
+        # - 普通用户可以将私有知识库标记为待审核（is_pending=True）以申请公开
+        # - 只有管理员或审核员可以直接修改 is_public 状态
+        if not (kb.is_public or kb.is_pending):
+            if "is_public" in update_dict and not (current_user.get("is_admin", False) or current_user.get("is_moderator", False)):
+                raise AuthorizationError("只有管理员可以直接修改公开状态")
+
         # 更新数据库记录
         for key, value in update_dict.items():
             if hasattr(kb, key):
                 setattr(kb, key, value)
 
-        kb.updated_at = datetime.now()
+        if any(field != "content" for field in update_dict.keys()):
+            kb.updated_at = datetime.now()
 
         updated_kb = db_manager.save_knowledge_base(kb.to_dict())
         if not updated_kb:
@@ -498,6 +555,10 @@ async def add_files_to_knowledge_base(
                 "is_moderator", False):
             raise AuthorizationError("是你的知识库吗你就加")
 
+        # 仅私有知识库允许追加文件，公开或审核中的知识库不允许修改文件
+        if kb.is_public or kb.is_pending:
+            raise AuthorizationError("公开或审核中的知识库不允许修改文件")
+
         if not files:
             raise ValidationError("至少需要上传一个文件")
 
@@ -557,7 +618,6 @@ async def delete_files_from_knowledge_base(
     try:
         app_logger.info(
             f"Delete files from knowledge base: kb_id={kb_id}, user_id={user_id}")
-
         # 检查知识库是否存在
         kb = db_manager.get_knowledge_base_by_id(kb_id)
         if not kb:
@@ -567,6 +627,10 @@ async def delete_files_from_knowledge_base(
         if kb.uploader_id != user_id and not current_user.get("is_admin", False) and not current_user.get(
                 "is_moderator", False):
             raise AuthorizationError("是你的知识库吗你就删")
+
+        # 仅私有知识库允许删除文件，公开或审核中的知识库不允许修改文件
+        if kb.is_public or kb.is_pending:
+            raise AuthorizationError("公开或审核中的知识库不允许修改文件")
 
         if not file_id:
             return Success(
