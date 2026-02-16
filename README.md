@@ -148,7 +148,7 @@ docker run -p 9278:9278 mainnp-backend
 - `PUT /api/knowledge/{kb_id}` - 更新知识库信息
 - `POST /api/knowledge/{kb_id}/files` - 添加知识库文件
 - `DELETE /api/knowledge/{kb_id}/{file_id}` - 删除知识库文件（删除最后一个文件时自动清理整条知识库）
-- `GET /api/knowledge/{kb_id}/download` - 下载知识库全部文件（ZIP）
+- `GET /api/knowledge/{kb_id}/download` - 下载知识库全部文件（ZIP，文件名规则：`知识库_{名称}_{作者}_{最后更新时间yyyyMMddHHmmss}.zip`）
 - `GET /api/knowledge/{kb_id}/file/{file_id}` - 下载知识库单个文件
 - `DELETE /api/knowledge/{kb_id}` - 删除知识库
 - `POST /api/knowledge/{kb_id}/star` - Star知识库
@@ -163,7 +163,7 @@ docker run -p 9278:9278 mainnp-backend
 - `PUT /api/persona/{pc_id}` - 更新人设卡信息
 - `POST /api/persona/{pc_id}/files` - 添加人设卡文件
 - `DELETE /api/persona/{pc_id}/{file_id}` - 删除人设卡文件
-- `GET /api/persona/{pc_id}/download` - 下载人设卡全部文件（ZIP）
+- `GET /api/persona/{pc_id}/download` - 下载人设卡全部文件（ZIP，文件名规则：`人设卡_{名称}_{作者}_{最后更新时间yyyyMMddHHmmss}.zip`）
 - `GET /api/persona/{pc_id}/file/{file_id}` - 下载人设卡单个文件
 - `DELETE /api/persona/{pc_id}` - 删除人设卡
 - `POST /api/persona/{pc_id}/star` - Star人设卡
