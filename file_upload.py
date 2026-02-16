@@ -717,10 +717,6 @@ class FileUploadService:
                 detail=f"删除文件失败 {pc_file.original_name}: {str(e)}"
             )
 
-        # 更新人设卡时间戳
-        pc.updated_at = datetime.now()
-        sqlite_db_manager.save_persona_card(pc.to_dict())
-
         return True
 
     async def get_persona_card_file_path(self, pc_id: str, file_id: str) -> dict:

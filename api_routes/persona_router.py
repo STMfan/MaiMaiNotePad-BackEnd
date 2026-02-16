@@ -667,14 +667,28 @@ async def delete_files_from_persona_card(
         if pc.is_public or pc.is_pending:
             raise AuthorizationError("公开或审核中的人设卡不允许修改文件")
 
-        if not file_id:
-            return {"message": "文件删除成功"}
-
         # 删除文件
         success = await file_upload_service.delete_files_from_persona_card(pc_id, file_id, user_id)
 
         if not success:
             raise FileOperationError("删除文件失败")
+
+        persona_deleted = False
+
+        # 检查是否还有剩余文件，没有则自动删除整个人设卡
+        remaining_files = db_manager.get_files_by_persona_card_id(pc_id)
+        if not remaining_files:
+            # 删除人设卡记录
+            if not db_manager.delete_persona_card(pc_id):
+                raise DatabaseError("删除人设卡记录失败")
+
+            # 删除相关的上传记录
+            try:
+                db_manager.delete_upload_records_by_target(pc_id, "persona")
+            except Exception as e:
+                app_logger.warning(f"删除人设卡上传记录失败: {str(e)}")
+
+            persona_deleted = True
 
         # 记录文件操作成功
         log_file_operation(
@@ -695,8 +709,20 @@ async def delete_files_from_persona_card(
             success=True
         )
 
+        if persona_deleted:
+            # 补充记录人设卡删除日志
+            log_database_operation(
+                app_logger,
+                "delete",
+                "persona_card",
+                record_id=pc_id,
+                user_id=user_id,
+                success=True
+            )
+
+        message = "最后一个文件删除，人设卡已自动删除" if persona_deleted else "文件删除成功"
         return Success(
-            message="文件删除成功",
+            message=message,
         )
 
     except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError):

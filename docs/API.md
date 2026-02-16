@@ -2079,7 +2079,7 @@ Content-Type: application/json
 - `500`: 创建用户失败
 
 ### 获取所有知识库（管理员）
-获取所有知识库，包括待审核和已拒绝的（需要管理员权限）。
+获取所有知识库，包括待审核和已驳回的（需要管理员权限）。
 
 ```http
 GET /api/admin/knowledge/all?page=1&limit=20&status=pending&search=text&uploader=userid-or-name&order_by=created_at&order_dir=desc
@@ -2111,7 +2111,7 @@ Authorization: Bearer {token}
 - `500`: 获取知识库列表失败
 
 ### 获取所有人设卡（管理员）
-获取所有人设卡，包括待审核和已拒绝的（需要管理员权限）。
+获取所有人设卡，包括待审核和已驳回的（需要管理员权限）。
 
 ```http
 GET /api/admin/persona/all?page=1&limit=20&status=approved&uploader=name&order_by=star_count&order_dir=asc
