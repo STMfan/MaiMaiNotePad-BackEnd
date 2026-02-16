@@ -10,6 +10,14 @@ from error_handlers import (
     NotFoundError, DatabaseError
 )
 from database_models import sqlite_db_manager
+from models import (
+    BaseResponse,
+    PageResponse,
+    LoginResponse,
+    TokenResponse,
+    CurrentUserResponse,
+    AvatarInfo,
+)
 from user_management import get_current_user, create_user
 from avatar_utils import (
     validate_image_file, save_avatar_file,
@@ -26,7 +34,10 @@ user_router = APIRouter()
 db_manager = sqlite_db_manager
 
 
-@user_router.post("/token")
+@user_router.post(
+    "/token",
+    response_model=BaseResponse[LoginResponse]
+)
 async def login(request: Request):
     """用户登录获取访问令牌，支持JSON和表单数据格式（带速率限制和账户锁定）"""
     # 速率限制：每分钟最多5次登录尝试（通过装饰器实现）
@@ -107,7 +118,10 @@ async def login(request: Request):
         raise APIError("登录过程中发生错误")
 
 
-@user_router.post("/refresh")
+@user_router.post(
+    "/refresh",
+    response_model=BaseResponse[TokenResponse]
+)
 async def refresh_token(request: Request):
     """刷新访问令牌"""
     try:
@@ -175,7 +189,10 @@ async def refresh_token(request: Request):
         raise APIError("刷新令牌过程中发生错误")
 
 
-@user_router.post("/send_verification_code")
+@user_router.post(
+    "/send_verification_code",
+    response_model=BaseResponse[None]
+)
 async def send_verification_code(
         email: str = Form(...),
 ):
@@ -234,7 +251,10 @@ async def send_verification_code(
             raise APIError(f"发送验证码失败: {error_msg}")
 
 
-@user_router.post("/user/check_register")
+@user_router.post(
+    "/user/check_register",
+    response_model=BaseResponse[None]
+)
 async def check_register(
         username: str = Form(...),
         email: str = Form(...),
@@ -258,7 +278,10 @@ async def check_register(
         raise APIError("检查注册信息失败")
 
 
-@user_router.post("/send_reset_password_code")
+@user_router.post(
+    "/send_reset_password_code",
+    response_model=BaseResponse[None]
+)
 async def send_reset_password_code(
         email: str = Form(...),
 ):
@@ -322,7 +345,10 @@ async def send_reset_password_code(
             raise APIError(f"发送重置密码验证码失败: {error_msg}")
 
 
-@user_router.post("/reset_password")
+@user_router.post(
+    "/reset_password",
+    response_model=BaseResponse[None]
+)
 async def reset_password(
         email: str = Form(...),
         verification_code: str = Form(...),
@@ -366,7 +392,10 @@ async def reset_password(
         raise APIError("重置密码失败")
 
 
-@user_router.post("/user/register")
+@user_router.post(
+    "/user/register",
+    response_model=BaseResponse[None]
+)
 async def user_register(
         username: str = Form(...),
         password: str = Form(...),
@@ -409,7 +438,10 @@ async def user_register(
         raise APIError("注册用户失败")
 
 
-@user_router.get("/users/me", response_model=dict)
+@user_router.get(
+    "/users/me",
+    response_model=BaseResponse[CurrentUserResponse]
+)
 async def read_users_me(current_user: dict = Depends(get_current_user)):
     """获取当前用户信息"""
     try:
@@ -429,21 +461,24 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
 
         return Success(
             message="用户信息获取成功",
-            data={
-                "id": user_id,
-                "username": current_user.get("username", ""),
-                "email": current_user.get("email", ""),
-                "role": current_user.get("role", "user"),
-                "avatar_url": avatar_url,
-                "avatar_updated_at": avatar_updated_at
-            }
+            data=CurrentUserResponse(
+                id=user_id,
+                username=current_user.get("username", ""),
+                email=current_user.get("email", ""),
+                role=current_user.get("role", "user"),
+                avatar_url=avatar_url,
+                avatar_updated_at=avatar_updated_at,
+            )
         )
     except Exception as e:
         log_exception(app_logger, "Get user info error", exception=e)
         raise APIError("获取用户信息失败")
 
 
-@user_router.put("/users/me/password", response_model=dict)
+@user_router.put(
+    "/users/me/password",
+    response_model=BaseResponse[None]
+)
 async def change_password(
         password_data: dict = Body(...),
         current_user: dict = Depends(get_current_user),
@@ -514,7 +549,10 @@ async def change_password(
         raise APIError("修改密码失败")
 
 
-@user_router.post("/users/me/avatar", response_model=dict)
+@user_router.post(
+    "/users/me/avatar",
+    response_model=BaseResponse[AvatarInfo]
+)
 async def upload_avatar(
         avatar: UploadFile = File(...),
         current_user: dict = Depends(get_current_user)
@@ -573,10 +611,10 @@ async def upload_avatar(
 
         return Success(
             message="头像上传成功",
-            data={
-                "avatar_url": f"/{file_path}",
-                "avatar_updated_at": user.avatar_updated_at.isoformat()
-            }
+            data=AvatarInfo(
+                avatar_url=f"/{file_path}",
+                avatar_updated_at=user.avatar_updated_at.isoformat()
+            )
         )
 
     except (ValidationError, NotFoundError, DatabaseError):
@@ -586,7 +624,10 @@ async def upload_avatar(
         raise APIError("上传头像失败")
 
 
-@user_router.delete("/users/me/avatar", response_model=dict)
+@user_router.delete(
+    "/users/me/avatar",
+    response_model=BaseResponse[None]
+)
 async def delete_avatar(current_user: dict = Depends(get_current_user)):
     """删除头像（恢复为默认头像）"""
     try:
@@ -690,7 +731,10 @@ async def get_user_avatar(user_id: str, size: int = 200):
 
 
 # 用户Star记录相关路由
-@user_router.get("/user/stars", response_model=Dict[str, Any])
+@user_router.get(
+    "/user/stars",
+    response_model=PageResponse[dict]
+)
 async def get_user_stars(
         current_user: dict = Depends(get_current_user),
         include_details: bool = False,
@@ -820,7 +864,10 @@ async def get_user_stars(
 
 
 # 用户上传历史和统计接口
-@user_router.get("/me/upload-history", response_model=Dict[str, Any])
+@user_router.get(
+    "/me/upload-history",
+    response_model=PageResponse[dict]
+)
 async def get_my_upload_history(
         page: int = Query(1, description="页码，从1开始"),
         page_size: int = Query(20, description="每页条数，最大100"),
@@ -924,7 +971,10 @@ async def get_my_upload_history(
         raise APIError("获取上传历史失败")
 
 
-@user_router.get("/me/upload-stats", response_model=Dict[str, Any])
+@user_router.get(
+    "/me/upload-stats",
+    response_model=BaseResponse[dict]
+)
 async def get_my_upload_stats(current_user: dict = Depends(get_current_user)):
     """获取当前用户的个人上传统计"""
     try:

@@ -15,6 +15,18 @@ import uuid
 Base = declarative_base()
 
 
+engine = create_engine("sqlite:///./maimai.db", connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 class User(Base):
     """用户模型"""
     __tablename__ = "users"
@@ -538,7 +550,7 @@ class Message(Base):
             "message_type": self.message_type or "direct",
             "broadcast_scope": self.broadcast_scope,
             "is_read": self.is_read or False,
-            "created_at": self.created_at.isoformat() if self.created_at else datetime.now().isoformat()
+            "created_at": self.created_at if self.created_at else datetime.now()
         }
         return data
 

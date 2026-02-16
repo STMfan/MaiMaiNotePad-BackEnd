@@ -4,8 +4,13 @@ from typing import Optional
 from api_routes.response_util import Page, Success
 
 from models import (
-    Message, KnowledgeBaseResponse, PersonaCardResponse,
-    KnowledgeBasePaginatedResponse, PersonaCardPaginatedResponse
+    Message,
+    KnowledgeBaseResponse,
+    PersonaCardResponse,
+    KnowledgeBasePaginatedResponse,
+    PersonaCardPaginatedResponse,
+    BaseResponse,
+    PageResponse,
 )
 from database_models import sqlite_db_manager
 from user_management import get_current_user
@@ -22,7 +27,10 @@ db_manager = sqlite_db_manager
 
 
 # 审核相关路由
-@review_router.get("/review/knowledge/pending")
+@review_router.get(
+    "/review/knowledge/pending",
+    response_model=PageResponse[dict]
+)
 async def get_pending_knowledge_bases(
         page: int = Query(1, ge=1, description="页码，默认为1"),
         page_size: int = Query(10, ge=1, le=100, description="每页数量，默认为10，最大100"),
@@ -64,7 +72,10 @@ async def get_pending_knowledge_bases(
         )
 
 
-@review_router.get("/review/persona/pending")
+@review_router.get(
+    "/review/persona/pending",
+    response_model=PageResponse[dict]
+)
 async def get_pending_persona_cards(
         page: int = Query(1, ge=1, description="页码，默认为1"),
         page_size: int = Query(10, ge=1, le=100, description="每页数量，默认为10，最大100"),
@@ -106,7 +117,10 @@ async def get_pending_persona_cards(
         )
 
 
-@review_router.post("/review/knowledge/{kb_id}/approve")
+@review_router.post(
+    "/review/knowledge/{kb_id}/approve",
+    response_model=BaseResponse[None]
+)
 async def approve_knowledge_base(
         kb_id: str,
         current_user: dict = Depends(get_current_user)
@@ -172,7 +186,10 @@ async def approve_knowledge_base(
         )
 
 
-@review_router.post("/review/knowledge/{kb_id}/reject")
+@review_router.post(
+    "/review/knowledge/{kb_id}/reject",
+    response_model=BaseResponse[None]
+)
 async def reject_knowledge_base(
         kb_id: str,
         reason: str = Body(..., embed=True),
@@ -242,7 +259,10 @@ async def reject_knowledge_base(
         )
 
 
-@review_router.post("/review/persona/{pc_id}/approve")
+@review_router.post(
+    "/review/persona/{pc_id}/approve",
+    response_model=BaseResponse[None]
+)
 async def approve_persona_card(
         pc_id: str,
         current_user: dict = Depends(get_current_user)
@@ -308,7 +328,10 @@ async def approve_persona_card(
         )
 
 
-@review_router.post("/review/persona/{pc_id}/reject")
+@review_router.post(
+    "/review/persona/{pc_id}/reject",
+    response_model=BaseResponse[None]
+)
 async def reject_persona_card(
         pc_id: str,
         reason: str = Body(..., embed=True),

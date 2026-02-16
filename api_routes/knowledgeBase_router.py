@@ -312,10 +312,10 @@ async def get_user_knowledge_bases(
 
         return Page(
             data=[kb.to_dict() for kb in page_items],
-            message="获取用户知识库成功",
-            total=total,
             page=page,
-            page_size=page_size
+            page_size=page_size,
+            total=total,
+            message="获取用户知识库成功"
         )
 
     except (AuthorizationError, DatabaseError):

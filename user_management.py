@@ -8,6 +8,7 @@ from passlib.context import CryptContext
 
 # 导入SQLite数据库管理器
 from database_models import sqlite_db_manager, User as DBUser
+from models import UserCreate
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -15,7 +16,6 @@ logger = logging.getLogger(__name__)
 # 配置密码哈希
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# 用户模型（兼容原有接口）
 class User:
     def __init__(self, db_user: DBUser = None):
         if db_user:
@@ -94,7 +94,6 @@ class User:
             return False
 
     def save(self):
-        """保存用户数据到数据库"""
         try:
             # 统一将邮箱转换为小写
             email_lower = self.email.lower() if self.email else ""
@@ -161,7 +160,6 @@ class User:
             return False
 
     def username_update(self, new_username):
-        """更新用户名"""
         try:
             self.username = new_username
             self.updated_at = datetime.now()
@@ -268,6 +266,35 @@ def get_user_by_credentials(username: str, password: str) -> Optional[User]:
     except Exception as e:
         logger.error(f'Error verifying user credentials: {str(e)}')
         return None
+
+
+class UserManager:
+    def create_user(self, user_data: UserCreate) -> User:
+        email_lower = user_data.email.lower() if user_data.email else ""
+        db_user = DBUser.from_dict(
+            {
+                "id": str(uuid.uuid4()),
+                "username": user_data.username,
+                "email": email_lower,
+                "hashed_password": pwd_context.hash(user_data.password),
+                "is_admin": False,
+                "is_moderator": False,
+                "created_at": datetime.now(),
+            }
+        )
+        user_dict = db_user.to_dict()
+        saved = sqlite_db_manager.save_user(user_dict)
+        if not saved:
+            # 如果保存失败（例如唯一约束冲突），尝试加载已存在用户并更新其密码
+            existing = sqlite_db_manager.get_user_by_username(user_data.username)
+            if not existing:
+                existing = sqlite_db_manager.get_user_by_email(email_lower)
+            if not existing:
+                raise ValueError("failed to create user")
+            existing.update_password(user_data.password)
+            sqlite_db_manager.save_user(existing.to_dict())
+            return User(existing)
+        return User(db_user)
 
 
 def check_account_lock(db_user: DBUser) -> bool:
