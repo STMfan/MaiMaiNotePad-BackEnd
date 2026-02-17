@@ -253,7 +253,9 @@ async def get_all_users(
                     "personaCount": pc_count,
                     "lastUploadAt": last_upload_at.isoformat() if last_upload_at else None,
                     "lastLoginAt": None,
-                    "lockedUntil": user.locked_until.isoformat() if user.locked_until else None
+                    "lockedUntil": user.locked_until.isoformat() if user.locked_until else None,
+                    "isMuted": user.is_muted,
+                    "mutedUntil": user.muted_until.isoformat() if user.muted_until else None
                 })
 
         log_api_request(app_logger, "GET", "/admin/users",
@@ -352,6 +354,118 @@ async def update_user_role(
         raise HTTPException(
             status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"更新用户角色失败: {str(e)}"
+        )
+
+
+@admin_router.post("/admin/users/{user_id}/mute")
+async def mute_user(
+        user_id: str,
+        duration: str = Body(..., embed=True),
+        current_user: dict = Depends(get_current_user)
+):
+    if not current_user.get("is_admin", False):
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
+            detail="需要管理员权限"
+        )
+
+    try:
+        app_logger.info(
+            f"Mute user: user_id={user_id}, duration={duration}, operator={current_user.get('id')}"
+        )
+
+        now = datetime.now()
+        if duration == "1d":
+            muted_until = now + timedelta(days=1)
+        elif duration == "7d":
+            muted_until = now + timedelta(days=7)
+        elif duration == "30d":
+            muted_until = now + timedelta(days=30)
+        elif duration == "permanent":
+            muted_until = None
+        else:
+            raise ValidationError("禁言时长无效")
+
+        with db_manager.get_session() as session:
+            from database_models import User
+
+            user = session.query(User).filter(User.id == user_id).first()
+            if not user:
+                raise NotFoundError("用户不存在")
+
+            if user.id == current_user.get("id"):
+                raise ValidationError("不能对自己进行禁言操作")
+
+            user.is_muted = True
+            user.muted_until = muted_until
+            session.commit()
+
+        return Success(
+            message="用户禁言成功",
+            data={
+                "userId": user_id,
+                "isMuted": True,
+                "mutedUntil": muted_until.isoformat() if muted_until else None
+            }
+        )
+    except (ValidationError, NotFoundError) as e:
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        log_exception(app_logger, "Mute user error", exception=e)
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"禁言用户失败: {str(e)}"
+        )
+
+
+@admin_router.post("/admin/users/{user_id}/unmute")
+async def unmute_user(
+        user_id: str,
+        current_user: dict = Depends(get_current_user)
+):
+    if not current_user.get("is_admin", False):
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
+            detail="需要管理员权限"
+        )
+
+    try:
+        app_logger.info(
+            f"Unmute user: user_id={user_id}, operator={current_user.get('id')}"
+        )
+
+        with db_manager.get_session() as session:
+            from database_models import User
+
+            user = session.query(User).filter(User.id == user_id).first()
+            if not user:
+                raise NotFoundError("用户不存在")
+
+            user.is_muted = False
+            user.muted_until = None
+            session.commit()
+
+        return Success(
+            message="用户已解除禁言",
+            data={
+                "userId": user_id,
+                "isMuted": False,
+                "mutedUntil": None
+            }
+        )
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        log_exception(app_logger, "Unmute user error", exception=e)
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"解除禁言失败: {str(e)}"
         )
 
 

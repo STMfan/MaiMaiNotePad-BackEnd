@@ -289,6 +289,58 @@ async def get_messages(
         raise APIError("获取消息列表失败")
 
 
+@messages_router.get(
+    "/messages/by-type/{message_type}",
+    response_model=BaseResponse[list[MessageResponse]]
+)
+async def get_messages_by_type(
+        message_type: str,
+        current_user: dict = Depends(get_current_user),
+        page: int = 1,
+        page_size: int = 20
+):
+    """按类型获取消息列表"""
+    user_id = current_user.get("id", "")
+    try:
+        app_logger.info(
+            f"Get messages by type: user_id={user_id}, message_type={message_type}, page={page}, page_size={page_size}")
+
+        if page <= 0 or page_size <= 0 or page_size > 100:
+            raise ValidationError("page和page_size必须大于0，page_size最多100条")
+
+        messages = db_manager.get_user_messages_by_type(
+            user_id=user_id,
+            message_type=message_type,
+            page=page,
+            page_size=page_size
+        )
+
+        return Success(
+            message="按类型获取消息列表成功",
+            data=[
+                MessageResponse(
+                    id=msg.id,
+                    sender_id=msg.sender_id,
+                    recipient_id=msg.recipient_id,
+                    title=msg.title,
+                    content=msg.content,
+                    summary=msg.summary,
+                    message_type=msg.message_type or "direct",
+                    broadcast_scope=msg.broadcast_scope,
+                    is_read=msg.is_read or False,
+                    created_at=msg.created_at if msg.created_at else datetime.now()
+                )
+                for msg in messages
+            ]
+        )
+
+    except (ValidationError, DatabaseError):
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Get messages by type error", exception=e)
+        raise APIError("按类型获取消息列表失败")
+
+
 @messages_router.post(
     "/messages/{message_id}/read",
     response_model=BaseResponse[None]

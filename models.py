@@ -57,6 +57,8 @@ class CurrentUserResponse(BaseModel):
     role: str
     avatar_url: Optional[str] = None
     avatar_updated_at: Optional[str] = None
+    is_muted: bool = False
+    muted_until: Optional[datetime] = None
 
 class KnowledgeBaseCreate(BaseModel):
     """知识库创建请求模型"""

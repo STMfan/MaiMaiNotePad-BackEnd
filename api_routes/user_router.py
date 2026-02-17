@@ -448,16 +448,21 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
         user_id = current_user.get("id", "")
         app_logger.info(f"Get user info: user_id={user_id}")
 
-        # 从数据库获取用户信息（包含头像信息）
+        # 从数据库获取用户信息（包含头像信息与禁言状态）
         user = db_manager.get_user_by_id(user_id)
         avatar_url = None
         avatar_updated_at = None
+
+        is_muted = False
+        muted_until = None
 
         if user:
             if user.avatar_path:
                 avatar_url = f"/{user.avatar_path}"
             if user.avatar_updated_at:
                 avatar_updated_at = user.avatar_updated_at.isoformat()
+            is_muted = bool(getattr(user, "is_muted", False))
+            muted_until = getattr(user, "muted_until", None)
 
         return Success(
             message="用户信息获取成功",
@@ -468,6 +473,8 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
                 role=current_user.get("role", "user"),
                 avatar_url=avatar_url,
                 avatar_updated_at=avatar_updated_at,
+                is_muted=is_muted,
+                muted_until=muted_until,
             )
         )
     except Exception as e:
