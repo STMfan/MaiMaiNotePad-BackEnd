@@ -463,11 +463,10 @@ async def mute_user(
                 "muteReason": reason or ""
             }
         )
-    except (ValidationError, NotFoundError) as e:
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+    except (ValidationError, NotFoundError):
+        raise
+    except HTTPException:
+        raise
     except Exception as e:
         log_exception(app_logger, "Mute user error", exception=e)
         raise HTTPException(
