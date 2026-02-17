@@ -886,7 +886,7 @@ async def get_my_upload_history(
 
         # 获取用户的上传记录
         upload_records = db_manager.get_upload_records_by_uploader(
-            user_id, page=page, limit=page_size)
+            user_id, page=page, page_size=page_size)
 
         # 构建返回数据
         history_list = []
@@ -1017,3 +1017,116 @@ async def get_my_upload_stats(current_user: dict = Depends(get_current_user)):
             error_message=str(e)
         )
         raise APIError("获取上传统计失败")
+
+
+@user_router.get(
+    "/me/dashboard-stats",
+    response_model=BaseResponse[dict]
+)
+async def get_my_dashboard_stats(current_user: dict = Depends(get_current_user)):
+    """获取当前用户的个人数据概览统计"""
+    try:
+      user_id = current_user.get("id", "")
+      app_logger.info(f"Get user dashboard stats: user_id={user_id}")
+
+      # 上传统计（复用已有聚合逻辑）
+      upload_stats = db_manager.get_upload_stats_by_uploader(user_id)
+      total_uploads = upload_stats.get("total", 0)
+      knowledge_uploads = upload_stats.get("knowledge", 0)
+      persona_uploads = upload_stats.get("persona", 0)
+
+      # 下载与收藏统计
+      from sqlalchemy import func
+      from database_models import KnowledgeBase, PersonaCard
+
+      with db_manager.get_session() as session:
+          kb_downloads = session.query(func.sum(KnowledgeBase.downloads)).filter(
+              KnowledgeBase.uploader_id == user_id
+          ).scalar() or 0
+          pc_downloads = session.query(func.sum(PersonaCard.downloads)).filter(
+              PersonaCard.uploader_id == user_id
+          ).scalar() or 0
+
+          kb_stars = session.query(func.sum(KnowledgeBase.star_count)).filter(
+              KnowledgeBase.uploader_id == user_id
+          ).scalar() or 0
+          pc_stars = session.query(func.sum(PersonaCard.star_count)).filter(
+              PersonaCard.uploader_id == user_id
+          ).scalar() or 0
+
+      data = {
+          "totalUploads": total_uploads,
+          "knowledgeUploads": knowledge_uploads,
+          "personaUploads": persona_uploads,
+          "totalDownloads": kb_downloads + pc_downloads,
+          "knowledgeDownloads": kb_downloads,
+          "personaDownloads": pc_downloads,
+          "totalStars": kb_stars + pc_stars,
+          "knowledgeStars": kb_stars,
+          "personaStars": pc_stars,
+      }
+
+      log_database_operation(
+          app_logger,
+          "read",
+          "dashboard_stats",
+          user_id=user_id,
+          success=True
+      )
+
+      return Success(
+          message="获取个人数据概览成功",
+          data=data
+      )
+
+    except Exception as e:
+      log_exception(app_logger, "Get user dashboard stats error", exception=e)
+      log_database_operation(
+          app_logger,
+          "read",
+          "dashboard_stats",
+          user_id=current_user.get("id", ""),
+          success=False,
+          error_message=str(e)
+      )
+      raise APIError("获取个人数据概览失败")
+
+
+@user_router.get(
+    "/me/dashboard-trends",
+    response_model=BaseResponse[dict]
+)
+async def get_my_dashboard_trends(
+    days: int = Query(30, ge=1, le=90, description="统计天数，默认30天，最大90天"),
+    current_user: dict = Depends(get_current_user),
+):
+    """获取当前用户最近N天的下载与收藏趋势"""
+    try:
+        user_id = current_user.get("id", "")
+        app_logger.info(f"Get user dashboard trends: user_id={user_id}, days={days}")
+
+        trend_stats = db_manager.get_dashboard_trend_stats(user_id, days=days)
+
+        log_database_operation(
+            app_logger,
+            "read",
+            "dashboard_trends",
+            user_id=user_id,
+            success=True,
+        )
+
+        return Success(
+            message="获取个人数据趋势成功",
+            data=trend_stats,
+        )
+    except Exception as e:
+        log_exception(app_logger, "Get user dashboard trends error", exception=e)
+        log_database_operation(
+            app_logger,
+            "read",
+            "dashboard_trends",
+            user_id=current_user.get("id", ""),
+            success=False,
+            error_message=str(e),
+        )
+        raise APIError("获取个人数据趋势失败")

@@ -4,7 +4,7 @@ SQLite数据库模型定义
 """
 from datetime import datetime, timedelta
 from typing import List, Optional
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, create_engine, Index, and_, or_, inspect
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, create_engine, Index, and_, or_, inspect, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy import text
@@ -684,6 +684,30 @@ class UploadRecord(Base):
             "status": self.status,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class DownloadRecord(Base):
+    """下载记录模型"""
+    __tablename__ = "download_records"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    target_id = Column(String, nullable=False)
+    target_type = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+    __table_args__ = (
+        Index('idx_download_record_target_id', 'target_id'),
+        Index('idx_download_record_target_type', 'target_type'),
+        Index('idx_download_record_created_at', 'created_at'),
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "target_id": self.target_id,
+            "target_type": self.target_type,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 
@@ -1885,6 +1909,11 @@ class SQLiteDatabaseManager:
                         "UPDATE knowledge_bases SET downloads = downloads + 1 WHERE id = :kb_id"),
                     {"kb_id": kb_id}
                 )
+                download = DownloadRecord(
+                    target_id=kb_id,
+                    target_type="knowledge"
+                )
+                session.add(download)
                 session.commit()
                 return True
         except Exception as e:
@@ -1900,6 +1929,11 @@ class SQLiteDatabaseManager:
                         "UPDATE persona_cards SET downloads = downloads + 1 WHERE id = :pc_id"),
                     {"pc_id": pc_id}
                 )
+                download = DownloadRecord(
+                    target_id=pc_id,
+                    target_type="persona"
+                )
+                session.add(download)
                 session.commit()
                 return True
         except Exception as e:
@@ -2007,6 +2041,133 @@ class SQLiteDatabaseManager:
                 "knowledge": knowledge_count,
                 "persona": persona_count
             }
+
+    def get_dashboard_trend_stats(self, uploader_id: str, days: int = 30) -> dict:
+        """获取指定上传者最近N天的下载与收藏趋势"""
+        if days < 1:
+            days = 1
+        # 统计最近days天（包含今天），例如days=30则为过去30天
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=days - 1)
+        # 时间范围：[start_dt, end_dt)
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date + timedelta(days=1), datetime.min.time())
+
+        with self.get_session() as session:
+            # 下载趋势 - 知识库
+            kb_download_rows = session.query(
+                func.date(DownloadRecord.created_at).label("date"),
+                func.count(DownloadRecord.id).label("count"),
+            ).join(
+                KnowledgeBase,
+                and_(
+                    DownloadRecord.target_id == KnowledgeBase.id,
+                    DownloadRecord.target_type == "knowledge",
+                ),
+            ).filter(
+                KnowledgeBase.uploader_id == uploader_id,
+                DownloadRecord.created_at >= start_dt,
+                DownloadRecord.created_at < end_dt,
+            ).group_by(
+                func.date(DownloadRecord.created_at)
+            ).all()
+
+            # 下载趋势 - 人设卡
+            pc_download_rows = session.query(
+                func.date(DownloadRecord.created_at).label("date"),
+                func.count(DownloadRecord.id).label("count"),
+            ).join(
+                PersonaCard,
+                and_(
+                    DownloadRecord.target_id == PersonaCard.id,
+                    DownloadRecord.target_type == "persona",
+                ),
+            ).filter(
+                PersonaCard.uploader_id == uploader_id,
+                DownloadRecord.created_at >= start_dt,
+                DownloadRecord.created_at < end_dt,
+            ).group_by(
+                func.date(DownloadRecord.created_at)
+            ).all()
+
+            # 收藏趋势 - 知识库
+            kb_star_rows = session.query(
+                func.date(StarRecord.created_at).label("date"),
+                func.count(StarRecord.id).label("count"),
+            ).join(
+                KnowledgeBase,
+                and_(
+                    StarRecord.target_id == KnowledgeBase.id,
+                    StarRecord.target_type == "knowledge",
+                ),
+            ).filter(
+                KnowledgeBase.uploader_id == uploader_id,
+                StarRecord.created_at >= start_dt,
+                StarRecord.created_at < end_dt,
+            ).group_by(
+                func.date(StarRecord.created_at)
+            ).all()
+
+            # 收藏趋势 - 人设卡
+            pc_star_rows = session.query(
+                func.date(StarRecord.created_at).label("date"),
+                func.count(StarRecord.id).label("count"),
+            ).join(
+                PersonaCard,
+                and_(
+                    StarRecord.target_id == PersonaCard.id,
+                    StarRecord.target_type == "persona",
+                ),
+            ).filter(
+                PersonaCard.uploader_id == uploader_id,
+                StarRecord.created_at >= start_dt,
+                StarRecord.created_at < end_dt,
+            ).group_by(
+                func.date(StarRecord.created_at)
+            ).all()
+
+        # 初始化每天的数据
+        trend_map = {}
+        current_date = start_date
+        while current_date <= end_date:
+            date_str = current_date.isoformat()
+            trend_map[date_str] = {
+                "date": date_str,
+                "knowledgeDownloads": 0,
+                "personaDownloads": 0,
+                "knowledgeStars": 0,
+                "personaStars": 0,
+            }
+            current_date += timedelta(days=1)
+
+        # 填充下载数据
+        for row in kb_download_rows:
+            date_str = str(row.date)
+            if date_str in trend_map:
+                trend_map[date_str]["knowledgeDownloads"] = int(row.count or 0)
+        for row in pc_download_rows:
+            date_str = str(row.date)
+            if date_str in trend_map:
+                trend_map[date_str]["personaDownloads"] = int(row.count or 0)
+
+        # 填充收藏数据
+        for row in kb_star_rows:
+            date_str = str(row.date)
+            if date_str in trend_map:
+                trend_map[date_str]["knowledgeStars"] = int(row.count or 0)
+        for row in pc_star_rows:
+            date_str = str(row.date)
+            if date_str in trend_map:
+                trend_map[date_str]["personaStars"] = int(row.count or 0)
+
+        items = [trend_map[date_str] for date_str in sorted(trend_map.keys())]
+
+        return {
+            "startDate": start_date.isoformat(),
+            "endDate": end_date.isoformat(),
+            "days": days,
+            "items": items,
+        }
 
     def get_upload_records_by_status(self, status: str):
         """根据状态获取上传记录"""
