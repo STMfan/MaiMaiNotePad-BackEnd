@@ -1,4 +1,5 @@
 from typing import List, Optional
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status as HTTPStatus, Body, Query
 
@@ -179,7 +180,7 @@ async def get_all_users(
             page = 1
 
         with db_manager.get_session() as session:
-            from database_models import User, KnowledgeBase, PersonaCard
+            from database_models import User, KnowledgeBase, PersonaCard, UploadRecord
             from sqlalchemy import func, or_, and_
 
             # 构建查询 - 只查询活跃用户（过滤已删除的用户）
@@ -211,10 +212,25 @@ async def get_all_users(
             users = query.order_by(User.created_at.desc()).offset(
                 offset).limit(page_size).all()
 
-            # 构建用户列表
+            user_ids = [user.id for user in users]
+
+            last_upload_map = {}
+            if user_ids:
+                subquery = session.query(
+                    UploadRecord.uploader_id.label("uploader_id"),
+                    func.max(UploadRecord.created_at).label("last_upload_at")
+                ).filter(
+                    UploadRecord.uploader_id.in_(user_ids)
+                ).group_by(
+                    UploadRecord.uploader_id
+                ).subquery()
+
+                upload_rows = session.query(subquery.c.uploader_id, subquery.c.last_upload_at).all()
+                for row in upload_rows:
+                    last_upload_map[row.uploader_id] = row.last_upload_at
+
             user_list = []
             for user in users:
-                # 统计用户的知识库和人设卡数量
                 kb_count = session.query(func.count(KnowledgeBase.id)).filter(
                     KnowledgeBase.uploader_id == user.id
                 ).scalar() or 0
@@ -224,6 +240,8 @@ async def get_all_users(
 
                 role_str = "admin" if user.is_admin else (
                     "moderator" if user.is_moderator else "user")
+                last_upload_at = last_upload_map.get(user.id)
+
                 user_list.append({
                     "id": user.id,
                     "username": user.username,
@@ -232,7 +250,10 @@ async def get_all_users(
                     "is_active": user.is_active,
                     "createdAt": user.created_at.isoformat() if user.created_at else None,
                     "knowledgeCount": kb_count,
-                    "personaCount": pc_count
+                    "personaCount": pc_count,
+                    "lastUploadAt": last_upload_at.isoformat() if last_upload_at else None,
+                    "lastLoginAt": None,
+                    "lockedUntil": user.locked_until.isoformat() if user.locked_until else None
                 })
 
         log_api_request(app_logger, "GET", "/admin/users",
@@ -400,6 +421,159 @@ async def delete_user(
         raise HTTPException(
             status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"删除用户失败: {str(e)}"
+        )
+
+
+@admin_router.post("/admin/users/{user_id}/ban")
+async def ban_user(
+        user_id: str,
+        body: dict = Body(...),
+        current_user: dict = Depends(get_current_user)
+):
+    """封禁用户（仅限admin），支持按时长封禁"""
+    if not current_user.get("is_admin", False):
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
+            detail="需要管理员权限"
+        )
+
+    try:
+        duration = body.get("duration", "permanent")
+        app_logger.info(
+            f"Ban user: user_id={user_id}, duration={duration}, operator={current_user.get('id')}")
+
+        if user_id == current_user.get("id"):
+            raise ValidationError("不能封禁自己")
+
+        with db_manager.get_session() as session:
+            from database_models import User
+            from sqlalchemy import func
+
+            user = session.query(User).filter(User.id == user_id).first()
+            if not user:
+                raise NotFoundError("用户不存在")
+
+            # 计算封禁截止时间
+            now = datetime.now()
+            if duration == "1d":
+                locked_until = now + timedelta(days=1)
+            elif duration == "7d":
+                locked_until = now + timedelta(days=7)
+            elif duration == "30d":
+                locked_until = now + timedelta(days=30)
+            elif duration == "permanent":
+                locked_until = now + timedelta(days=365 * 100)
+            else:
+                raise ValidationError("封禁时长无效")
+
+            # 检查是否是最后一个管理员（只统计未被永久封禁的活跃管理员）
+            if user.is_admin:
+                admin_query = session.query(func.count(User.id)).filter(
+                    User.is_admin == True,
+                    User.is_active == True
+                )
+                # 只统计未被永久封禁（locked_until 为空或已经过期）的管理员
+                admin_query = admin_query.filter(
+                    (User.locked_until == None) | (User.locked_until <= now)  # noqa: E711
+                )
+                admin_count = admin_query.scalar() or 0
+                if admin_count <= 1:
+                    raise ValidationError("不能封禁最后一个管理员")
+
+            user.locked_until = locked_until
+            session.commit()
+
+            log_database_operation(
+                app_logger,
+                "update",
+                "user",
+                record_id=user_id,
+                user_id=current_user.get("id"),
+                success=True
+            )
+
+        log_api_request(
+            app_logger,
+            "POST",
+            f"/admin/users/{user_id}/ban",
+            current_user.get("id"),
+            status_code=200
+        )
+        return Success(
+            message="用户封禁成功",
+            data={
+                "locked_until": locked_until.isoformat()
+            }
+        )
+
+    except (ValidationError, NotFoundError):
+        raise
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Ban user error", exception=e)
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"封禁用户失败: {str(e)}"
+        )
+
+
+@admin_router.post("/admin/users/{user_id}/unban")
+async def unban_user(
+        user_id: str,
+        current_user: dict = Depends(get_current_user)
+):
+    """解封用户（仅限admin）"""
+    if not current_user.get("is_admin", False):
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
+            detail="需要管理员权限"
+        )
+
+    try:
+        app_logger.info(
+            f"Unban user: user_id={user_id}, operator={current_user.get('id')}")
+
+        with db_manager.get_session() as session:
+            from database_models import User
+
+            user = session.query(User).filter(User.id == user_id).first()
+            if not user:
+                raise NotFoundError("用户不存在")
+
+            user.locked_until = None
+            user.failed_login_attempts = 0
+            session.commit()
+
+            log_database_operation(
+                app_logger,
+                "update",
+                "user",
+                record_id=user_id,
+                user_id=current_user.get("id"),
+                success=True
+            )
+
+        log_api_request(
+            app_logger,
+            "POST",
+            f"/admin/users/{user_id}/unban",
+            current_user.get("id"),
+            status_code=200
+        )
+        return Success(
+            message="用户已解封"
+        )
+
+    except (ValidationError, NotFoundError):
+        raise
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Unban user error", exception=e)
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"解封用户失败: {str(e)}"
         )
 
 
