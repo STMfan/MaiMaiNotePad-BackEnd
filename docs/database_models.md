@@ -34,6 +34,10 @@
 | `failed_login_attempts` | `Integer` | `default=0` | 失败登录尝试次数（账户锁定相关） |
 | `locked_until` | `DateTime` | `nullable=True` | 账户锁定到期时间 |
 | `last_failed_login` | `DateTime` | `nullable=True` | 最后一次失败登录时间 |
+| `is_muted` | `Boolean` | `default=False` | 是否被禁言 |
+| `muted_until` | `DateTime` | `nullable=True` | 禁言到期时间，`NULL` 表示永久禁言 |
+| `ban_reason` | `String` | `nullable=True` | 账户封禁原因（由管理员填写） |
+| `mute_reason` | `String` | `nullable=True` | 禁言原因（由管理员填写） |
 | `avatar_path` | `String` | `nullable=True` | 头像文件路径（相对路径或URL） |
 | `avatar_updated_at` | `DateTime` | `nullable=True` | 头像最后更新时间 |
 | `password_version` | `Integer` | `default=0` | 密码版本号（用于Token失效机制，每次修改密码时递增） |
@@ -234,7 +238,7 @@
 ## 更新日志
 
 ### 2025-11-22 更新
-- 新增 `User` 模型字段：账户锁定相关（`failed_login_attempts`、`locked_until`、`last_failed_login`）、头像相关（`avatar_path`、`avatar_updated_at`）、密码版本号（`password_version`）
+- 新增 `User` 模型字段：账户锁定相关（`failed_login_attempts`、`locked_until`、`last_failed_login`）、禁言相关（`is_muted`、`muted_until`、`mute_reason`）、封禁原因（`ban_reason`）、头像相关（`avatar_path`、`avatar_updated_at`）、密码版本号（`password_version`）
 - 新增 `KnowledgeBase` 和 `PersonaCard` 模型的 `downloads` 字段（下载计数）
 - 新增 `Message` 模型的 `summary` 字段（消息简介）
 - 新增 `UploadRecord` 模型（上传记录表）

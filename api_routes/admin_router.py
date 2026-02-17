@@ -255,7 +255,9 @@ async def get_all_users(
                     "lastLoginAt": None,
                     "lockedUntil": user.locked_until.isoformat() if user.locked_until else None,
                     "isMuted": user.is_muted,
-                    "mutedUntil": user.muted_until.isoformat() if user.muted_until else None
+                    "mutedUntil": user.muted_until.isoformat() if user.muted_until else None,
+                    "banReason": getattr(user, "ban_reason", None),
+                    "muteReason": getattr(user, "mute_reason", None)
                 })
 
         log_api_request(app_logger, "GET", "/admin/users",
@@ -360,7 +362,7 @@ async def update_user_role(
 @admin_router.post("/admin/users/{user_id}/mute")
 async def mute_user(
         user_id: str,
-        duration: str = Body(..., embed=True),
+        body: dict = Body(...),
         current_user: dict = Depends(get_current_user)
 ):
     if not current_user.get("is_admin", False):
@@ -370,8 +372,11 @@ async def mute_user(
         )
 
     try:
+        duration = body.get("duration", "7d")
+        reason = (body.get("reason") or "").strip()
+
         app_logger.info(
-            f"Mute user: user_id={user_id}, duration={duration}, operator={current_user.get('id')}"
+            f"Mute user: user_id={user_id}, duration={duration}, reason={reason}, operator={current_user.get('id')}"
         )
 
         now = datetime.now()
@@ -398,14 +403,41 @@ async def mute_user(
 
             user.is_muted = True
             user.muted_until = muted_until
+            user.mute_reason = reason or None
             session.commit()
+
+        # 发送禁言站内信（尽量不影响主流程）
+        try:
+            from models import Message
+
+            operator_id = current_user.get("id", "")
+            muted_until_text = "永久禁言" if muted_until is None else muted_until.strftime("%Y-%m-%d %H:%M")
+            reason_text = reason or "违反社区行为规范"
+            content = (
+                "你好，你的账号已被禁言。\n\n"
+                f"禁言时长：{muted_until_text}\n"
+                f"禁言原因：{reason_text}\n\n"
+                "在禁言期间，你将无法在站内发表评论和回复内容。\n"
+                "如有疑问，可以联系管理员。\n\n"
+                "—— 麦麦"
+            )
+            message = Message(
+                recipient_id=user_id,
+                sender_id=operator_id,
+                title="禁言通知",
+                content=content
+            )
+            db_manager.create_message(message.to_dict())
+        except Exception as e:
+            app_logger.warning(f"Failed to send mute notification message: {str(e)}")
 
         return Success(
             message="用户禁言成功",
             data={
                 "userId": user_id,
                 "isMuted": True,
-                "mutedUntil": muted_until.isoformat() if muted_until else None
+                "mutedUntil": muted_until.isoformat() if muted_until else None,
+                "muteReason": reason or ""
             }
         )
     except (ValidationError, NotFoundError) as e:
@@ -446,7 +478,29 @@ async def unmute_user(
 
             user.is_muted = False
             user.muted_until = None
+            user.mute_reason = None
             session.commit()
+
+        # 发送解除禁言站内信
+        try:
+            from models import Message
+
+            operator_id = current_user.get("id", "")
+            content = (
+                "你好，你的账号禁言状态已解除。\n\n"
+                "现在你可以正常在站内发表评论和回复内容。\n"
+                "请遵守社区行为规范，避免再次被禁言。\n\n"
+                "—— 麦麦"
+            )
+            message = Message(
+                recipient_id=user_id,
+                sender_id=operator_id,
+                title="禁言解除通知",
+                content=content
+            )
+            db_manager.create_message(message.to_dict())
+        except Exception as e:
+            app_logger.warning(f"Failed to send unmute notification message: {str(e)}")
 
         return Success(
             message="用户已解除禁言",
@@ -553,8 +607,9 @@ async def ban_user(
 
     try:
         duration = body.get("duration", "permanent")
+        reason = (body.get("reason") or "").strip()
         app_logger.info(
-            f"Ban user: user_id={user_id}, duration={duration}, operator={current_user.get('id')}")
+            f"Ban user: user_id={user_id}, duration={duration}, reason={reason}, operator={current_user.get('id')}")
 
         if user_id == current_user.get("id"):
             raise ValidationError("不能封禁自己")
@@ -595,6 +650,7 @@ async def ban_user(
                     raise ValidationError("不能封禁最后一个管理员")
 
             user.locked_until = locked_until
+            user.ban_reason = reason or None
             session.commit()
 
             log_database_operation(
@@ -606,6 +662,35 @@ async def ban_user(
                 success=True
             )
 
+        # 发送封禁站内信
+        try:
+            from models import Message
+
+            operator_id = current_user.get("id", "")
+            # permanent 用“永久封禁”，否则用时间
+            if duration == "permanent":
+                locked_text = "永久封禁"
+            else:
+                locked_text = locked_until.strftime("%Y-%m-%d %H:%M")
+            reason_text = reason or "违反社区行为规范"
+            content = (
+                "你好，你的账号已被封禁，暂时无法登录系统。\n\n"
+                f"封禁时长：{locked_text}\n"
+                f"封禁原因：{reason_text}\n\n"
+                "在封禁期间，你将无法登录并使用站内功能。\n"
+                "如有疑问，可以联系管理员。\n\n"
+                "—— 麦麦"
+            )
+            message = Message(
+                recipient_id=user_id,
+                sender_id=operator_id,
+                title="封禁通知",
+                content=content
+            )
+            db_manager.create_message(message.to_dict())
+        except Exception as e:
+            app_logger.warning(f"Failed to send ban notification message: {str(e)}")
+
         log_api_request(
             app_logger,
             "POST",
@@ -616,7 +701,8 @@ async def ban_user(
         return Success(
             message="用户封禁成功",
             data={
-                "locked_until": locked_until.isoformat()
+                "locked_until": locked_until.isoformat(),
+                "ban_reason": reason or ""
             }
         )
 
@@ -657,6 +743,7 @@ async def unban_user(
 
             user.locked_until = None
             user.failed_login_attempts = 0
+            user.ban_reason = None
             session.commit()
 
             log_database_operation(
@@ -667,6 +754,27 @@ async def unban_user(
                 user_id=current_user.get("id"),
                 success=True
             )
+
+        # 发送解封站内信
+        try:
+            from models import Message
+
+            operator_id = current_user.get("id", "")
+            content = (
+                "你好，你的账号封禁状态已解除。\n\n"
+                "现在你可以重新登录并正常使用站内功能。\n"
+                "请遵守社区行为规范，避免再次被封禁。\n\n"
+                "—— 麦麦"
+            )
+            message = Message(
+                recipient_id=user_id,
+                sender_id=operator_id,
+                title="解封通知",
+                content=content
+            )
+            db_manager.create_message(message.to_dict())
+        except Exception as e:
+            app_logger.warning(f"Failed to send unban notification message: {str(e)}")
 
         log_api_request(
             app_logger,

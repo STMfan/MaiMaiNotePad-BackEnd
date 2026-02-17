@@ -117,10 +117,15 @@ async def create_comment(
 
             now = datetime.now()
             if user.is_muted:
+                reason = getattr(user, "mute_reason", "") or "违反社区行为规范"
                 if user.muted_until and user.muted_until > now:
-                    raise AuthorizationError("当前用户已被禁言，无法发表评论")
+                    raise AuthorizationError(
+                        f"你当前处于禁言状态，暂时无法发表评论。\n\n禁言原因：{reason}\n\n如有疑问，可以联系管理员。\n\n—— 麦麦"
+                    )
                 if user.muted_until is None:
-                    raise AuthorizationError("当前用户已被永久禁言，无法发表评论")
+                    raise AuthorizationError(
+                        f"你当前处于永久禁言状态，无法发表评论。\n\n禁言原因：{reason}\n\n如有疑问，可以联系管理员。\n\n—— 麦麦"
+                    )
 
             if target_type == "knowledge":
                 target = session.query(KnowledgeBase).filter(KnowledgeBase.id == target_id).first()

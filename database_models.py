@@ -36,14 +36,15 @@ class User(Base):
     is_moderator = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now)
 
-    # 账户锁定相关字段
     failed_login_attempts = Column(Integer, default=0)
     locked_until = Column(DateTime, nullable=True)
     last_failed_login = Column(DateTime, nullable=True)
 
-    # 发言禁言相关字段
     is_muted = Column(Boolean, default=False)
     muted_until = Column(DateTime, nullable=True)
+
+    ban_reason = Column(String, nullable=True)
+    mute_reason = Column(String, nullable=True)
 
     # 头像相关字段
     avatar_path = Column(String, nullable=True)  # 头像文件路径（相对路径或URL）
@@ -111,7 +112,9 @@ class User(Base):
             "avatar_updated_at": self.avatar_updated_at.isoformat() if self.avatar_updated_at else None,
             "password_version": self.password_version or 0,
             "is_muted": self.is_muted,
-            "muted_until": self.muted_until.isoformat() if self.muted_until else None
+            "muted_until": self.muted_until.isoformat() if self.muted_until else None,
+            "ban_reason": self.ban_reason,
+            "mute_reason": self.mute_reason
         }
 
     @classmethod
@@ -843,6 +846,8 @@ class SQLiteDatabaseManager:
                 ('password_version', 'INTEGER DEFAULT 0'),
                 ('is_muted', 'BOOLEAN DEFAULT 0'),
                 ('muted_until', 'DATETIME'),
+                ('ban_reason', 'VARCHAR'),
+                ('mute_reason', 'VARCHAR'),
             ]),
         ]
 

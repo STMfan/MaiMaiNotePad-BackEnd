@@ -355,10 +355,16 @@ def get_user_by_credentials_with_lock_check(username: str, password: str) -> Opt
         if db_user:
             if not check_account_lock(db_user):
                 from datetime import datetime
+                from error_handlers import AuthenticationError
                 if db_user.locked_until:
                     remaining_time = (db_user.locked_until - datetime.now()).total_seconds() / 60
                     logger.warning(f'Login attempt on locked account: username={db_user.username}, remaining={remaining_time:.1f}min')
-                return None  # 账户被锁定
+                ban_reason = getattr(db_user, "ban_reason", None)
+                if ban_reason:
+                    raise AuthenticationError(
+                        f"你的账号已被封禁，暂时无法登录。\n\n封禁原因：{ban_reason}\n\n如有疑问，可以联系管理员。\n\n—— 麦麦"
+                    )
+                return None
         
         # 使用原有的验证逻辑（已包含时间攻击防护）
         return get_user_by_credentials(username, password)
