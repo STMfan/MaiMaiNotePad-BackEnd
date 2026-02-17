@@ -1,0 +1,863 @@
+{
+  "10001": {
+    "key": "AUTH_INVALID_JSON",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "请求数据格式不正确，请检查后重试。"
+    }
+  },
+  "10002": {
+    "key": "AUTH_UNSUPPORTED_CONTENT_TYPE",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "当前请求格式不支持，请使用 JSON 或表单提交。"
+    }
+  },
+  "10003": {
+    "key": "AUTH_MISSING_CREDENTIALS",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "请输入用户名和密码后再尝试登录。"
+    }
+  },
+  "10004": {
+    "key": "AUTH_MISSING_REFRESH_TOKEN",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "刷新令牌缺失，请重新登录。"
+    }
+  },
+  "10005": {
+    "key": "AUTH_INVALID_EMAIL_FORMAT",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "邮箱格式不正确，请检查后重新输入。"
+    }
+  },
+  "10006": {
+    "key": "AUTH_REQUIRED_FIELDS_EMPTY",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "还有必填项未填写，请补充完整后再提交。"
+    }
+  },
+  "10007": {
+    "key": "AUTH_EMAIL_NOT_REGISTERED",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "该邮箱尚未注册，请先完成注册。"
+    }
+  },
+  "10008": {
+    "key": "AUTH_PASSWORD_TOO_SHORT",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "密码长度过短，请设置为至少 6 位。"
+    }
+  },
+  "10009": {
+    "key": "AUTH_INVALID_OR_EXPIRED_CODE",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "验证码错误或已失效，请重新获取。"
+    }
+  },
+  "10010": {
+    "key": "AUTH_PASSWORD_CONFIRM_MISMATCH",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "两次输入的密码不一致，请重新确认。"
+    }
+  },
+  "10011": {
+    "key": "AUTH_PASSWORD_SAME_AS_OLD",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "新密码不能与当前密码相同，请设置一个新密码。"
+    }
+  },
+  "10012": {
+    "key": "AUTH_LOGIN_ERROR",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "登录过程中出现异常，请稍后重试。"
+    }
+  },
+  "10013": {
+    "key": "AUTH_REFRESH_ERROR",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "刷新登录状态失败，请重新登录。"
+    }
+  },
+  "10014": {
+    "key": "AUTH_SEND_CODE_TOO_FREQUENT",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "验证码发送过于频繁，请稍后再试。"
+    }
+  },
+  "10015": {
+    "key": "AUTH_EMAIL_SMTP_CLOSED",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "邮件服务暂时不可用，请稍后再试或联系管理员。"
+    }
+  },
+  "10016": {
+    "key": "AUTH_EMAIL_AUTH_FAILED",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "邮件账号认证失败，请联系管理员检查邮箱配置。"
+    }
+  },
+  "10017": {
+    "key": "AUTH_EMAIL_TIMEOUT",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "连接邮件服务器超时，请稍后重试。"
+    }
+  },
+  "10018": {
+    "key": "AUTH_CHECK_REGISTER_INFO_ERROR",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "校验注册信息时发生错误，请稍后再试。"
+    }
+  },
+  "10019": {
+    "key": "AUTH_RESET_PASSWORD_EMAIL_ERROR",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "重置密码失败，请检查邮箱是否正确。"
+    }
+  },
+  "10020": {
+    "key": "AUTH_RESET_PASSWORD_ERROR",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "重置密码失败，请稍后重试。"
+    }
+  },
+  "10021": {
+    "key": "AUTH_REGISTER_SYSTEM_ERROR",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "注册失败，系统出现异常，请稍后重试。"
+    }
+  },
+  "10022": {
+    "key": "AUTH_REGISTER_USER_ERROR",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "用户注册失败，请稍后再试。"
+    }
+  },
+  "10023": {
+    "key": "AUTH_GET_USER_INFO_ERROR",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "获取用户信息失败，请稍后重试。"
+    }
+  },
+  "10024": {
+    "key": "AUTH_CHANGE_PASSWORD_ERROR",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "修改密码失败，请稍后重试。"
+    }
+  },
+  "10025": {
+    "key": "AUTH_SEND_CODE_ERROR",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "发送验证码失败，请稍后再试。"
+    }
+  },
+  "10026": {
+    "key": "AUTH_SEND_RESET_CODE_ERROR",
+    "module": "auth",
+    "messages": {
+      "zh-CN": "发送重置密码验证码失败，请稍后再试。"
+    }
+  },
+  "10100": {
+    "key": "USER_AVATAR_UPLOAD_ERROR",
+    "module": "user",
+    "messages": {
+      "zh-CN": "上传头像失败，请稍后重试。"
+    }
+  },
+  "10101": {
+    "key": "USER_AVATAR_DELETE_ERROR",
+    "module": "user",
+    "messages": {
+      "zh-CN": "删除头像失败，请稍后再试。"
+    }
+  },
+  "10102": {
+    "key": "USER_AVATAR_GET_ERROR",
+    "module": "user",
+    "messages": {
+      "zh-CN": "获取头像失败，请稍后重试。"
+    }
+  },
+  "10200": {
+    "key": "USER_GET_STARS_ERROR",
+    "module": "user",
+    "messages": {
+      "zh-CN": "获取收藏记录失败，请稍后重试。"
+    }
+  },
+  "10201": {
+    "key": "USER_GET_UPLOAD_HISTORY_ERROR",
+    "module": "user",
+    "messages": {
+      "zh-CN": "获取上传历史失败，请稍后再试。"
+    }
+  },
+  "10202": {
+    "key": "USER_GET_UPLOAD_STATS_ERROR",
+    "module": "user",
+    "messages": {
+      "zh-CN": "获取上传统计失败，请稍后重试。"
+    }
+  },
+  "10203": {
+    "key": "USER_GET_OVERVIEW_ERROR",
+    "module": "user",
+    "messages": {
+      "zh-CN": "获取个人数据概览失败，请稍后重试。"
+    }
+  },
+  "10204": {
+    "key": "USER_GET_TREND_ERROR",
+    "module": "user",
+    "messages": {
+      "zh-CN": "获取个人数据趋势失败，请稍后重试。"
+    }
+  },
+  "12000": {
+    "key": "ADMIN_ROLE_INVALID",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "角色选择不合法，请在用户、审核员、管理员中选择。"
+    }
+  },
+  "12001": {
+    "key": "ADMIN_CANNOT_EDIT_SELF_ROLE",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "不能修改当前登录账号的角色。"
+    }
+  },
+  "12002": {
+    "key": "ADMIN_SUPER_ONLY_EDIT_ADMIN",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "只有超级管理员可以修改管理员或超级管理员的角色。"
+    }
+  },
+  "12003": {
+    "key": "ADMIN_SUPER_ONLY_CREATE_ADMIN",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "只有超级管理员可以任命管理员。"
+    }
+  },
+  "12004": {
+    "key": "ADMIN_LAST_ADMIN_CANNOT_DELETE",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "系统中至少需要保留一名管理员，无法删除最后一个管理员。"
+    }
+  },
+  "12005": {
+    "key": "ADMIN_INVALID_MUTE_DURATION",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "禁言时长设置不合法，请检查后重新选择。"
+    }
+  },
+  "12006": {
+    "key": "ADMIN_CANNOT_MUTE_SELF",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "不能对当前登录账号进行禁言操作。"
+    }
+  },
+  "12007": {
+    "key": "ADMIN_CANNOT_MUTE_PEER_ADMIN",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "普通管理员不能禁言其它管理员或超级管理员。"
+    }
+  },
+  "12008": {
+    "key": "ADMIN_CANNOT_DELETE_SELF",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "不能删除当前登录账号。"
+    }
+  },
+  "12009": {
+    "key": "ADMIN_CANNOT_DELETE_PEER_ADMIN",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "普通管理员不能删除其它管理员或超级管理员账号。"
+    }
+  },
+  "12010": {
+    "key": "ADMIN_CANNOT_BAN_SELF",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "不能封禁当前登录账号。"
+    }
+  },
+  "12011": {
+    "key": "ADMIN_CANNOT_BAN_PEER_ADMIN",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "普通管理员不能封禁其它管理员或超级管理员账号。"
+    }
+  },
+  "12012": {
+    "key": "ADMIN_INVALID_BAN_DURATION",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "封禁时长设置不合法，请检查后重新选择。"
+    }
+  },
+  "12013": {
+    "key": "ADMIN_CANNOT_UNBAN_PEER_ADMIN",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "普通管理员不能解封其它管理员或超级管理员账号。"
+    }
+  },
+  "12014": {
+    "key": "ADMIN_USERNAME_REQUIRED",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "请填写用户名。"
+    }
+  },
+  "12015": {
+    "key": "ADMIN_EMAIL_REQUIRED",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "请填写邮箱地址。"
+    }
+  },
+  "12016": {
+    "key": "ADMIN_PASSWORD_REQUIRED",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "请设置登录密码。"
+    }
+  },
+  "12017": {
+    "key": "ADMIN_SUPER_ONLY_CREATE_ADMIN_ACCOUNT",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "只有超级管理员可以创建管理员账号。"
+    }
+  },
+  "12018": {
+    "key": "ADMIN_PASSWORD_MIN_LENGTH",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "密码长度至少需要 8 位。"
+    }
+  },
+  "12019": {
+    "key": "ADMIN_PASSWORD_COMPLEXITY",
+    "module": "admin",
+    "messages": {
+      "zh-CN": "密码需同时包含字母和数字，请重新设置。"
+    }
+  },
+  "13001": {
+    "key": "KB_NAME_DESC_REQUIRED",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "请填写知识库名称和简介。"
+    }
+  },
+  "13002": {
+    "key": "KB_AT_LEAST_ONE_FILE",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "请至少上传一个文件到知识库。"
+    }
+  },
+  "13003": {
+    "key": "KB_NAME_DUPLICATED",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "你已经有一个同名知识库，请更换名称后重试。"
+    }
+  },
+  "13004": {
+    "key": "KB_NO_FIELDS_TO_UPDATE",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "没有可更新的内容，请修改后再提交。"
+    }
+  },
+  "13005": {
+    "key": "KB_NOT_FOUND",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "知识库不存在或已被删除。"
+    }
+  },
+  "13006": {
+    "key": "KB_UPLOAD_ERROR",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "上传知识库失败，请稍后重试。"
+    }
+  },
+  "13007": {
+    "key": "KB_GET_PUBLIC_ERROR",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "获取公开知识库失败，请稍后再试。"
+    }
+  },
+  "13008": {
+    "key": "KB_GET_DETAIL_ERROR",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "获取知识库详情失败，请稍后重试。"
+    }
+  },
+  "13009": {
+    "key": "KB_GET_USER_LIST_ERROR",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "获取个人知识库列表失败，请稍后再试。"
+    }
+  },
+  "13010": {
+    "key": "KB_ALREADY_PENDING",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "该知识库已处于待审核状态，无需重复提交。"
+    }
+  },
+  "13011": {
+    "key": "KB_CANNOT_RETURN_REJECTED",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "已被拒绝的知识库无法再次退回审核。"
+    }
+  },
+  "13012": {
+    "key": "KB_UNSTAR_ERROR",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "取消收藏知识库失败，请稍后再试。"
+    }
+  },
+  "13013": {
+    "key": "KB_UPDATE_ERROR",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "修改知识库失败，请稍后重试。"
+    }
+  },
+  "13014": {
+    "key": "KB_ADD_FILE_ERROR",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "向知识库添加文件失败，请稍后再试。"
+    }
+  },
+  "13015": {
+    "key": "KB_DELETE_FILE_ERROR",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "删除知识库文件失败，请稍后再试。"
+    }
+  },
+  "13016": {
+    "key": "KB_DOWNLOAD_FILE_ERROR",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "下载知识库文件失败，请稍后重试。"
+    }
+  },
+  "13017": {
+    "key": "KB_DELETE_ERROR",
+    "module": "knowledge_base",
+    "messages": {
+      "zh-CN": "删除知识库失败，请稍后再试。"
+    }
+  },
+  "14001": {
+    "key": "PERSONA_NOT_FOUND",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "人设卡不存在或已被删除。"
+    }
+  },
+  "14002": {
+    "key": "PERSONA_AT_LEAST_ONE_FILE",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "请至少上传一个人设相关文件。"
+    }
+  },
+  "14003": {
+    "key": "PERSONA_UPLOAD_ERROR",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "上传人设卡失败，请稍后重试。"
+    }
+  },
+  "14004": {
+    "key": "PERSONA_GET_PUBLIC_ERROR",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "获取公开人设卡失败，请稍后再试。"
+    }
+  },
+  "14005": {
+    "key": "PERSONA_GET_DETAIL_ERROR",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "获取人设卡详情失败，请稍后重试。"
+    }
+  },
+  "14006": {
+    "key": "PERSONA_CHECK_STAR_ERROR",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "检查人设卡收藏状态失败，请稍后再试。"
+    }
+  },
+  "14007": {
+    "key": "PERSONA_GET_USER_LIST_ERROR",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "获取个人人设卡列表失败，请稍后再试。"
+    }
+  },
+  "14008": {
+    "key": "PERSONA_UPDATE_ERROR",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "修改人设卡失败，请稍后重试。"
+    }
+  },
+  "14009": {
+    "key": "PERSONA_UNSTAR_ERROR",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "取消收藏人设卡失败，请稍后再试。"
+    }
+  },
+  "14010": {
+    "key": "PERSONA_ALREADY_PENDING",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "该人设卡已处于待审核状态，无需重复提交。"
+    }
+  },
+  "14011": {
+    "key": "PERSONA_CANNOT_RETURN_REJECTED",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "已被拒绝的人设卡无法再次退回审核。"
+    }
+  },
+  "14012": {
+    "key": "PERSONA_DELETE_ERROR",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "删除人设卡失败，请稍后再试。"
+    }
+  },
+  "14013": {
+    "key": "PERSONA_ADD_FILE_ERROR",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "向人设卡添加文件失败，请稍后再试。"
+    }
+  },
+  "14014": {
+    "key": "PERSONA_DELETE_FILE_ERROR",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "删除人设卡文件失败，请稍后再试。"
+    }
+  },
+  "14015": {
+    "key": "PERSONA_DOWNLOAD_FILE_ERROR",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "下载人设卡文件失败，请稍后重试。"
+    }
+  },
+  "14020": {
+    "key": "PERSONA_FILE_COUNT_INVALID",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "人设配置错误：必须且仅保留一个 bot_config.toml 文件。"
+    }
+  },
+  "14021": {
+    "key": "PERSONA_FILE_NAME_INVALID",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "人设配置错误：配置文件名必须为 bot_config.toml。"
+    }
+  },
+  "14022": {
+    "key": "PERSONA_FILE_TYPE_INVALID",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "人设配置错误：存在不支持的文件类型，请检查上传文件。"
+    }
+  },
+  "14023": {
+    "key": "PERSONA_FILE_SIZE_EXCEEDED",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "人设配置错误：文件体积过大，请压缩或拆分后再试。"
+    }
+  },
+  "14024": {
+    "key": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "人设配置错误：文件内容过大，请压缩或拆分后再试。"
+    }
+  },
+  "14025": {
+    "key": "PERSONA_TOML_VERSION_MISSING",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "人设配置错误：TOML 中缺少版本号字段，请补充后重试。"
+    }
+  },
+  "14026": {
+    "key": "PERSONA_TOML_PARSE_ERROR",
+    "module": "persona",
+    "messages": {
+      "zh-CN": "人设配置错误：TOML 解析失败，请检查格式是否正确。"
+    }
+  },
+  "15001": {
+    "key": "MESSAGE_TITLE_REQUIRED",
+    "module": "message",
+    "messages": {
+      "zh-CN": "请填写消息标题。"
+    }
+  },
+  "15002": {
+    "key": "MESSAGE_CONTENT_REQUIRED",
+    "module": "message",
+    "messages": {
+      "zh-CN": "请填写消息内容。"
+    }
+  },
+  "15003": {
+    "key": "MESSAGE_BROADCAST_TYPE_INVALID",
+    "module": "message",
+    "messages": {
+      "zh-CN": "仅公告类型消息支持广播功能。"
+    }
+  },
+  "15004": {
+    "key": "MESSAGE_RECIPIENT_REQUIRED",
+    "module": "message",
+    "messages": {
+      "zh-CN": "请至少选择一位接收者。"
+    }
+  },
+  "15005": {
+    "key": "MESSAGE_NO_VALID_RECIPIENT",
+    "module": "message",
+    "messages": {
+      "zh-CN": "没有有效的接收者，请检查接收人列表。"
+    }
+  },
+  "15006": {
+    "key": "MESSAGE_PAGINATION_INVALID",
+    "module": "message",
+    "messages": {
+      "zh-CN": "分页参数不合法，请检查 page 与 page_size。"
+    }
+  },
+  "15007": {
+    "key": "MESSAGE_UPDATE_FIELDS_EMPTY",
+    "module": "message",
+    "messages": {
+      "zh-CN": "请至少修改标题、内容或简介中的一项。"
+    }
+  },
+  "15008": {
+    "key": "MESSAGE_PAGE_SIZE_INVALID",
+    "module": "message",
+    "messages": {
+      "zh-CN": "每页条数应在 1 到 100 之间。"
+    }
+  },
+  "15009": {
+    "key": "MESSAGE_PAGE_INVALID",
+    "module": "message",
+    "messages": {
+      "zh-CN": "页码必须大于等于 1。"
+    }
+  },
+  "15010": {
+    "key": "MESSAGE_ID_LIST_EMPTY",
+    "module": "message",
+    "messages": {
+      "zh-CN": "消息 ID 列表不能为空。"
+    }
+  },
+  "15020": {
+    "key": "MESSAGE_SEND_ERROR",
+    "module": "message",
+    "messages": {
+      "zh-CN": "发送消息失败，请稍后重试。"
+    }
+  },
+  "15021": {
+    "key": "MESSAGE_GET_DETAIL_ERROR",
+    "module": "message",
+    "messages": {
+      "zh-CN": "获取消息详情失败，请稍后再试。"
+    }
+  },
+  "15022": {
+    "key": "MESSAGE_GET_LIST_ERROR",
+    "module": "message",
+    "messages": {
+      "zh-CN": "获取消息列表失败，请稍后再试。"
+    }
+  },
+  "15023": {
+    "key": "MESSAGE_GET_BY_TYPE_ERROR",
+    "module": "message",
+    "messages": {
+      "zh-CN": "按类型获取消息列表失败，请稍后重试。"
+    }
+  },
+  "15024": {
+    "key": "MESSAGE_MARK_READ_ERROR",
+    "module": "message",
+    "messages": {
+      "zh-CN": "标记消息已读失败，请稍后再试。"
+    }
+  },
+  "15025": {
+    "key": "MESSAGE_DELETE_ERROR",
+    "module": "message",
+    "messages": {
+      "zh-CN": "删除消息失败，请稍后重试。"
+    }
+  },
+  "15026": {
+    "key": "MESSAGE_UPDATE_ERROR",
+    "module": "message",
+    "messages": {
+      "zh-CN": "更新消息失败，请稍后再试。"
+    }
+  },
+  "15027": {
+    "key": "MESSAGE_GET_BROADCAST_HISTORY_ERROR",
+    "module": "message",
+    "messages": {
+      "zh-CN": "获取公告历史失败，请稍后重试。"
+    }
+  },
+  "15028": {
+    "key": "MESSAGE_BATCH_DELETE_ERROR",
+    "module": "message",
+    "messages": {
+      "zh-CN": "批量删除消息失败，请稍后再试。"
+    }
+  },
+  "16001": {
+    "key": "COMMENT_TARGET_TYPE_INVALID",
+    "module": "comment",
+    "messages": {
+      "zh-CN": "评论目标类型不合法，请刷新后重试。"
+    }
+  },
+  "16002": {
+    "key": "COMMENT_CONTENT_REQUIRED",
+    "module": "comment",
+    "messages": {
+      "zh-CN": "评论内容不能为空。"
+    }
+  },
+  "16003": {
+    "key": "COMMENT_CONTENT_TOO_LONG",
+    "module": "comment",
+    "messages": {
+      "zh-CN": "评论内容过长，请精简后再提交（最多 500 字）。"
+    }
+  },
+  "16004": {
+    "key": "COMMENT_TARGET_ID_REQUIRED",
+    "module": "comment",
+    "messages": {
+      "zh-CN": "评论目标不存在或参数缺失，请刷新后重试。"
+    }
+  },
+  "16005": {
+    "key": "COMMENT_PARENT_NOT_FOUND",
+    "module": "comment",
+    "messages": {
+      "zh-CN": "回复的上级评论不存在或已被删除。"
+    }
+  },
+  "16006": {
+    "key": "COMMENT_REACTION_ACTION_INVALID",
+    "module": "comment",
+    "messages": {
+      "zh-CN": "不支持的评论操作类型，请刷新后重试。"
+    }
+  },
+  "16010": {
+    "key": "COMMENT_GET_LIST_ERROR",
+    "module": "comment",
+    "messages": {
+      "zh-CN": "获取评论列表失败，请稍后再试。"
+    }
+  },
+  "16011": {
+    "key": "COMMENT_CREATE_ERROR",
+    "module": "comment",
+    "messages": {
+      "zh-CN": "发表评论失败，请稍后重试。"
+    }
+  },
+  "16012": {
+    "key": "COMMENT_REACTION_ERROR",
+    "module": "comment",
+    "messages": {
+      "zh-CN": "操作评论失败，请稍后再试。"
+    }
+  },
+  "16013": {
+    "key": "COMMENT_DELETE_ERROR",
+    "module": "comment",
+    "messages": {
+      "zh-CN": "删除评论失败，请稍后重试。"
+    }
+  },
+  "16014": {
+    "key": "COMMENT_RESTORE_ERROR",
+    "module": "comment",
+    "messages": {
+      "zh-CN": "恢复评论失败，请稍后再试。"
+    }
+  }
+}
