@@ -24,7 +24,9 @@ class User:
             self.username = db_user.username
             self.pwdHash = db_user.hashed_password
             self.email = db_user.email
-            self.role = "admin" if db_user.is_admin else ("moderator" if db_user.is_moderator else "user")
+            self.role = "super_admin" if getattr(db_user, "is_super_admin", False) else (
+                "admin" if db_user.is_admin else ("moderator" if db_user.is_moderator else "user")
+            )
             self.updateContent = []  # 这个字段在数据库模型中没有，暂时设为空列表
             self.created_at = db_user.created_at
             self.updated_at = db_user.created_at  # 数据库模型中没有updated_at字段
@@ -183,21 +185,40 @@ class User:
 def load_users():
     """从数据库加载所有用户"""
     try:
-        db_users = sqlite_db_manager.get_all_users()
-        
-        # 如果没有用户，创建默认管理员用户
+        db_users = sqlite_db_manager.get_all_users() or []
+        external_domain = os.getenv('EXTERNAL_DOMAIN', 'example.com')
+
+        # 确保默认超级管理员账号存在
+        has_super_admin = any(getattr(u, "is_super_admin", False) for u in db_users)
+        if not has_super_admin:
+            super_username = "superadmin"
+            super_pwd = "admin123456"
+            super_pwd = super_pwd[:72]
+
+            super_db_user = DBUser(
+                username=super_username,
+                email=f"{super_username}@{external_domain}".lower(),
+                hashed_password=pwd_context.hash(super_pwd),
+                is_active=True,
+                is_admin=False,
+                is_moderator=False,
+                is_super_admin=True,
+                created_at=datetime.now()
+            )
+            sqlite_db_manager.save_user(super_db_user.to_dict())
+            db_users = sqlite_db_manager.get_all_users() or []
+
+        # 如果仍然没有任何用户，创建默认管理员用户
         if not db_users:
             admin_username = os.getenv('ADMIN_USERNAME', 'admin')
             admin_pwd = os.getenv('ADMIN_PWD', 'admin123')
-            # 确保密码不超过72字节（bcrypt限制）
             admin_pwd = admin_pwd[:72]
-            external_domain = os.getenv('EXTERNAL_DOMAIN', 'example.com')
 
             admin = User()
             admin.userID = "111111"
             admin.username = admin_username
             admin.pwdHash = pwd_context.hash(admin_pwd)
-            admin.email = f'official@{external_domain}'.lower()  # 统一转换为小写
+            admin.email = f'official@{external_domain}'.lower()
             admin.role = 'admin'
             admin.updateContent = []
             admin.save()
@@ -465,16 +486,18 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             )
     
     # 返回用户信息字典
-    # 从数据库模型获取 is_admin 和 is_moderator，如果不存在则从 role 推导
+    # 从数据库模型获取 is_admin、is_moderator 和 is_super_admin，如果不存在则从 role 推导
     is_admin = False
     is_moderator = False
+    is_super_admin = False
     if user._db_user:
-        is_admin = user._db_user.is_admin
-        is_moderator = user._db_user.is_moderator
+        is_super_admin = getattr(user._db_user, "is_super_admin", False)
+        is_admin = bool(user._db_user.is_admin or is_super_admin)
+        is_moderator = bool(user._db_user.is_moderator or is_admin)
     else:
-        # 如果数据库模型不存在，从 role 推导
-        is_admin = user.role == "admin"
-        is_moderator = user.role in ["admin", "moderator"]
+        is_super_admin = user.role == "super_admin"
+        is_admin = user.role in ["admin", "super_admin"]
+        is_moderator = user.role in ["moderator", "admin", "super_admin"]
     
     return {
         "id": user.userID,
@@ -482,13 +505,14 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         "email": user.email,
         "role": user.role,
         "is_admin": is_admin,
-        "is_moderator": is_moderator
+        "is_moderator": is_moderator,
+        "is_super_admin": is_super_admin
     }
 
 
 async def get_admin_user(current_user: dict = Depends(get_current_user)) -> dict:
     """获取当前管理员用户"""
-    if current_user.get("role") != "admin":
+    if current_user.get("role") not in ["admin", "super_admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -498,7 +522,7 @@ async def get_admin_user(current_user: dict = Depends(get_current_user)) -> dict
 
 async def get_moderator_user(current_user: dict = Depends(get_current_user)) -> dict:
     """获取当前版主或管理员用户"""
-    if current_user.get("role") not in ["admin", "moderator"]:
+    if current_user.get("role") not in ["admin", "moderator", "super_admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"

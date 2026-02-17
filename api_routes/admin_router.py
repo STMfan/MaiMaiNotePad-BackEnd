@@ -34,6 +34,8 @@ async def get_admin_stats(current_user: dict = Depends(get_current_user)):
         app_logger.info(f"Get admin stats: user_id={current_user.get('id')}")
 
         # 查询统计数据
+        username = None
+
         with db_manager.get_session() as session:
             from sqlalchemy import func
             from database_models import User, KnowledgeBase, PersonaCard
@@ -183,8 +185,11 @@ async def get_all_users(
             from database_models import User, KnowledgeBase, PersonaCard, UploadRecord
             from sqlalchemy import func, or_, and_
 
-            # 构建查询 - 只查询活跃用户（过滤已删除的用户）
-            query = session.query(User).filter(User.is_active == True)
+            # 构建查询 - 只查询活跃用户（过滤已删除的用户），并排除超级管理员
+            query = session.query(User).filter(
+                User.is_active == True,
+                User.is_super_admin == False  # noqa: E712
+            )
 
             # 搜索过滤（用户名或邮箱）
             if search:
@@ -194,9 +199,9 @@ async def get_all_users(
                 )
                 query = query.filter(search_filter)
 
-            # 角色过滤
+            # 角色过滤（此处 admin 仅包含普通管理员，不包含超级管理员）
             if role == "admin":
-                query = query.filter(User.is_admin == True)
+                query = query.filter(User.is_admin == True)  # noqa: E712
             elif role == "moderator":
                 query = query.filter(User.is_moderator ==
                                      True, User.is_admin == False)
@@ -238,8 +243,11 @@ async def get_all_users(
                     PersonaCard.uploader_id == user.id
                 ).scalar() or 0
 
-                role_str = "admin" if user.is_admin else (
-                    "moderator" if user.is_moderator else "user")
+                role_str = "super_admin" if getattr(user, "is_super_admin", False) else (
+                    "admin" if user.is_admin else (
+                        "moderator" if user.is_moderator else "user"
+                    )
+                )
                 last_upload_at = last_upload_map.get(user.id)
 
                 user_list.append({
@@ -313,7 +321,17 @@ async def update_user_role(
             if not user:
                 raise NotFoundError("用户不存在")
 
-            # 检查是否是最后一个管理员（只统计活跃管理员）
+            # 管理员不能操作其它管理员账号，仅超级管理员可以调整管理员角色
+            is_target_admin_like = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
+            is_operator_super_admin = bool(current_user.get("is_super_admin", False))
+            if is_target_admin_like and not is_operator_super_admin:
+                raise ValidationError("只有超级管理员可以修改管理员或超级管理员的角色")
+
+            # 只有超级管理员可以将用户提升为管理员
+            if new_role == "admin" and not is_operator_super_admin:
+                raise ValidationError("只有超级管理员可以任命管理员")
+
+            # 检查是否是最后一个管理员（只统计活跃管理员，不含超级管理员）
             if user.is_admin and new_role != "admin":
                 admin_count = session.query(func.count(User.id)).filter(
                     User.is_admin == True,
@@ -325,6 +343,7 @@ async def update_user_role(
             # 更新角色
             user.is_admin = (new_role == "admin")
             user.is_moderator = (new_role == "moderator")
+            username = user.username
             session.commit()
 
             log_database_operation(
@@ -342,7 +361,7 @@ async def update_user_role(
             message="用户角色更新成功",
             data={
                 "id": user_id,
-                "username": user.username,
+                "username": username,
                 "role": new_role
             }
         )
@@ -401,6 +420,11 @@ async def mute_user(
             if user.id == current_user.get("id"):
                 raise ValidationError("不能对自己进行禁言操作")
 
+            # 管理员不能操作其它管理员账号，仅超级管理员可以对管理员禁言
+            is_target_admin_like = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
+            if is_target_admin_like and not current_user.get("is_super_admin", False):
+                raise ValidationError("管理员不能对其它管理员或超级管理员进行禁言操作")
+
             user.is_muted = True
             user.muted_until = muted_until
             user.mute_reason = reason or None
@@ -408,8 +432,6 @@ async def mute_user(
 
         # 发送禁言站内信（尽量不影响主流程）
         try:
-            from models import Message
-
             operator_id = current_user.get("id", "")
             muted_until_text = "永久禁言" if muted_until is None else muted_until.strftime("%Y-%m-%d %H:%M")
             reason_text = reason or "违反社区行为规范"
@@ -421,13 +443,14 @@ async def mute_user(
                 "如有疑问，可以联系管理员。\n\n"
                 "—— 麦麦"
             )
-            message = Message(
-                recipient_id=user_id,
-                sender_id=operator_id,
+            db_manager.create_message(
+                sender_id=str(operator_id),
+                recipient_id=str(user_id),
                 title="禁言通知",
-                content=content
+                content=content,
+                message_type="announcement",
+                summary=None
             )
-            db_manager.create_message(message.to_dict())
         except Exception as e:
             app_logger.warning(f"Failed to send mute notification message: {str(e)}")
 
@@ -476,6 +499,11 @@ async def unmute_user(
             if not user:
                 raise NotFoundError("用户不存在")
 
+            # 管理员不能操作其它管理员账号，仅超级管理员可以解除管理员禁言
+            is_target_admin_like = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
+            if is_target_admin_like and not current_user.get("is_super_admin", False):
+                raise ValidationError("管理员不能对其它管理员或超级管理员进行禁言操作")
+
             user.is_muted = False
             user.muted_until = None
             user.mute_reason = None
@@ -483,8 +511,6 @@ async def unmute_user(
 
         # 发送解除禁言站内信
         try:
-            from models import Message
-
             operator_id = current_user.get("id", "")
             content = (
                 "你好，你的账号禁言状态已解除。\n\n"
@@ -492,13 +518,14 @@ async def unmute_user(
                 "请遵守社区行为规范，避免再次被禁言。\n\n"
                 "—— 麦麦"
             )
-            message = Message(
-                recipient_id=user_id,
-                sender_id=operator_id,
+            db_manager.create_message(
+                sender_id=str(operator_id),
+                recipient_id=str(user_id),
                 title="禁言解除通知",
-                content=content
+                content=content,
+                message_type="announcement",
+                summary=None
             )
-            db_manager.create_message(message.to_dict())
         except Exception as e:
             app_logger.warning(f"Failed to send unmute notification message: {str(e)}")
 
@@ -551,6 +578,11 @@ async def delete_user(
             user = session.query(User).filter(User.id == user_id).first()
             if not user:
                 raise NotFoundError("用户不存在")
+
+            # 管理员不能删除其它管理员账号，仅超级管理员可以删除管理员
+            is_target_admin_like = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
+            if is_target_admin_like and not current_user.get("is_super_admin", False):
+                raise ValidationError("管理员不能删除其它管理员或超级管理员账号")
 
             # 检查是否是最后一个管理员（只统计活跃管理员）
             if user.is_admin:
@@ -622,6 +654,11 @@ async def ban_user(
             if not user:
                 raise NotFoundError("用户不存在")
 
+            # 管理员不能封禁其它管理员账号，仅超级管理员可以封禁管理员
+            is_target_admin_like = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
+            if is_target_admin_like and not current_user.get("is_super_admin", False):
+                raise ValidationError("管理员不能封禁其它管理员或超级管理员账号")
+
             # 计算封禁截止时间
             now = datetime.now()
             if duration == "1d":
@@ -664,10 +701,7 @@ async def ban_user(
 
         # 发送封禁站内信
         try:
-            from models import Message
-
             operator_id = current_user.get("id", "")
-            # permanent 用“永久封禁”，否则用时间
             if duration == "permanent":
                 locked_text = "永久封禁"
             else:
@@ -681,13 +715,14 @@ async def ban_user(
                 "如有疑问，可以联系管理员。\n\n"
                 "—— 麦麦"
             )
-            message = Message(
-                recipient_id=user_id,
-                sender_id=operator_id,
+            db_manager.create_message(
+                sender_id=str(operator_id),
+                recipient_id=str(user_id),
                 title="封禁通知",
-                content=content
+                content=content,
+                message_type="announcement",
+                summary=None
             )
-            db_manager.create_message(message.to_dict())
         except Exception as e:
             app_logger.warning(f"Failed to send ban notification message: {str(e)}")
 
@@ -741,6 +776,11 @@ async def unban_user(
             if not user:
                 raise NotFoundError("用户不存在")
 
+            # 管理员不能解封其它管理员账号，仅超级管理员可以解封管理员
+            is_target_admin_like = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
+            if is_target_admin_like and not current_user.get("is_super_admin", False):
+                raise ValidationError("管理员不能解封其它管理员或超级管理员账号")
+
             user.locked_until = None
             user.failed_login_attempts = 0
             user.ban_reason = None
@@ -757,8 +797,6 @@ async def unban_user(
 
         # 发送解封站内信
         try:
-            from models import Message
-
             operator_id = current_user.get("id", "")
             content = (
                 "你好，你的账号封禁状态已解除。\n\n"
@@ -766,13 +804,14 @@ async def unban_user(
                 "请遵守社区行为规范，避免再次被封禁。\n\n"
                 "—— 麦麦"
             )
-            message = Message(
-                recipient_id=user_id,
-                sender_id=operator_id,
+            db_manager.create_message(
+                sender_id=str(operator_id),
+                recipient_id=str(user_id),
                 title="解封通知",
-                content=content
+                content=content,
+                message_type="announcement",
+                summary=None
             )
-            db_manager.create_message(message.to_dict())
         except Exception as e:
             app_logger.warning(f"Failed to send unban notification message: {str(e)}")
 
@@ -830,6 +869,10 @@ async def create_user_by_admin(
             raise ValidationError("密码不能为空")
         if role not in ["user", "moderator", "admin"]:
             raise ValidationError("角色必须是 user、moderator 或 admin")
+
+        # 只有超级管理员可以创建管理员账号
+        if role == "admin" and not current_user.get("is_super_admin", False):
+            raise ValidationError("只有超级管理员可以创建管理员账号")
 
         # 验证密码强度（至少8位，包含字母和数字）
         if len(password) < 8:
@@ -1189,14 +1232,18 @@ async def revert_knowledge_base(
 
         # 发送通知给上传者（可选）
         try:
-            from models import Message
-            message = Message(
-                recipient_id=kb.uploader_id,
-                sender_id=current_user.get("id", ""),
-                title="知识库已退回待审核",
-                content=f"您上传的知识库《{kb.name}》已被退回待审核状态，请等待重新审核。\n\n退回原因：{reason if reason else '无'}"
+            operator_id = current_user.get("id", "")
+            content = (
+                f"您上传的知识库《{kb.name}》已被退回待审核状态，请等待重新审核。\n\n退回原因：{reason if reason else '无'}"
             )
-            db_manager.create_message(message.to_dict())
+            db_manager.create_message(
+                sender_id=str(operator_id),
+                recipient_id=str(kb.uploader_id),
+                title="知识库已退回待审核",
+                content=content,
+                message_type="announcement",
+                summary=None
+            )
         except Exception as e:
             app_logger.warning(f"Failed to send notification: {str(e)}")
 
@@ -1276,14 +1323,18 @@ async def revert_persona_card(
 
         # 发送通知给上传者（可选）
         try:
-            from models import Message
-            message = Message(
-                recipient_id=pc.uploader_id,
-                sender_id=current_user.get("id", ""),
-                title="人设卡已退回待审核",
-                content=f"您上传的人设卡《{pc.name}》已被退回待审核状态，请等待重新审核。\n\n退回原因：{reason if reason else '无'}"
+            operator_id = current_user.get("id", "")
+            content = (
+                f"您上传的人设卡《{pc.name}》已被退回待审核状态，请等待重新审核。\n\n退回原因：{reason if reason else '无'}"
             )
-            db_manager.create_message(message.to_dict())
+            db_manager.create_message(
+                sender_id=str(operator_id),
+                recipient_id=str(pc.uploader_id),
+                title="人设卡已退回待审核",
+                content=content,
+                message_type="announcement",
+                summary=None
+            )
         except Exception as e:
             app_logger.warning(f"Failed to send notification: {str(e)}")
 

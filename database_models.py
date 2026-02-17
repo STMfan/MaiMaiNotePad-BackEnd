@@ -34,6 +34,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
     is_moderator = Column(Boolean, default=False)
+    is_super_admin = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now)
 
     failed_login_attempts = Column(Integer, default=0)
@@ -60,6 +61,7 @@ class User(Base):
         Index('idx_user_is_active', 'is_active'),
         Index('idx_user_is_admin', 'is_admin'),
         Index('idx_user_is_moderator', 'is_moderator'),
+        Index('idx_user_is_super_admin', 'is_super_admin'),
     )
 
     # 关系（通过显式主连接条件，而不是物理外键约束）
@@ -114,7 +116,8 @@ class User(Base):
             "is_muted": self.is_muted,
             "muted_until": self.muted_until.isoformat() if self.muted_until else None,
             "ban_reason": self.ban_reason,
-            "mute_reason": self.mute_reason
+            "mute_reason": self.mute_reason,
+            "is_super_admin": self.is_super_admin
         }
 
     @classmethod
@@ -131,6 +134,7 @@ class User(Base):
             is_active=data.get("is_active", True),
             is_admin=data.get("is_admin", False),
             is_moderator=data.get("is_moderator", False),
+                is_super_admin=data.get("is_super_admin", False),
             # SQLite的DateTime类型只接受 datetime 或 date 对象，这里做修改
             created_at=data.get("created_at", datetime.now())
         )
@@ -848,6 +852,7 @@ class SQLiteDatabaseManager:
                 ('muted_until', 'DATETIME'),
                 ('ban_reason', 'VARCHAR'),
                 ('mute_reason', 'VARCHAR'),
+                ('is_super_admin', 'BOOLEAN DEFAULT 0'),
             ]),
         ]
 

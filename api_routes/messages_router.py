@@ -57,7 +57,7 @@ async def send_message(
         # 权限检查：发送全用户广播需要管理员或审核员权限
         if message.broadcast_scope == "all_users":
             user_role = current_user.get("role", "user")
-            is_admin_or_moderator = user_role in ["admin", "moderator"]
+            is_admin_or_moderator = user_role in ["admin", "moderator", "super_admin"]
             if not is_admin_or_moderator:
                 raise AuthorizationError("只有管理员和审核员可以发送全用户广播")
 
@@ -648,7 +648,7 @@ async def get_broadcast_messages(
     """获取广播消息历史（仅限admin和moderator）"""
     # 验证权限：admin或moderator
     user_role = current_user.get("role", "user")
-    is_admin_or_moderator = user_role in ["admin", "moderator"]
+    is_admin_or_moderator = user_role in ["admin", "moderator", "super_admin"]
     if not is_admin_or_moderator:
         raise AuthorizationError("需要管理员或审核员权限")
 
