@@ -52,11 +52,13 @@ async def upload_persona_card(
         if not files:
             raise ValidationError("至少需要上传一个文件")
 
-        # 检查同一用户是否已有同名人设卡
-        existing_pcs = db_manager.get_persona_cards_by_user_id(user_id)
-        for existing_pc in existing_pcs:
-            if existing_pc.name == name:
-                raise ValidationError("人设卡名称不可以重复哦")
+        # 检查系统中是否已经存在人设卡（全局只允许一个人设卡）
+        existing_pcs = db_manager.get_all_persona_cards()
+        if existing_pcs:
+            raise ValidationError(
+                message="当前系统已存在人设卡，暂不支持创建多个人设卡",
+                details={"code": "PERSONA_ONLY_ONE_ALLOWED"}
+            )
 
         pc = await file_upload_service.upload_persona_card(
             files=files,
