@@ -1,7 +1,14 @@
 import secrets
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+
+
+RED = "\033[31m"
+YELLOW = "\033[33m"
+BOLD = "\033[1m"
+RESET = "\033[0m"
 
 
 def generate_secret_key() -> str:
@@ -85,9 +92,30 @@ def cleanup_files(root: Path) -> None:
     print("uploads 与 logs 目录内容已清空")
 
 
+def confirm_reset(root: Path) -> None:
+    print()
+    print(f"{BOLD}{RED}⚠ 即将执行清档操作：{RESET}")
+    print(f"{YELLOW}- 环境文件：{root / '.env'} 将被备份并写入新的安全配置{RESET}")
+    print(f"{YELLOW}- 数据库：{root / 'data' / 'mainnp.db'} 将被删除并重新初始化{RESET}")
+    print(f"{YELLOW}- 目录：{root / 'uploads'} 与 {root / 'logs'} 下的所有内容将被清空{RESET}")
+    print()
+    print(f"{BOLD}{RED}此操作不可撤销，仅适用于本机开发测试或上线前清档，切勿在正在运行的生产机器上执行。{RESET}")
+    print()
+    try:
+        answer = input("请输入大写 'RESET' 以确认执行清档操作（输入其他内容取消）：").strip()
+    except EOFError:
+        print("未确认，已取消清档。")
+        raise SystemExit(1)
+    if answer != "RESET":
+        print("未输入正确确认文本，已取消清档。")
+        raise SystemExit(1)
+    print("确认成功，开始执行清档脚本。")
+
+
 def main() -> None:
     root = Path(__file__).resolve().parents[1]
     env_path = root / ".env"
+    confirm_reset(root)
     update_env_file(env_path)
     reset_database(root)
     cleanup_files(root)

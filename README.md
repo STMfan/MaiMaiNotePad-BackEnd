@@ -467,6 +467,8 @@ cd MaiMaiNotePad-BackEnd
 python scripts/reset_security_env.py
 ```
 
+运行脚本时，终端会以醒目的彩色提示展示将要执行的危险操作，并要求你手动输入大写 `RESET` 进行确认，只有输入正确才会继续执行清档。
+
 执行完成后，终端会打印新的：
 
 - `JWT_SECRET_KEY`
@@ -475,7 +477,7 @@ python scripts/reset_security_env.py
 
 请妥善保存新的 `SUPERADMIN_PWD`，用于登录超级管理员账号；`HIGHEST_PASSWORD` 只应在服务端运维脚本中使用。
 
-> ⚠️ 注意：该脚本会删除数据库文件并清空上传与日志目录，仅适用于开发/测试环境，请勿在生产环境运行。
+> ⚠️ 注意：该脚本会删除数据库文件并清空上传与日志目录，仅适用于本机开发测试或上线前的清档，请勿在正在运行的生产机器上执行。
 
 ## 📝 开发说明
 
