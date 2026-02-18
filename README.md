@@ -391,25 +391,31 @@ cp .env.template .env
 
 #### 主要配置项
 
+下表与 `.env.template` 保持一致：
+
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `ADMIN_USERNAME` | 管理员用户名 | STMfan |
-| `ADMIN_PWD` | 管理员密码 | @Stickmanfans0805INMMNP |
-| `HIGHEST_PASSWORD` | 最高权限密码 | 随机字符串 |
-| `EXTERNAL_DOMAIN` | 外部域名 | maimnp.tech |
+| `SUPERADMIN_USERNAME` | 超级管理员用户名（仅在数据库为空时初始化） | superadmin |
+| `SUPERADMIN_PWD` | 超级管理员密码（仅在数据库为空时初始化） | admin123456 |
+| `HIGHEST_PASSWORD` | 最高权限密码（仅服务端提权使用） | your_highest_password |
+| `EXTERNAL_DOMAIN` | 外部域名（用于构造默认邮箱等） | example.com |
 | `MAIL_HOST` | SMTP服务器地址 | smtp.qq.com |
-| `MAIL_USER` | 发件邮箱地址 | 1710537557@qq.com |
+| `MAIL_USER` | 发件邮箱地址 | your_email@qq.com |
 | `MAIL_PORT` | SMTP服务器端口 | 465 |
-| `MAIL_PWD` | 邮箱授权码/SMTP密码 | 授权码 |
+| `MAIL_PWD` | 邮箱授权码/SMTP密码 | your_email_authorization_code |
+| `MAIL_TIMEOUT` | SMTP 超时时间（秒） | 30 |
 | `PORT` | 服务器端口 | 9278 |
 | `HOST` | 服务器主机 | 0.0.0.0 |
-| `DATABASE_URL` | 数据库连接URL | sqlite:///data/mainnp.db |
-| `JWT_SECRET_KEY` | JWT密钥 | 随机字符串 |
-| `JWT_EXPIRATION_HOURS` | JWT过期时间(小时) | 24 |
-| `MAX_FILE_SIZE_MB` | 最大文件上传大小(MB) | 100 |
-| `UPLOAD_DIR` | 文件上传目录 | uploads |
+| `DATABASE_URL` | 数据库连接URL（应用与 Alembic 共用） | sqlite:///data/mainnp.db |
+| `JWT_SECRET_KEY` | JWT 密钥 | change_me_to_a_very_long_random_string_like_this_example_32_chars_or_more |
+| `JWT_ALGORITHM` | JWT 算法 | HS256 |
+| `JWT_EXPIRATION_HOURS` | JWT 过期时间（小时） | 24 |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | 访问 Token 过期时间（分钟） | 15 |
+| `JWT_REFRESH_TOKEN_EXPIRE_DAYS` | 刷新 Token 过期时间（天） | 7 |
 | `LOG_LEVEL` | 日志级别 | INFO |
 | `LOG_FILE` | 日志文件路径 | logs/app.log |
+| `MAX_FILE_SIZE_MB` | 最大文件上传大小（MB） | 100 |
+| `UPLOAD_DIR` | 文件上传目录 | uploads |
 
 #### 邮箱配置说明
 邮件服务支持多种邮箱提供商：
@@ -428,6 +434,48 @@ cp .env.template .env
 - 端口配置：默认9278
 - 文件上传限制：可配置
 - 数据存储路径：可配置
+
+## 🧹 清档脚本使用说明
+
+本项目提供了一个安全清档脚本，用于在开发/测试环境中快速重置安全相关配置和业务数据。
+
+脚本位置：`scripts/reset_security_env.py`
+
+### 功能概述
+
+执行脚本会完成以下操作：
+
+- 备份当前 `.env` 为 `.env.bak`
+- 为以下字段生成新的随机值并写回 `.env`：
+  - `JWT_SECRET_KEY`
+  - `SUPERADMIN_PWD`
+  - `HIGHEST_PASSWORD`
+- 删除并重建 SQLite 数据库 `data/mainnp.db`，并执行 `alembic upgrade head` 重新建表
+- 清空 `uploads/` 与 `logs/` 目录下的所有内容（保留目录结构）
+
+### 适用场景
+
+- 本地开发时需要「清档」到全新环境（清空用户、内容、上传文件、日志等）
+- 调试安全相关逻辑（例如封禁、锁定、审核流程）前，希望快速重置安全配置和超级管理员密码
+
+### 使用方法
+
+在后端项目根目录运行：
+
+```bash
+cd MaiMaiNotePad-BackEnd
+python scripts/reset_security_env.py
+```
+
+执行完成后，终端会打印新的：
+
+- `JWT_SECRET_KEY`
+- `SUPERADMIN_PWD`
+- `HIGHEST_PASSWORD`
+
+请妥善保存新的 `SUPERADMIN_PWD`，用于登录超级管理员账号；`HIGHEST_PASSWORD` 只应在服务端运维脚本中使用。
+
+> ⚠️ 注意：该脚本会删除数据库文件并清空上传与日志目录，仅适用于开发/测试环境，请勿在生产环境运行。
 
 ## 📝 开发说明
 
