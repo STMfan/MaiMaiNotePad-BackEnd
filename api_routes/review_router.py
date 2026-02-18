@@ -42,8 +42,11 @@ async def get_pending_knowledge_bases(
         current_user: dict = Depends(get_current_user)
 ):
     """获取待审核的知识库（需要admin或moderator权限），支持分页、搜索、按上传者筛选和排序"""
-    # 验证权限
-    if current_user.get("role", "user") not in ["admin", "moderator"]:
+    # 验证权限：admin 或 moderator（包含 super_admin）
+    is_admin = bool(current_user.get("is_admin"))
+    is_moderator = bool(current_user.get("is_moderator"))
+    role = current_user.get("role", "user")
+    if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
         raise HTTPException(
             status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="没有审核权限"
@@ -87,8 +90,11 @@ async def get_pending_persona_cards(
         current_user: dict = Depends(get_current_user)
 ):
     """获取待审核的人设卡（需要admin或moderator权限），支持分页、搜索、按上传者筛选和排序"""
-    # 验证权限
-    if current_user.get("role", "user") not in ["admin", "moderator"]:
+    # 验证权限：admin 或 moderator（包含 super_admin）
+    is_admin = bool(current_user.get("is_admin"))
+    is_moderator = bool(current_user.get("is_moderator"))
+    role = current_user.get("role", "user")
+    if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
         raise HTTPException(
             status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="没有审核权限"
@@ -126,8 +132,11 @@ async def approve_knowledge_base(
         current_user: dict = Depends(get_current_user)
 ):
     """审核通过知识库（需要admin或moderator权限）"""
-    # 验证权限
-    if current_user.get("role", "user") not in ["admin", "moderator"]:
+    # 验证权限：admin 或 moderator（包含 super_admin）
+    is_admin = bool(current_user.get("is_admin"))
+    is_moderator = bool(current_user.get("is_moderator"))
+    role = current_user.get("role", "user")
+    if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
         raise HTTPException(
             status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="没有审核权限"
@@ -196,8 +205,11 @@ async def reject_knowledge_base(
         current_user: dict = Depends(get_current_user)
 ):
     """审核拒绝知识库（需要admin或moderator权限）"""
-    # 验证权限
-    if current_user.get("role", "user") not in ["admin", "moderator"]:
+    # 验证权限：admin 或 moderator（包含 super_admin）
+    is_admin = bool(current_user.get("is_admin"))
+    is_moderator = bool(current_user.get("is_moderator"))
+    role = current_user.get("role", "user")
+    if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
         raise HTTPException(
             status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="没有审核权限"
@@ -268,8 +280,11 @@ async def approve_persona_card(
         current_user: dict = Depends(get_current_user)
 ):
     """审核通过人设卡（需要admin或moderator权限）"""
-    # 验证权限
-    if current_user.get("role", "user") not in ["admin", "moderator"]:
+    # 验证权限：admin 或 moderator（包含 super_admin）
+    is_admin = bool(current_user.get("is_admin"))
+    is_moderator = bool(current_user.get("is_moderator"))
+    role = current_user.get("role", "user")
+    if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
         raise HTTPException(
             status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="没有审核权限"
@@ -338,8 +353,11 @@ async def reject_persona_card(
         current_user: dict = Depends(get_current_user)
 ):
     """审核拒绝人设卡（需要admin或moderator权限）"""
-    # 验证权限
-    if current_user.get("role", "user") not in ["admin", "moderator"]:
+    # 验证权限：admin 或 moderator（包含 super_admin）
+    is_admin = bool(current_user.get("is_admin"))
+    is_moderator = bool(current_user.get("is_moderator"))
+    role = current_user.get("role", "user")
+    if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
         raise HTTPException(
             status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="没有审核权限"

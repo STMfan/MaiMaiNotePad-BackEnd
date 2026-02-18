@@ -162,13 +162,17 @@ class User:
             return False
 
     def username_update(self, new_username):
+        from error_handlers import ValidationError
         try:
+            if getattr(self, "is_super_admin", False):
+                logger.warning(f'Super admin username change attempted and blocked: {self.username} -> {new_username}')
+                raise ValidationError("不能修改超级管理员用户名")
             self.username = new_username
             self.updated_at = datetime.now()
             return self.save()
         except Exception as e:
             logger.error(f'Error updating username for {self.username}: {str(e)}')
-            return False
+            raise
 
     def update_email(self, new_email):
         """更新邮箱"""
@@ -191,8 +195,8 @@ def load_users():
         # 确保默认超级管理员账号存在
         has_super_admin = any(getattr(u, "is_super_admin", False) for u in db_users)
         if not has_super_admin:
-            super_username = "superadmin"
-            super_pwd = "admin123456"
+            super_username = os.getenv('SUPERADMIN_USERNAME', 'superadmin')
+            super_pwd = os.getenv('SUPERADMIN_PWD', 'admin123456')
             super_pwd = super_pwd[:72]
 
             super_db_user = DBUser(
@@ -207,22 +211,6 @@ def load_users():
             )
             sqlite_db_manager.save_user(super_db_user.to_dict())
             db_users = sqlite_db_manager.get_all_users() or []
-
-        # 如果仍然没有任何用户，创建默认管理员用户
-        if not db_users:
-            admin_username = os.getenv('ADMIN_USERNAME', 'admin')
-            admin_pwd = os.getenv('ADMIN_PWD', 'admin123')
-            admin_pwd = admin_pwd[:72]
-
-            admin = User()
-            admin.userID = "111111"
-            admin.username = admin_username
-            admin.pwdHash = pwd_context.hash(admin_pwd)
-            admin.email = f'official@{external_domain}'.lower()
-            admin.role = 'admin'
-            admin.updateContent = []
-            admin.save()
-            return [admin]
 
         # 转换数据库用户为User对象
         return [User(db_user) for db_user in db_users]

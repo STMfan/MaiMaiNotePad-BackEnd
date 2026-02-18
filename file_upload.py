@@ -14,29 +14,37 @@ import toml
 import json
 import tempfile
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
 
 from models import (
-    KnowledgeBase, PersonaCard, KnowledgeBaseFile
+    KnowledgeBase,
+    PersonaCard,
+    KnowledgeBaseFile,
 )
 from error_handlers import ValidationError
 from database_models import sqlite_db_manager
+
+load_dotenv()
 
 
 class FileUploadService:
     """文件上传服务"""
 
-    # 配置常量
-    MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
-    MAX_KNOWLEDGE_FILES = 100  # 知识库最多文件数
-    MAX_PERSONA_FILES = 1  # 人设卡最多文件数
-    ALLOWED_KNOWLEDGE_TYPES = ['.txt', '.json']  # 知识库允许的文件类型
-    ALLOWED_PERSONA_TYPES = ['.toml']  # 人设卡允许的文件类型
+    MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE_MB", "100")) * 1024 * 1024
+    MAX_KNOWLEDGE_FILES = 100
+    MAX_PERSONA_FILES = 1
+    ALLOWED_KNOWLEDGE_TYPES = [".txt", ".json"]
+    ALLOWED_PERSONA_TYPES = [".toml"]
 
     def __init__(self):
-        # 确保上传目录存在
-        self.upload_dir = "./uploads"
-        self.knowledge_dir = "uploads/knowledge"
-        self.persona_dir = "uploads/persona"
+        base_dir = os.getenv("UPLOAD_DIR", "uploads")
+        if not base_dir:
+            base_dir = "uploads"
+        if not (base_dir.startswith("/") or base_dir.startswith(".")):
+            base_dir = "./" + base_dir
+        self.upload_dir = base_dir
+        self.knowledge_dir = os.path.join(self.upload_dir, "knowledge")
+        self.persona_dir = os.path.join(self.upload_dir, "persona")
         os.makedirs(self.upload_dir, exist_ok=True)
         os.makedirs(self.knowledge_dir, exist_ok=True)
         os.makedirs(self.persona_dir, exist_ok=True)

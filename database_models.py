@@ -8,10 +8,12 @@ from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, create_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy import text
+from dotenv import load_dotenv
 import os
 import uuid
 
-# 创建基础模型类
+load_dotenv()
+
 Base = declarative_base()
 
 
@@ -778,89 +780,31 @@ class CommentReaction(Base):
 
 
 class SQLiteDatabaseManager:
-    """SQLite数据库管理器"""
+    def __init__(self, database_url: Optional[str] = None):
+        if database_url is None:
+            database_url = os.getenv("DATABASE_URL")
 
-    def __init__(self, db_path: str = "./data/maimnp.db"):
-        self.db_path = db_path
-        # 确保数据目录存在
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        if not database_url:
+            db_path = "./data/maimnp.db"
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
+            database_url = f"sqlite:///{db_path}"
 
-        # 创建数据库引擎
+        self.database_url = database_url
+
+        connect_args = {}
+        if database_url.startswith("sqlite:///"):
+            db_path = database_url.replace("sqlite:///", "", 1)
+            if db_path:
+                directory = os.path.dirname(db_path)
+                if directory:
+                    os.makedirs(directory, exist_ok=True)
+            connect_args = {"check_same_thread": False}
+
         self.engine = create_engine(
-            f"sqlite:///{db_path}", echo=False, connect_args={"check_same_thread": False})
+            database_url, echo=False, connect_args=connect_args)
 
-        # 创建会话工厂
         self.SessionLocal = sessionmaker(
             autocommit=False, autoflush=False, bind=self.engine)
-
-        # 创建所有表
-        Base.metadata.create_all(bind=self.engine)
-
-        # 执行数据库迁移
-        self._migrate_database()
-
-    def _add_column_if_not_exists(self, table_name: str, column_name: str, column_definition: str):
-        """为表添加列（如果不存在）"""
-        try:
-            inspector = inspect(self.engine)
-            if table_name not in inspector.get_table_names():
-                return
-
-            existing_columns = [col['name']
-                                for col in inspector.get_columns(table_name)]
-            if column_name not in existing_columns:
-                with self.engine.begin() as conn:
-                    conn.execute(
-                        text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"))
-                # 使用日志系统记录迁移操作（静默执行，不输出到控制台）
-        except Exception:
-            # 数据库迁移失败时静默处理，不输出到控制台（避免启动时干扰）
-            # 不抛出异常，允许应用继续运行
-            pass
-
-    def _migrate_database(self):
-        """执行数据库迁移，添加缺失的列"""
-        # 迁移配置：表名 -> [(列名, 列定义), ...]
-        migrations = [
-            ('messages', [
-                ('message_type', "VARCHAR DEFAULT 'direct'"),
-                ('broadcast_scope', 'VARCHAR'),
-                ('summary', 'TEXT'),
-            ]),
-            ('knowledge_bases', [
-                ('downloads', 'INTEGER DEFAULT 0'),
-                ('content', 'TEXT'),
-                ('tags', 'TEXT'),
-            ]),
-            ('persona_cards', [
-                ('downloads', 'INTEGER DEFAULT 0'),
-                ('content', 'TEXT'),
-                ('tags', 'TEXT'),
-            ]),
-            ('comments', [
-                ('like_count', 'INTEGER DEFAULT 0'),
-                ('dislike_count', 'INTEGER DEFAULT 0'),
-            ]),
-            ('users', [
-                ('failed_login_attempts', 'INTEGER DEFAULT 0'),
-                ('locked_until', 'DATETIME'),
-                ('last_failed_login', 'DATETIME'),
-                ('avatar_path', 'VARCHAR'),
-                ('avatar_updated_at', 'DATETIME'),
-                ('password_version', 'INTEGER DEFAULT 0'),
-                ('is_muted', 'BOOLEAN DEFAULT 0'),
-                ('muted_until', 'DATETIME'),
-                ('ban_reason', 'VARCHAR'),
-                ('mute_reason', 'VARCHAR'),
-                ('is_super_admin', 'BOOLEAN DEFAULT 0'),
-            ]),
-        ]
-
-        # 执行所有迁移
-        for table_name, columns in migrations:
-            for column_name, column_definition in columns:
-                self._add_column_if_not_exists(
-                    table_name, column_name, column_definition)
 
     def get_session(self):
         """获取数据库会话"""

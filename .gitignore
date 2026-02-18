@@ -26,6 +26,7 @@ venv/
 env/
 ENV/
 .env
+.env.bak
 
 # Database
 *.db

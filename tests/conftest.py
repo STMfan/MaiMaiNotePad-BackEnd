@@ -1,27 +1,31 @@
 import pytest
 import os
 import sys
+from pathlib import Path
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from alembic.config import Config
+from alembic import command
 
-# 添加项目根目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+base_dir = Path(__file__).resolve().parents[1]
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
+
+alembic_cfg = Config(str(base_dir / "alembic.ini"))
+command.upgrade(alembic_cfg, "head")
 
 from main import app
 from database_models import Base, get_db
 from user_management import UserManager
 from models import UserCreate
 
-# 创建测试数据库
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+SQLALCHEMY_DATABASE_URL = os.environ["DATABASE_URL"]
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# 创建测试数据库表
-Base.metadata.create_all(bind=engine)
 
-# 覆盖依赖项以使用测试数据库
 def override_get_db():
     try:
         db = TestingSessionLocal()
@@ -29,17 +33,19 @@ def override_get_db():
     finally:
         db.close()
 
+
 app.dependency_overrides[get_db] = override_get_db
 
-# 创建测试客户端
 client = TestClient(app)
+
 
 @pytest.fixture(scope="function")
 def test_db():
-    """测试数据库fixture"""
-    Base.metadata.create_all(bind=engine)
+    connection = engine.connect()
+    trans = connection.begin()
     yield
-    Base.metadata.drop_all(bind=engine)
+    trans.rollback()
+    connection.close()
 
 @pytest.fixture(scope="function")
 def test_user():

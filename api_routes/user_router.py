@@ -72,7 +72,11 @@ async def login(request: Request):
         # 导入用户管理模块的验证函数（带账户锁定检查）
         from user_management import get_user_by_credentials_with_lock_check
         # 导入JWT工具
-        from jwt_utils import create_user_token, create_refresh_token
+        from jwt_utils import (
+            create_user_token,
+            create_refresh_token,
+            ACCESS_TOKEN_EXPIRE_MINUTES,
+        )
 
         # 验证用户凭据（带账户锁定检查）
         user = get_user_by_credentials_with_lock_check(username, password)
@@ -98,7 +102,7 @@ async def login(request: Request):
                     "access_token": access_token,
                     "refresh_token": refresh_token,
                     "token_type": "bearer",
-                    "expires_in": 5184000,  # 1天
+                    "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
                     "user": {
                         "id": user.userID,
                         "username": user.username,

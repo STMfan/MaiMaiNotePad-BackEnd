@@ -138,7 +138,7 @@ async def upload_knowledge_base(
             data=kb.to_dict()
         )
 
-    except (ValidationError, FileOperationError, DatabaseError):
+    except (ValidationError, FileOperationError, DatabaseError, HTTPException):
         raise
     except Exception as e:
         log_exception(app_logger, "Upload knowledge base error", exception=e)
