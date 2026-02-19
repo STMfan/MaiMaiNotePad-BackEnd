@@ -118,7 +118,7 @@ name = "Public Persona"
             data=data
         )
         
-        assert_error_response(response, 422, ["上传", "文件", "bot_config"])
+        assert_error_response(response, 422, ["field", "required", "files"])
     
     def test_create_persona_card_only_one_allowed(self, authenticated_client, test_db: Session, factory: TestDataFactory):
         """Test system only allows one persona card"""

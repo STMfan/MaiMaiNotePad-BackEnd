@@ -22,13 +22,17 @@ class TestDataFactory:
     
     def create_user(self, **kwargs) -> User:
         """创建测试用户，支持自定义属性"""
+        # Handle password parameter
+        password = kwargs.pop("password", "Test123!@#")
+        
         defaults = {
             "username": f"user_{uuid.uuid4().hex[:8]}",
             "email": f"test_{uuid.uuid4().hex[:8]}@example.com",
-            "hashed_password": get_password_hash("Test123!@#"),
+            "hashed_password": get_password_hash(password),
             "is_active": True,
-            "is_verified": True,
-            "role": "user"
+            "is_admin": False,
+            "is_moderator": False,
+            "is_super_admin": False
         }
         defaults.update(kwargs)
         
@@ -40,12 +44,12 @@ class TestDataFactory:
     
     def create_admin_user(self, **kwargs) -> User:
         """创建管理员用户"""
-        kwargs["role"] = "admin"
+        kwargs["is_admin"] = True
         return self.create_user(**kwargs)
     
     def create_moderator_user(self, **kwargs) -> User:
         """创建审核员用户"""
-        kwargs["role"] = "moderator"
+        kwargs["is_moderator"] = True
         return self.create_user(**kwargs)
     
     def create_knowledge_base(self, uploader: Optional[User] = None, **kwargs) -> KnowledgeBase:
@@ -103,9 +107,10 @@ class TestDataFactory:
         defaults = {
             "sender_id": sender.id,
             "recipient_id": recipient.id,
-            "subject": f"Test Message {uuid.uuid4().hex[:8]}",
+            "title": f"Test Message {uuid.uuid4().hex[:8]}",
             "content": "Test message content",
-            "is_read": False
+            "is_read": False,
+            "message_type": "direct"
         }
         defaults.update(kwargs)
         
@@ -136,3 +141,70 @@ class TestDataFactory:
         self.db.commit()
         self.db.refresh(comment)
         return comment
+
+    def create_knowledge_base_file(self, knowledge_base: Optional[KnowledgeBase] = None, **kwargs) -> KnowledgeBaseFile:
+        """创建测试知识库文件"""
+        if knowledge_base is None:
+            knowledge_base = self.create_knowledge_base()
+        
+        defaults = {
+            "knowledge_base_id": knowledge_base.id,
+            "file_name": f"test_file_{uuid.uuid4().hex[:8]}.txt",
+            "file_path": f"/tmp/kb_file_{uuid.uuid4().hex[:8]}.txt",
+            "file_size": 1024,
+            "file_type": "text/plain"
+        }
+        defaults.update(kwargs)
+        
+        kb_file = KnowledgeBaseFile(**defaults)
+        self.db.add(kb_file)
+        self.db.commit()
+        self.db.refresh(kb_file)
+        return kb_file
+    
+    def create_persona_card_file(self, persona_card: Optional[PersonaCard] = None, **kwargs) -> PersonaCardFile:
+        """创建测试人设卡文件"""
+        if persona_card is None:
+            persona_card = self.create_persona_card()
+        
+        defaults = {
+            "persona_card_id": persona_card.id,
+            "file_name": f"test_file_{uuid.uuid4().hex[:8]}.txt",
+            "file_path": f"/tmp/pc_file_{uuid.uuid4().hex[:8]}.txt",
+            "file_size": 1024,
+            "file_type": "text/plain"
+        }
+        defaults.update(kwargs)
+        
+        pc_file = PersonaCardFile(**defaults)
+        self.db.add(pc_file)
+        self.db.commit()
+        self.db.refresh(pc_file)
+        return pc_file
+    
+    def create_star_record(self, user: Optional[User] = None, target_id: str = None, target_type: str = "knowledge_base", **kwargs):
+        """创建测试 Star 记录"""
+        from app.models.database import StarRecord
+        
+        if user is None:
+            user = self.create_user()
+        if target_id is None:
+            if target_type == "knowledge_base":
+                kb = self.create_knowledge_base()
+                target_id = kb.id
+            elif target_type == "persona":
+                pc = self.create_persona_card()
+                target_id = pc.id
+        
+        defaults = {
+            "user_id": user.id,
+            "target_id": target_id,
+            "target_type": target_type
+        }
+        defaults.update(kwargs)
+        
+        star = StarRecord(**defaults)
+        self.db.add(star)
+        self.db.commit()
+        self.db.refresh(star)
+        return star

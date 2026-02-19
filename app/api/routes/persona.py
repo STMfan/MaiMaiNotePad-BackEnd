@@ -332,16 +332,22 @@ async def update_persona_card(
             if "is_public" in update_dict and not (current_user.get("is_admin", False) or current_user.get("is_moderator", False)):
                 raise AuthorizationError("只有管理员可以直接修改公开状态")
 
-        for key, value in update_dict.items():
-            if hasattr(pc, key):
-                setattr(pc, key, value)
-
-        if any(field != "content" for field in update_dict.keys()):
-            pc.updated_at = datetime.now()
-
-        updated_pc = persona_service.save_persona_card(pc.to_dict())
-        if not updated_pc:
-            raise DatabaseError("更新人设卡失败")
+        # Use the service method to update persona card
+        success, message, updated_pc = persona_service.update_persona_card(
+            pc_id=pc_id,
+            update_data=update_dict,
+            user_id=user_id,
+            is_admin=current_user.get("is_admin", False),
+            is_moderator=current_user.get("is_moderator", False)
+        )
+        
+        if not success:
+            if "权限" in message:
+                raise AuthorizationError(message)
+            elif "不存在" in message:
+                raise NotFoundError(message)
+            else:
+                raise DatabaseError(message)
 
         log_database_operation(
             app_logger,
