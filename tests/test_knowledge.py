@@ -4,7 +4,7 @@ import os
 import uuid
 from fastapi.testclient import TestClient
 
-from main import app
+from app.main import app
 
 client = TestClient(app)
 
@@ -68,9 +68,11 @@ class TestKnowledgeBase:
                     },
                 )
 
-            assert response.status_code == 400
+            assert response.status_code == 422  # FastAPI validation error
             body = response.json()
-            assert "不支持的文件类型" in body.get("detail", "")
+            # Check for error message in the custom error response format
+            error_message = body.get("error", {}).get("message", "") or body.get("detail", "")
+            assert "不支持的文件类型" in error_message
         finally:
             os.unlink(tmp_path)
 
@@ -99,14 +101,17 @@ class TestKnowledgeBase:
 
         assert response.status_code == 404
         body = response.json()
-        assert "知识库不存在" in body.get("error", {}).get("message", "")
+        # The error response format is {'error': {...}, 'success': False}
+        assert body["success"] is False
+        assert "error" in body
+        assert "知识库不存在" in body["error"]["message"]
 
     def test_get_user_knowledge_bases(self, authenticated_client, test_user, test_db):
         _ = _create_test_knowledge_base(
             authenticated_client,
             name=f"测试知识库_用户列表_{uuid.uuid4().hex[:8]}",
         )
-        response = authenticated_client.get(f"/api/knowledge/user/{test_user.userID}")
+        response = authenticated_client.get(f"/api/knowledge/user/{test_user.id}")
 
         assert response.status_code == 200
         body = response.json()

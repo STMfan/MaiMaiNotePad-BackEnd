@@ -4,10 +4,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from main import app
-from database_models import Base, sqlite_db_manager
-from models import UserCreate
-from user_management import UserManager
+from app.main import app
+from app.models.database import Base
+from app.models.schemas import UserCreate
+from app.services.user_service import UserService
 
 # 创建测试客户端
 client = TestClient(app)
@@ -20,9 +20,15 @@ class TestAuthentication:
         unique_suffix = str(uuid.uuid4())
         email = f"newuser_{unique_suffix}@example.com"
         username = f"newuser_{unique_suffix}"
-        sqlite_db_manager.save_verification_code(email, "123456")
+        
+        # Use AuthService to save verification code
+        from app.services.auth_service import AuthService
+        auth_service = AuthService(test_db)
+        auth_service.save_verification_code(email, "123456")
+        test_db.commit()
+        
         response = client.post(
-            "/api/user/register",
+            "/api/auth/user/register",
             data={
                 "username": username,
                 "email": email,
@@ -40,7 +46,7 @@ class TestAuthentication:
     def test_register_user_duplicate_username(self, test_user, test_db):
         """测试注册重复用户名"""
         response = client.post(
-            "/api/user/register",
+            "/api/auth/user/register",
             data={
                 "username": test_user.username,
                 "email": "another@example.com",
@@ -57,7 +63,7 @@ class TestAuthentication:
     def test_register_user_duplicate_email(self, test_user, test_db):
         """测试注册重复邮箱"""
         response = client.post(
-            "/api/user/register",
+            "/api/auth/user/register",
             data={
                 "username": "anotheruser",
                 "email": test_user.email,
@@ -74,7 +80,7 @@ class TestAuthentication:
     def test_login_success(self, test_user, test_db):
         """测试成功登录"""
         response = client.post(
-            "/api/token",
+            "/api/auth/token",
             data={"username": test_user.username, "password": "testpassword123"}
         )
 
@@ -87,7 +93,7 @@ class TestAuthentication:
     def test_login_invalid_username(self, test_db):
         """测试无效用户名登录"""
         response = client.post(
-            "/api/token",
+            "/api/auth/token",
             data={"username": "nonexistent", "password": "password123"}
         )
 
@@ -99,7 +105,7 @@ class TestAuthentication:
     def test_login_invalid_password(self, test_user, test_db):
         """测试无效密码登录"""
         response = client.post(
-            "/api/token",
+            "/api/auth/token",
             data={"username": test_user.username, "password": "wrongpassword"}
         )
 
