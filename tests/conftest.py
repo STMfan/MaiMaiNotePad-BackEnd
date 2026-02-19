@@ -50,8 +50,6 @@ from app.models.database import (
 from app.core.database import get_db
 from app.core.security import get_password_hash
 from tests.test_data_factory import TestDataFactory
-from tests.auth_helper import AuthHelper
-from tests.mock_service_factory import MockServiceFactory
 
 SQLALCHEMY_DATABASE_URL = os.environ["DATABASE_URL"]
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
@@ -99,42 +97,6 @@ def test_db() -> Session:
 def factory(test_db: Session):
     """Create a TestDataFactory instance"""
     return TestDataFactory(test_db)
-
-
-@pytest.fixture(scope="function")
-def auth_helper(test_db: Session):
-    """Create an AuthHelper instance"""
-    try:
-        from app.main import app
-        client = TestClient(app)
-        return AuthHelper(client, test_db)
-    except ImportError:
-        # App not available, skip
-        return None
-
-
-@pytest.fixture(scope="function")
-def mock_email_service():
-    """Create a mock EmailService instance"""
-    return MockServiceFactory.create_email_service_mock()
-
-
-@pytest.fixture(scope="function")
-def mock_file_service():
-    """Create a mock FileService instance"""
-    return MockServiceFactory.create_file_service_mock()
-
-
-@pytest.fixture(scope="function")
-def mock_websocket():
-    """Create a mock WebSocket instance"""
-    return MockServiceFactory.create_websocket_mock()
-
-
-@pytest.fixture(scope="function")
-def mock_websocket_manager():
-    """Create a mock MessageWebSocketManager instance"""
-    return MockServiceFactory.create_websocket_manager_mock()
 
 
 @pytest.fixture(scope="function")
