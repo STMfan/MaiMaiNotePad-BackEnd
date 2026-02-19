@@ -11,6 +11,58 @@
 - **认证方式**: Bearer Token (JWT)
 - **Content-Type**: 支持 `application/json` 和 `application/x-www-form-urlencoded`
 
+## 项目结构
+
+项目采用标准的 FastAPI 分层架构，代码组织如下：
+
+```
+app/
+├── api/                      # API 路由层
+│   ├── deps.py               # 依赖注入（认证、权限）
+│   ├── websocket.py          # WebSocket 处理
+│   └── routes/               # 路由模块
+│       ├── auth.py           # 认证路由
+│       ├── users.py          # 用户路由
+│       ├── knowledge.py      # 知识库路由
+│       ├── persona.py        # 人设卡路由
+│       ├── messages.py       # 消息路由
+│       ├── admin.py          # 管理员路由
+│       ├── review.py         # 审核路由
+│       ├── dictionary.py     # 字典路由
+│       └── comments.py       # 评论路由
+├── core/                     # 核心配置
+│   ├── config.py             # 配置管理
+│   ├── security.py           # JWT 和密码安全
+│   ├── database.py           # 数据库连接
+│   ├── middleware.py         # 中间件
+│   └── logging.py            # 日志配置
+├── models/                   # 数据模型
+│   ├── database.py           # SQLAlchemy 模型
+│   └── schemas.py            # Pydantic 模型
+├── services/                 # 业务逻辑层
+│   ├── user_service.py       # 用户服务
+│   ├── auth_service.py       # 认证服务
+│   ├── knowledge_service.py  # 知识库服务
+│   ├── persona_service.py    # 人设卡服务
+│   ├── message_service.py    # 消息服务
+│   ├── email_service.py      # 邮件服务
+│   └── file_service.py       # 文件服务
+└── utils/                    # 工具函数
+    ├── file.py               # 文件处理
+    ├── avatar.py             # 头像处理
+    └── websocket.py          # WebSocket 管理
+```
+
+### 模块说明
+
+- **API 层** (`app/api/`): 处理 HTTP 请求和响应，进行请求验证、权限检查和响应格式化
+- **服务层** (`app/services/`): 封装业务逻辑，处理数据转换和事务管理
+- **数据层** (`app/models/`): 定义数据库模型和 API 模型
+- **核心模块** (`app/core/`): 提供配置、安全、数据库等核心功能
+- **工具模块** (`app/utils/`): 提供通用工具函数
+
+详细的架构说明请参考 [架构文档](./ARCHITECTURE.md)。
+
 ## 系统级接口
 
 ### 欢迎页
@@ -2536,6 +2588,8 @@ pytest tests/
 
 ## 📚 相关文档
 
+- [架构文档](./ARCHITECTURE.md) - 项目架构和设计说明
+- [测试文档](./TESTING.md) - 测试指南和运行说明
 - [端点清单](./端点清单.md) - API端点完整清单
 - [更新总结](./更新总结.md) - 更新内容总结
 - [CHANGELOG.md](./CHANGELOG.md) - 变更日志
@@ -2543,7 +2597,6 @@ pytest tests/
 
 ---
 
-**文档版本**: 2.0  
-**最后更新**: 2025-11-22  
+**文档版本**: 2.1  
+**最后更新**: 2025-01-XX  
 **维护者**: 开发团队
-```

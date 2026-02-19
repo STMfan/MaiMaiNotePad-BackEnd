@@ -1,90 +1,42 @@
-# 导入用户管理模块
-from user_management import load_users
-from api_routes import api_router
-from database_models import sqlite_db_manager
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-import uvicorn
-from logger import log
-import os
+"""
+向后兼容的入口文件
+
+此文件保留用于向后兼容，实际应用已迁移到 app/main.py
+建议使用新的启动方式：
+    python -m uvicorn app.main:app --host 0.0.0.0 --port 9278
+或使用启动脚本：
+    ./start_backend.sh
+"""
+
 import sys
-import traceback
-from passlib.context import CryptContext
-from dotenv import load_dotenv
+import warnings
 
-# 导入新的日志和错误处理模块
-from logging_config import app_logger
-from error_handlers import setup_exception_handlers
+# 显示弃用警告
+warnings.warn(
+    "直接运行 main.py 已弃用，请使用 'python -m uvicorn app.main:app' 或 './start_backend.sh'",
+    DeprecationWarning,
+    stacklevel=2
+)
 
-# 导入中间件配置和静态文件路由模块
-from middleware_config import setup_middlewares
-from static_routes import setup_static_routes
-from jwt_utils import get_user_from_token
-from websocket_manager import message_ws_manager
-
-# 加载环境变量
-log("加载环境变量", importance='info')
-load_dotenv()
-
-host = os.getenv("HOST", "0.0.0.0")
-port = int(os.getenv("PORT", "9278"))
-
-os.makedirs('data', exist_ok=True)
-os.makedirs('logs', exist_ok=True)
-
-app = FastAPI(title="MaiMNP Backend", description="MaiMNP后端服务", version="1.0.0")
-setup_middlewares(app)
-app.include_router(api_router, prefix="/api")
-setup_static_routes(app)
-userList = load_users()
-app_logger.info(f"Loaded {len(userList)} users")
-db_manager = sqlite_db_manager
-app_logger.info("SQLite database manager initialized")
-
-
-@app.get("/")
-async def root():
-    return {"message": "MaiMNP Backend API"}
-
-
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
-
-
-@app.websocket("/api/ws/{token}")
-async def message_websocket_endpoint(websocket: WebSocket, token: str):
-    payload = get_user_from_token(token)
-    if not payload:
-        await websocket.close(code=1008)
-        return
-
-    user_id = payload.get("sub")
-    if not user_id:
-        await websocket.close(code=1008)
-        return
-
-    await message_ws_manager.connect(str(user_id), websocket)
-    await message_ws_manager.send_message_update(str(user_id))
-
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        message_ws_manager.disconnect(str(user_id), websocket)
-    except Exception:
-        message_ws_manager.disconnect(str(user_id), websocket)
-        await websocket.close()
-
+# 导入新的应用入口
+from app.main import app
 
 if __name__ == '__main__':
-    exit_code = 0
+    import uvicorn
+    from app.core.config import settings
+    from app.core.logging import app_logger
+    
+    app_logger.warning("使用旧的入口文件 main.py，建议更新为新的启动方式")
+    app_logger.info(f'🌐 访问地址: http://{settings.HOST}:{settings.PORT}')
+    
     try:
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        app_logger.info('Server started')
-        app_logger.info(f'🌐 访问地址: http://{host}:{port}')
-        uvicorn.run(app, host=host, port=port, log_level="critical")
+        uvicorn.run(
+            app,
+            host=settings.HOST,
+            port=settings.PORT,
+            log_level="critical"
+        )
     except Exception as e:
-        app_logger.error(f"主程序发生异常: {str(e)} {str(traceback.format_exc())}")
-        exit_code = 1
-    finally:
-        sys.exit(exit_code)
+        app_logger.error(f"启动失败: {str(e)}")
+        sys.exit(1)
+

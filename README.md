@@ -55,32 +55,92 @@
 
 ## 📁 项目结构
 
+项目采用标准的 FastAPI 分层架构，按功能模块和职责清晰划分代码：
+
 ```
 MaiMaiNotePad-BackEnd/
-├── main.py                # FastAPI 应用入口
-├── api_routes/            # 按模块拆分的路由
-│   ├── user_router.py     # 用户与认证相关接口
-│   ├── knowledgeBase_router.py  # 知识库相关接口
-│   ├── persona_router.py  # 人设卡相关接口
-│   ├── messages_router.py # 站内消息相关接口
-│   ├── review_router.py   # 审核相关接口
-│   └── admin_router.py    # 管理员相关接口
-├── database_models.py     # 数据库模型定义与 SQLite 管理
-├── file_upload.py         # 文件上传服务
-├── user_management.py     # 用户管理模块
-├── email_service.py       # 邮件服务模块
-├── websocket_manager.py   # WebSocket 连接与消息推送
-├── logger.py              # 日志记录模块
-├── logging_config.py      # 日志配置
-├── docs/                  # API 文档与测试说明
-├── scripts/               # 辅助脚本（测试数据等）
-├── requirements.txt       # Python 依赖
-├── README.md              # 项目文档（本文件）
-├── TODO.md                # 待办事项
-├── .gitignore             # Git 忽略配置
-├── .env.template          # 环境变量模板
-└── data/                  # 数据存储目录（运行时创建）
+├── app/                          # 应用主目录
+│   ├── __init__.py
+│   ├── main.py                   # FastAPI 应用入口
+│   ├── api/                      # API 路由层
+│   │   ├── __init__.py           # 路由注册
+│   │   ├── deps.py               # 依赖注入（认证、权限）
+│   │   ├── websocket.py          # WebSocket 处理
+│   │   └── routes/               # 路由模块
+│   │       ├── __init__.py
+│   │       ├── auth.py           # 认证路由（登录、注册、密码重置）
+│   │       ├── users.py          # 用户路由（个人信息、头像）
+│   │       ├── knowledge.py      # 知识库路由
+│   │       ├── persona.py        # 人设卡路由
+│   │       ├── messages.py       # 消息路由
+│   │       ├── admin.py          # 管理员路由
+│   │       ├── review.py         # 审核路由
+│   │       ├── dictionary.py     # 字典路由
+│   │       └── comments.py       # 评论路由
+│   ├── core/                     # 核心配置和依赖
+│   │   ├── __init__.py
+│   │   ├── config.py             # 配置管理（Pydantic Settings）
+│   │   ├── security.py           # 安全相关（JWT、密码哈希）
+│   │   ├── database.py           # 数据库连接和会话管理
+│   │   ├── middleware.py         # 中间件配置
+│   │   └── logging.py            # 日志配置
+│   ├── models/                   # 数据模型
+│   │   ├── __init__.py
+│   │   ├── database.py           # SQLAlchemy 数据库模型
+│   │   └── schemas.py            # Pydantic API 模型
+│   ├── services/                 # 业务逻辑层
+│   │   ├── __init__.py
+│   │   ├── user_service.py       # 用户服务
+│   │   ├── auth_service.py       # 认证服务
+│   │   ├── knowledge_service.py  # 知识库服务
+│   │   ├── persona_service.py    # 人设卡服务
+│   │   ├── message_service.py    # 消息服务
+│   │   ├── email_service.py      # 邮件服务
+│   │   └── file_service.py       # 文件服务
+│   └── utils/                    # 工具函数
+│       ├── __init__.py
+│       ├── file.py               # 文件处理工具
+│       ├── avatar.py             # 头像处理工具
+│       └── websocket.py          # WebSocket 管理器
+├── tests/                        # 测试目录
+│   ├── __init__.py
+│   ├── conftest.py               # 测试配置
+│   ├── test_auth.py              # 认证测试
+│   ├── test_users.py             # 用户测试
+│   ├── test_knowledge.py         # 知识库测试
+│   └── test_persona.py           # 人设卡测试
+├── alembic/                      # 数据库迁移
+│   ├── versions/                 # 迁移版本
+│   └── env.py                    # Alembic 环境配置
+├── scripts/                      # 辅助脚本
+│   ├── prepare_test_data.py      # 准备测试数据
+│   └── reset_security_env.py     # 清档脚本
+├── docs/                         # 文档目录
+├── uploads/                      # 上传文件存储
+├── data/                         # 数据库文件
+├── logs/                         # 日志文件
+├── .env                          # 环境变量配置
+├── .env.template                 # 环境变量模板
+├── requirements.txt              # Python 依赖
+├── alembic.ini                   # Alembic 配置
+├── pytest.ini                    # Pytest 配置
+├── start_backend.sh              # 启动脚本
+└── README.md                     # 项目文档（本文件）
 ```
+
+### 架构说明
+
+项目采用三层架构设计：
+
+1. **API 层** (`app/api/`): 处理 HTTP 请求和响应，进行请求验证、权限检查和响应格式化
+2. **服务层** (`app/services/`): 封装业务逻辑，处理数据转换和事务管理
+3. **数据层** (`app/models/`): 定义数据库模型和 API 模型，处理数据持久化
+
+这种分层架构的优势：
+- **职责清晰**: 每层专注于特定职责，降低耦合度
+- **易于测试**: 服务层可以独立测试，不依赖 HTTP 框架
+- **可维护性**: 业务逻辑集中在服务层，便于修改和扩展
+- **可复用性**: 服务层可以被多个路由或其他服务调用
 
 ---
 
@@ -97,18 +157,57 @@ cd MaiMaiNotePad/MaiMaiNotePad-BackEnd
 ```
 
 ### 2. 安装依赖
+
+项目使用 Python 3.8+ 和 FastAPI 框架。安装所有依赖：
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. 初始化数据库
-首次运行时会自动创建SQLite数据库文件 `data/mainnp.db`
+主要依赖包括：
+- `fastapi`: Web 框架
+- `uvicorn`: ASGI 服务器
+- `sqlalchemy`: ORM 框架
+- `pydantic`: 数据验证
+- `pydantic-settings`: 配置管理
+- `python-jose`: JWT 处理
+- `passlib`: 密码哈希
+- `alembic`: 数据库迁移
+- `pytest`: 测试框架
 
-### 4. 启动服务器
+### 3. 配置环境变量
+
+首次使用时，复制环境变量模板并根据需要修改配置：
+
+```bash
+cp .env.template .env
+```
+
+必须配置的关键项：
+- `JWT_SECRET_KEY`: JWT 密钥（建议使用 32 字符以上的随机字符串）
+- `SUPERADMIN_PWD`: 超级管理员密码
+- `HIGHEST_PASSWORD`: 最高权限密码
+- `MAIL_USER`: 发件邮箱地址
+- `MAIL_PWD`: 邮箱授权码
+
+详细配置说明请参考下方的「配置说明」章节。
+
+### 4. 初始化数据库
+
+项目使用 Alembic 进行数据库迁移管理。首次运行时需要初始化数据库：
+
+```bash
+# 创建数据库并执行迁移
+alembic upgrade head
+```
+
+这将创建 SQLite 数据库文件 `data/mainnp.db` 并建立所有表结构。
+
+### 5. 启动服务器
 
 #### 开发模式（推荐）
 
-优先使用一键启动脚本（会自动切换到当前目录并以 `--reload` 模式运行 uvicorn）：
+使用一键启动脚本（会自动以 `--reload` 模式运行 uvicorn）：
 
 ```bash
 ./start_backend.sh
@@ -117,8 +216,17 @@ pip install -r requirements.txt
 或直接使用 uvicorn 启动：
 
 ```bash
-python -m uvicorn main:app --host 0.0.0.0 --port 9278 --reload
+# 使用模块方式启动（推荐）
+python -m uvicorn app.main:app --host 0.0.0.0 --port 9278 --reload
+
+# 或使用相对路径启动
+uvicorn app.main:app --host 0.0.0.0 --port 9278 --reload
 ```
+
+开发模式特性：
+- `--reload`: 代码修改后自动重启
+- 详细的错误堆栈信息
+- 自动生成的 API 文档
 
 #### 生产模式
 ```bash
@@ -131,11 +239,17 @@ docker build -t mainnp-backend .
 docker run -p 9278:9278 mainnp-backend
 ```
 
-### 5. 访问API文档
-- Swagger UI: http://localhost:9278/docs
-- ReDoc: http://localhost:9278/redoc
+### 6. 访问API文档
 
-### 6. 测试API
+FastAPI 自动生成交互式 API 文档：
+
+- **Swagger UI**: http://localhost:9278/docs  
+  提供交互式 API 测试界面，可以直接在浏览器中测试所有接口
+  
+- **ReDoc**: http://localhost:9278/redoc  
+  提供更友好的 API 文档阅读界面
+
+### 7. 测试API
 可以使用内置的测试用户登录：
 - 用户名: testuser
 - 密码: testpass
@@ -480,6 +594,295 @@ python scripts/reset_security_env.py
 > ⚠️ 注意：该脚本会删除数据库文件并清空上传与日志目录，仅适用于本机开发测试或上线前的清档，请勿在正在运行的生产机器上执行。
 
 ## 📝 开发说明
+
+### 项目架构
+
+项目采用分层架构，各层职责如下：
+
+#### 1. API 层 (`app/api/`)
+
+负责处理 HTTP 请求和响应：
+- **路由定义**: 定义 API 端点和路径
+- **请求验证**: 使用 Pydantic 模型验证请求数据
+- **权限检查**: 通过依赖注入进行认证和授权
+- **响应格式化**: 统一返回格式
+
+示例路由：
+```python
+from fastapi import APIRouter, Depends
+from app.api.deps import get_current_user
+from app.services.user_service import UserService
+
+router = APIRouter(prefix="/users", tags=["users"])
+
+@router.get("/me")
+async def get_current_user_info(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user_service = UserService(db)
+    return user_service.get_user_by_id(current_user["id"])
+```
+
+#### 2. 服务层 (`app/services/`)
+
+封装业务逻辑：
+- **业务规则**: 实现核心业务逻辑
+- **数据转换**: 在数据库模型和 API 模型之间转换
+- **事务管理**: 处理数据库事务
+- **独立测试**: 不依赖 FastAPI，易于单元测试
+
+示例服务：
+```python
+from sqlalchemy.orm import Session
+from app.models.database import User
+
+class UserService:
+    def __init__(self, db: Session):
+        self.db = db
+    
+    def get_user_by_id(self, user_id: str):
+        return self.db.query(User).filter(User.id == user_id).first()
+    
+    def create_user(self, username: str, email: str, password: str):
+        # 业务逻辑实现
+        pass
+```
+
+#### 3. 数据层 (`app/models/`)
+
+定义数据模型：
+- **database.py**: SQLAlchemy 数据库模型，定义表结构和关系
+- **schemas.py**: Pydantic API 模型，用于请求验证和响应序列化
+
+### 添加新功能
+
+#### 1. 添加新的 API 端点
+
+1. 在 `app/services/` 中创建或更新服务类
+2. 在 `app/api/routes/` 中创建或更新路由文件
+3. 在 `app/api/__init__.py` 中注册新路由（如果是新文件）
+4. 编写单元测试和集成测试
+
+#### 2. 添加新的数据模型
+
+1. 在 `app/models/database.py` 中定义 SQLAlchemy 模型
+2. 在 `app/models/schemas.py` 中定义 Pydantic 模型
+3. 创建 Alembic 迁移：
+   ```bash
+   alembic revision --autogenerate -m "Add new model"
+   alembic upgrade head
+   ```
+
+#### 3. 添加新的配置项
+
+1. 在 `app/core/config.py` 的 `Settings` 类中添加字段
+2. 在 `.env.template` 中添加配置说明
+3. 更新 README.md 的配置说明部分
+
+### 代码规范
+
+#### 导入规范
+- 使用绝对导入（从 `app` 开始）
+- 避免循环依赖
+- 按标准库、第三方库、本地模块的顺序组织导入
+
+```python
+# 标准库
+from typing import Optional, List
+from datetime import datetime
+
+# 第三方库
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+# 本地模块
+from app.core.database import get_db
+from app.services.user_service import UserService
+from app.models.schemas import UserResponse
+```
+
+#### 类型注解
+- 所有函数参数和返回值都应该有类型注解
+- 使用 `typing` 模块提供的类型
+
+```python
+from typing import Optional, List
+
+def get_users(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100
+) -> List[User]:
+    return db.query(User).offset(skip).limit(limit).all()
+```
+
+#### 文档字符串
+- 所有公共函数都应该有 docstring
+- 使用 Google 风格的 docstring
+
+```python
+def create_user(username: str, email: str, password: str) -> User:
+    """创建新用户
+    
+    Args:
+        username: 用户名
+        email: 邮箱地址
+        password: 密码（明文）
+    
+    Returns:
+        创建的用户对象
+    
+    Raises:
+        ValueError: 用户名或邮箱已存在
+    """
+    pass
+```
+
+### 测试
+
+#### 运行测试
+
+```bash
+# 运行所有测试
+pytest
+
+# 运行特定测试文件
+pytest tests/test_auth.py
+
+# 运行特定测试函数
+pytest tests/test_auth.py::test_login
+
+# 查看测试覆盖率
+pytest --cov=app --cov-report=html
+```
+
+#### 编写测试
+
+测试文件应该镜像 `app/` 的目录结构：
+
+```
+tests/
+├── conftest.py           # 测试配置和 fixtures
+├── test_auth.py          # 认证相关测试
+├── test_users.py         # 用户相关测试
+└── services/             # 服务层测试
+    ├── test_user_service.py
+    └── test_auth_service.py
+```
+
+示例测试：
+```python
+import pytest
+from app.services.user_service import UserService
+
+def test_create_user(db_session):
+    """测试创建用户"""
+    service = UserService(db_session)
+    user = service.create_user(
+        username="testuser",
+        email="test@example.com",
+        password="password123"
+    )
+    
+    assert user.username == "testuser"
+    assert user.email == "test@example.com"
+```
+
+### 数据库迁移
+
+使用 Alembic 管理数据库迁移：
+
+```bash
+# 创建新的迁移
+alembic revision --autogenerate -m "描述迁移内容"
+
+# 应用迁移
+alembic upgrade head
+
+# 回滚迁移
+alembic downgrade -1
+
+# 查看迁移历史
+alembic history
+
+# 查看当前版本
+alembic current
+```
+
+### 调试技巧
+
+#### 1. 使用日志
+
+```python
+from app.core.logging import logger
+
+logger.info("用户登录", extra={"user_id": user.id})
+logger.error("登录失败", extra={"username": username})
+```
+
+#### 2. 使用 FastAPI 的调试模式
+
+在 `app/main.py` 中设置：
+```python
+app = FastAPI(debug=True)
+```
+
+#### 3. 使用 Python 调试器
+
+```python
+import pdb; pdb.set_trace()  # 设置断点
+```
+
+### 常见问题
+
+#### Q: 如何解决循环依赖？
+A: 
+1. 检查导入顺序，将类型注解改为字符串形式
+2. 使用 `TYPE_CHECKING` 条件导入
+3. 重新设计模块结构，避免相互依赖
+
+```python
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.database import User
+
+def get_user() -> "User":
+    pass
+```
+
+#### Q: 如何处理数据库会话？
+A: 使用依赖注入获取数据库会话，FastAPI 会自动管理会话的生命周期：
+
+```python
+from fastapi import Depends
+from app.core.database import get_db
+
+@router.get("/users")
+def get_users(db: Session = Depends(get_db)):
+    # 使用 db 进行数据库操作
+    pass
+```
+
+#### Q: 如何添加中间件？
+A: 在 `app/core/middleware.py` 中定义中间件，然后在 `app/main.py` 中注册：
+
+```python
+# app/core/middleware.py
+from fastapi import Request
+
+async def custom_middleware(request: Request, call_next):
+    # 处理请求前的逻辑
+    response = await call_next(request)
+    # 处理响应后的逻辑
+    return response
+
+# app/main.py
+from app.core.middleware import custom_middleware
+
+app.middleware("http")(custom_middleware)
+```
 
 ### 代码规范
 - 使用Python类型注解

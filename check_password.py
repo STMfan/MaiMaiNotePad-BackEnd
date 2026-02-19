@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from database_models import sqlite_db_manager
+from app.models.database import sqlite_db_manager
 
 def check_user_password():
     """检查用户密码哈希值"""

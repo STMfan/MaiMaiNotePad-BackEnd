@@ -29,7 +29,7 @@ import requests
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from database_models import sqlite_db_manager, EmailVerification
+from app.models.database import sqlite_db_manager, EmailVerification
 from datetime import datetime
 
 
