@@ -1,7 +1,8 @@
 # 错误码对照表
 
-> 本文档根据 `error_messages.json` 自动导出生成，按模块分组。  
-> 如需修改错误文案或新增错误码，请优先修改 `error_messages.json`。
+> 本文档由脚本自动生成，基于 `app/error_messages.json`。
+> 如需修改错误文案或新增错误码，请修改 `app/error_messages.json`，然后运行脚本重新生成。
+> 生成时间：2026-02-20 17:10:02
 
 ## 模块 admin
 
@@ -59,6 +60,22 @@
 | `10025` | `AUTH_SEND_CODE_ERROR` | 发送验证码失败，请稍后再试。 |
 | `10026` | `AUTH_SEND_RESET_CODE_ERROR` | 发送重置密码验证码失败，请稍后再试。 |
 
+## 模块 comment
+
+| 错误码 | Key | 中文提示 |
+|--------|-----|----------|
+| `16001` | `COMMENT_TARGET_TYPE_INVALID` | 评论目标类型不合法，请刷新后重试。 |
+| `16002` | `COMMENT_CONTENT_REQUIRED` | 评论内容不能为空。 |
+| `16003` | `COMMENT_CONTENT_TOO_LONG` | 评论内容过长，请精简后再提交（最多 500 字）。 |
+| `16004` | `COMMENT_TARGET_ID_REQUIRED` | 评论目标不存在或参数缺失，请刷新后重试。 |
+| `16005` | `COMMENT_PARENT_NOT_FOUND` | 回复的上级评论不存在或已被删除。 |
+| `16006` | `COMMENT_REACTION_ACTION_INVALID` | 不支持的评论操作类型，请刷新后重试。 |
+| `16010` | `COMMENT_GET_LIST_ERROR` | 获取评论列表失败，请稍后再试。 |
+| `16011` | `COMMENT_CREATE_ERROR` | 发表评论失败，请稍后重试。 |
+| `16012` | `COMMENT_REACTION_ERROR` | 操作评论失败，请稍后再试。 |
+| `16013` | `COMMENT_DELETE_ERROR` | 删除评论失败，请稍后重试。 |
+| `16014` | `COMMENT_RESTORE_ERROR` | 恢复评论失败，请稍后再试。 |
+
 ## 模块 knowledge_base
 
 | 错误码 | Key | 中文提示 |
@@ -80,6 +97,30 @@
 | `13015` | `KB_DELETE_FILE_ERROR` | 删除知识库文件失败，请稍后再试。 |
 | `13016` | `KB_DOWNLOAD_FILE_ERROR` | 下载知识库文件失败，请稍后重试。 |
 | `13017` | `KB_DELETE_ERROR` | 删除知识库失败，请稍后再试。 |
+
+## 模块 message
+
+| 错误码 | Key | 中文提示 |
+|--------|-----|----------|
+| `15001` | `MESSAGE_TITLE_REQUIRED` | 请填写消息标题。 |
+| `15002` | `MESSAGE_CONTENT_REQUIRED` | 请填写消息内容。 |
+| `15003` | `MESSAGE_BROADCAST_TYPE_INVALID` | 仅公告类型消息支持广播功能。 |
+| `15004` | `MESSAGE_RECIPIENT_REQUIRED` | 请至少选择一位接收者。 |
+| `15005` | `MESSAGE_NO_VALID_RECIPIENT` | 没有有效的接收者，请检查接收人列表。 |
+| `15006` | `MESSAGE_PAGINATION_INVALID` | 分页参数不合法，请检查 page 与 page_size。 |
+| `15007` | `MESSAGE_UPDATE_FIELDS_EMPTY` | 请至少修改标题、内容或简介中的一项。 |
+| `15008` | `MESSAGE_PAGE_SIZE_INVALID` | 每页条数应在 1 到 100 之间。 |
+| `15009` | `MESSAGE_PAGE_INVALID` | 页码必须大于等于 1。 |
+| `15010` | `MESSAGE_ID_LIST_EMPTY` | 消息 ID 列表不能为空。 |
+| `15020` | `MESSAGE_SEND_ERROR` | 发送消息失败，请稍后重试。 |
+| `15021` | `MESSAGE_GET_DETAIL_ERROR` | 获取消息详情失败，请稍后再试。 |
+| `15022` | `MESSAGE_GET_LIST_ERROR` | 获取消息列表失败，请稍后再试。 |
+| `15023` | `MESSAGE_GET_BY_TYPE_ERROR` | 按类型获取消息列表失败，请稍后重试。 |
+| `15024` | `MESSAGE_MARK_READ_ERROR` | 标记消息已读失败，请稍后再试。 |
+| `15025` | `MESSAGE_DELETE_ERROR` | 删除消息失败，请稍后重试。 |
+| `15026` | `MESSAGE_UPDATE_ERROR` | 更新消息失败，请稍后再试。 |
+| `15027` | `MESSAGE_GET_BROADCAST_HISTORY_ERROR` | 获取公告历史失败，请稍后重试。 |
+| `15028` | `MESSAGE_BATCH_DELETE_ERROR` | 批量删除消息失败，请稍后再试。 |
 
 ## 模块 persona
 
@@ -108,46 +149,6 @@
 | `14025` | `PERSONA_TOML_VERSION_MISSING` | 人设配置错误：TOML 中缺少版本号字段，请补充后重试。 |
 | `14026` | `PERSONA_TOML_PARSE_ERROR` | 人设配置错误：TOML 解析失败，请检查格式是否正确。 |
 
-## 模块 message
-
-| 错误码 | Key | 中文提示 |
-|--------|-----|----------|
-| `15001` | `MESSAGE_TITLE_REQUIRED` | 请填写消息标题。 |
-| `15002` | `MESSAGE_CONTENT_REQUIRED` | 请填写消息内容。 |
-| `15003` | `MESSAGE_BROADCAST_TYPE_INVALID` | 仅公告类型消息支持广播功能。 |
-| `15004` | `MESSAGE_RECIPIENT_REQUIRED` | 请至少选择一位接收者。 |
-| `15005` | `MESSAGE_NO_VALID_RECIPIENT` | 没有有效的接收者，请检查接收人列表。 |
-| `15006` | `MESSAGE_PAGINATION_INVALID` | 分页参数不合法，请检查 page 与 page_size。 |
-| `15007` | `MESSAGE_UPDATE_FIELDS_EMPTY` | 请至少修改标题、内容或简介中的一项。 |
-| `15008` | `MESSAGE_PAGE_SIZE_INVALID` | 每页条数应在 1 到 100 之间。 |
-| `15009` | `MESSAGE_PAGE_INVALID` | 页码必须大于等于 1。 |
-| `15010` | `MESSAGE_ID_LIST_EMPTY` | 消息 ID 列表不能为空。 |
-| `15020` | `MESSAGE_SEND_ERROR` | 发送消息失败，请稍后重试。 |
-| `15021` | `MESSAGE_GET_DETAIL_ERROR` | 获取消息详情失败，请稍后再试。 |
-| `15022` | `MESSAGE_GET_LIST_ERROR` | 获取消息列表失败，请稍后再试。 |
-| `15023` | `MESSAGE_GET_BY_TYPE_ERROR` | 按类型获取消息列表失败，请稍后重试。 |
-| `15024` | `MESSAGE_MARK_READ_ERROR` | 标记消息已读失败，请稍后再试。 |
-| `15025` | `MESSAGE_DELETE_ERROR` | 删除消息失败，请稍后重试。 |
-| `15026` | `MESSAGE_UPDATE_ERROR` | 更新消息失败，请稍后再试。 |
-| `15027` | `MESSAGE_GET_BROADCAST_HISTORY_ERROR` | 获取公告历史失败，请稍后重试。 |
-| `15028` | `MESSAGE_BATCH_DELETE_ERROR` | 批量删除消息失败，请稍后再试。 |
-
-## 模块 comment
-
-| 错误码 | Key | 中文提示 |
-|--------|-----|----------|
-| `16001` | `COMMENT_TARGET_TYPE_INVALID` | 评论目标类型不合法，请刷新后重试。 |
-| `16002` | `COMMENT_CONTENT_REQUIRED` | 评论内容不能为空。 |
-| `16003` | `COMMENT_CONTENT_TOO_LONG` | 评论内容过长，请精简后再提交（最多 500 字）。 |
-| `16004` | `COMMENT_TARGET_ID_REQUIRED` | 评论目标不存在或参数缺失，请刷新后重试。 |
-| `16005` | `COMMENT_PARENT_NOT_FOUND` | 回复的上级评论不存在或已被删除。 |
-| `16006` | `COMMENT_REACTION_ACTION_INVALID` | 不支持的评论操作类型，请刷新后重试。 |
-| `16010` | `COMMENT_GET_LIST_ERROR` | 获取评论列表失败，请稍后再试。 |
-| `16011` | `COMMENT_CREATE_ERROR` | 发表评论失败，请稍后重试。 |
-| `16012` | `COMMENT_REACTION_ERROR` | 操作评论失败，请稍后再试。 |
-| `16013` | `COMMENT_DELETE_ERROR` | 删除评论失败，请稍后重试。 |
-| `16014` | `COMMENT_RESTORE_ERROR` | 恢复评论失败，请稍后再试。 |
-
 ## 模块 user
 
 | 错误码 | Key | 中文提示 |
@@ -161,3 +162,55 @@
 | `10203` | `USER_GET_OVERVIEW_ERROR` | 获取个人数据概览失败，请稍后重试。 |
 | `10204` | `USER_GET_TREND_ERROR` | 获取个人数据趋势失败，请稍后重试。 |
 
+---
+
+## 使用说明
+
+### 添加新错误码
+
+1. 编辑 `app/error_messages.json`，添加新的错误码条目：
+
+```json
+{
+  "20001": {
+    "key": "NEW_ERROR_KEY",
+    "module": "new_module",
+    "messages": {
+      "zh-CN": "错误提示信息"
+    }
+  }
+}
+```
+
+2. 运行脚本重新生成文档：
+
+```bash
+python scripts/generate_error_codes_doc.py
+```
+
+### 错误码规范
+
+- **10000-10999**: 认证和用户相关错误
+- **12000-12999**: 管理员相关错误
+- **13000-13999**: 知识库相关错误
+- **14000-14999**: 人设卡相关错误
+- **15000-15999**: 消息相关错误
+- **16000-16999**: 评论相关错误
+
+### JSON 文件结构
+
+```json
+{
+  "错误码": {
+    "key": "错误码标识符",
+    "module": "模块名称",
+    "messages": {
+      "zh-CN": "中文错误提示"
+    }
+  }
+}
+```
+
+---
+
+**最后更新**: 2026-02-20 17:10:02

@@ -1,299 +1,2941 @@
 {
   "info": {
     "name": "MaiMNP API",
-    "description": "MaiMNP 后端 API 测试集合",
+    "description": "MaiMNP Backend API Collection",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "认证",
+      "name": "admin",
       "item": [
         {
-          "name": "注册用户",
+          "name": "Get Admin Stats",
           "request": {
-            "method": "POST",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/admin/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "stats"
+              ]
+            },
             "header": [
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get Recent Users",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/admin/recent-users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "recent-users"
+              ],
+              "query": [
+                {
+                  "key": "page_size",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/admin/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "page_size",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "role",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Create User By Admin",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/admin/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
-            },
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update User Role",
+          "request": {
+            "method": "PUT",
             "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
+              "raw": "{{base_url}}/api/admin/users/{user_id}/role",
               "host": [
-                "{{baseUrl}}"
+                "{{base_url}}"
               ],
               "path": [
                 "api",
-                "auth",
-                "register"
+                "admin",
+                "users",
+                "{user_id}",
+                "role"
               ]
-            }
-          }
-        },
-        {
-          "name": "用户登录",
-          "request": {
-            "method": "POST",
+            },
             "header": [
               {
                 "key": "Content-Type",
-                "value": "application/x-www-form-urlencoded"
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
               }
             ],
             "body": {
-              "mode": "urlencoded",
-              "urlencoded": [
-                {
-                  "key": "username",
-                  "value": "testuser"
-                },
-                {
-                  "key": "password",
-                  "value": "password123"
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
                 }
-              ]
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "login"
-              ]
+              }
             }
-          }
+          },
+          "response": []
         },
         {
-          "name": "获取当前用户信息",
+          "name": "Mute User",
           "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
+            "method": "POST",
             "url": {
-              "raw": "{{baseUrl}}/api/users/me",
+              "raw": "{{base_url}}/api/admin/users/{user_id}/mute",
               "host": [
-                "{{baseUrl}}"
+                "{{base_url}}"
               ],
               "path": [
                 "api",
+                "admin",
                 "users",
-                "me"
+                "{user_id}",
+                "mute"
               ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
-          }
+          },
+          "response": []
+        },
+        {
+          "name": "Unmute User",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/admin/users/{user_id}/unmute",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{user_id}",
+                "unmute"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/admin/users/{user_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{user_id}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Ban User",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/admin/users/{user_id}/ban",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{user_id}",
+                "ban"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Unban User",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/admin/users/{user_id}/unban",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{user_id}",
+                "unban"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
         }
       ]
     },
     {
-      "name": "知识库管理",
+      "name": "auth",
       "item": [
         {
-          "name": "上传知识库",
+          "name": "Login",
           "request": {
             "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/auth/token",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "token"
+              ]
+            },
             "header": [
               {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/auth/refresh",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "refresh"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Send Verification Code",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/auth/send_verification_code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "send_verification_code"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
               }
             ],
             "body": {
-              "mode": "formdata",
-              "formdata": [
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Check Register",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/auth/user/check_register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "user",
+                "check_register"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Send Reset Password Code",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/auth/send_reset_password_code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "send_reset_password_code"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/auth/reset_password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "reset_password"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "User Register",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/auth/user/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "user",
+                "register"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "comments",
+      "item": [
+        {
+          "name": "Get Comments",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/comments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "comments"
+              ],
+              "query": [
                 {
-                  "key": "file",
-                  "type": "file",
-                  "src": []
+                  "key": "target_type",
+                  "value": "",
+                  "disabled": true
                 },
                 {
-                  "key": "name",
-                  "value": "测试知识库",
-                  "type": "text"
-                },
-                {
-                  "key": "description",
-                  "value": "这是一个测试知识库",
-                  "type": "text"
-                },
-                {
-                  "key": "is_public",
-                  "value": "true",
-                  "type": "text"
+                  "key": "target_id",
+                  "value": "",
+                  "disabled": true
                 }
               ]
             },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Create Comment",
+          "request": {
+            "method": "POST",
             "url": {
-              "raw": "{{baseUrl}}/api/knowledge/upload",
+              "raw": "{{base_url}}/api/comments",
               "host": [
-                "{{baseUrl}}"
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "comments"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "React Comment",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/comments/{comment_id}/react",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "comments",
+                "{comment_id}",
+                "react"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Comment",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/comments/{comment_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "comments",
+                "{comment_id}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Restore Comment",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/comments/{comment_id}/restore",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "comments",
+                "{comment_id}",
+                "restore"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "default",
+      "item": [
+        {
+          "name": "Serve Avatar Route",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/uploads/avatars/{file_path}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "uploads",
+                "avatars",
+                "{file_path}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Root",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                ""
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "dictionary",
+      "item": [
+        {
+          "name": "Get Translation Dictionary",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/dictionary/translation",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "dictionary",
+                "translation"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "knowledge",
+      "item": [
+        {
+          "name": "Upload Knowledge Base",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/knowledge/upload",
+              "host": [
+                "{{base_url}}"
               ],
               "path": [
                 "api",
                 "knowledge",
                 "upload"
               ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
-          }
+          },
+          "response": []
         },
         {
-          "name": "获取公开知识库列表",
+          "name": "Get Public Knowledge Bases",
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/knowledge/public",
+              "raw": "{{base_url}}/api/knowledge/public",
               "host": [
-                "{{baseUrl}}"
+                "{{base_url}}"
               ],
               "path": [
                 "api",
                 "knowledge",
                 "public"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "name",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "uploader_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "disabled": true
+                }
               ]
-            }
-          }
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
         },
         {
-          "name": "获取知识库详情",
+          "name": "Get Knowledge Base",
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/knowledge/{{kb_id}}",
+              "raw": "{{base_url}}/api/knowledge/{kb_id}",
               "host": [
-                "{{baseUrl}}"
+                "{{base_url}}"
               ],
               "path": [
                 "api",
                 "knowledge",
-                "{{kb_id}}"
+                "{kb_id}"
               ]
-            }
-          }
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
         },
         {
-          "name": "获取用户的知识库列表",
+          "name": "Update Knowledge Base",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/knowledge/{kb_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "knowledge",
+                "{kb_id}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Knowledge Base",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/knowledge/{kb_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "knowledge",
+                "{kb_id}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Check Knowledge Starred",
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/knowledge/user/{{user_id}}",
+              "raw": "{{base_url}}/api/knowledge/{kb_id}/starred",
               "host": [
-                "{{baseUrl}}"
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "knowledge",
+                "{kb_id}",
+                "starred"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Knowledge Bases",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/knowledge/user/{user_id}",
+              "host": [
+                "{{base_url}}"
               ],
               "path": [
                 "api",
                 "knowledge",
                 "user",
-                "{{user_id}}"
+                "{user_id}"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "name",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "tag",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "disabled": true
+                }
               ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Star Knowledge Base",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/knowledge/{kb_id}/star",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "knowledge",
+                "{kb_id}",
+                "star"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Unstar Knowledge Base",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/knowledge/{kb_id}/star",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "knowledge",
+                "{kb_id}",
+                "star"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Add Files To Knowledge Base",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/knowledge/{kb_id}/files",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "knowledge",
+                "{kb_id}",
+                "files"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
-          }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Files From Knowledge Base",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/knowledge/{kb_id}/{file_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "knowledge",
+                "{kb_id}",
+                "{file_id}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Download Knowledge Base Files",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/knowledge/{kb_id}/download",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "knowledge",
+                "{kb_id}",
+                "download"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Download Knowledge Base File",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/knowledge/{kb_id}/file/{file_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "knowledge",
+                "{kb_id}",
+                "file",
+                "{file_id}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
         }
       ]
     },
     {
-      "name": "Star 功能",
+      "name": "messages",
       "item": [
         {
-          "name": "Star 知识库",
+          "name": "Send Message",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
             "url": {
-              "raw": "{{baseUrl}}/api/star/knowledge/{{kb_id}}",
+              "raw": "{{base_url}}/api/messages/send",
               "host": [
-                "{{baseUrl}}"
+                "{{base_url}}"
               ],
               "path": [
                 "api",
-                "star",
-                "knowledge",
-                "{{kb_id}}"
+                "messages",
+                "send"
               ]
-            }
-          }
-        },
-        {
-          "name": "取消 Star 知识库",
-          "request": {
-            "method": "DELETE",
+            },
             "header": [
               {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{token}}",
+                "disabled": true
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/star/knowledge/{{kb_id}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "star",
-                "knowledge",
-                "{{kb_id}}"
-              ]
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
-          }
+          },
+          "response": []
         },
         {
-          "name": "获取用户的 Star 记录",
+          "name": "Get Message Detail",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
             "url": {
-              "raw": "{{baseUrl}}/api/stars/user",
+              "raw": "{{base_url}}/api/messages/{message_id}",
               "host": [
-                "{{baseUrl}}"
+                "{{base_url}}"
               ],
               "path": [
                 "api",
-                "stars",
-                "user"
+                "messages",
+                "{message_id}"
               ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Message",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/messages/{message_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "messages",
+                "{message_id}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Update Message",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/messages/{message_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "messages",
+                "{message_id}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
-          }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Messages",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/messages",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "other_user_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get Messages By Type",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/messages/by-type/{message_type}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "messages",
+                "by-type",
+                "{message_type}"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Message Read",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/messages/{message_id}/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "messages",
+                "{message_id}",
+                "read"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get Broadcast Messages",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/admin/broadcast-messages",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "broadcast-messages"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "persona",
+      "item": [
+        {
+          "name": "Upload Persona Card",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/persona/upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "persona",
+                "upload"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Public Persona Cards",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/persona/public",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "persona",
+                "public"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "name",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "uploader_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get Persona Card",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/persona/{pc_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "persona",
+                "{pc_id}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Update Persona Card",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/persona/{pc_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "persona",
+                "{pc_id}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Persona Card",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/persona/{pc_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "persona",
+                "{pc_id}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Check Persona Starred",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/persona/{pc_id}/starred",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "persona",
+                "{pc_id}",
+                "starred"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Persona Cards",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/persona/user/{user_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "persona",
+                "user",
+                "{user_id}"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "name",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "tag",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Star Persona Card",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/persona/{pc_id}/star",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "persona",
+                "{pc_id}",
+                "star"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Unstar Persona Card",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/persona/{pc_id}/star",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "persona",
+                "{pc_id}",
+                "star"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Add Files To Persona Card",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/persona/{pc_id}/files",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "persona",
+                "{pc_id}",
+                "files"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Files From Persona Card",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/persona/{pc_id}/{file_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "persona",
+                "{pc_id}",
+                "{file_id}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Download Persona Card Files",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/persona/{pc_id}/download",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "persona",
+                "{pc_id}",
+                "download"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Download Persona Card File",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/persona/{pc_id}/file/{file_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "persona",
+                "{pc_id}",
+                "file",
+                "{file_id}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "review",
+      "item": [
+        {
+          "name": "Get Pending Knowledge Bases",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/review/knowledge/pending",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "review",
+                "knowledge",
+                "pending"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "name",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "uploader_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pending Persona Cards",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/review/persona/pending",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "review",
+                "persona",
+                "pending"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "name",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "uploader_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Knowledge Base",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/review/knowledge/{kb_id}/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "review",
+                "knowledge",
+                "{kb_id}",
+                "approve"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Reject Knowledge Base",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/review/knowledge/{kb_id}/reject",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "review",
+                "knowledge",
+                "{kb_id}",
+                "reject"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Persona Card",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/review/persona/{pc_id}/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "review",
+                "persona",
+                "{pc_id}",
+                "approve"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Reject Persona Card",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/review/persona/{pc_id}/reject",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "review",
+                "persona",
+                "{pc_id}",
+                "reject"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "users",
+      "item": [
+        {
+          "name": "Read Users Me",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/users/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/users/me/password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "password"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Avatar",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/users/me/avatar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "avatar"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Avatar Endpoint",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/users/me/avatar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "avatar"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Avatar",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/users/{user_id}/avatar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{user_id}",
+                "avatar"
+              ],
+              "query": [
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Stars",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/users/stars",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "stars"
+              ],
+              "query": [
+                {
+                  "key": "include_details",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "type",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Upload History",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/users/me/upload-history",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "upload-history"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Upload Stats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/users/me/upload-stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "upload-stats"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Dashboard Stats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/users/me/dashboard-stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "dashboard-stats"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Dashboard Trends",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/users/me/dashboard-trends",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "dashboard-trends"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Stars",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/user/stars",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "user",
+                "stars"
+              ],
+              "query": [
+                {
+                  "key": "include_details",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "type",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "disabled": true
+              }
+            ]
+          },
+          "response": []
         }
       ]
     }
   ],
   "variable": [
     {
-      "key": "baseUrl",
-      "value": "http://localhost:8000"
+      "key": "base_url",
+      "value": "http://localhost:9278",
+      "type": "string"
     },
     {
       "key": "token",
-      "value": ""
-    },
-    {
-      "key": "kb_id",
-      "value": ""
-    },
-    {
-      "key": "user_id",
-      "value": ""
+      "value": "",
+      "type": "string"
     }
   ]
 }

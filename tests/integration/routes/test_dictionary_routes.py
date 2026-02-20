@@ -249,7 +249,7 @@ class TestDictionaryPermissions:
     """测试字典端点权限"""
     
     def test_get_translation_dictionary_no_auth_required(self, test_db: Session):
-        """测试翻译字典不需要身份验证"""
+        """测试翻译字典不需要身份验证
         
         验证：
         - 未认证用户可以访问

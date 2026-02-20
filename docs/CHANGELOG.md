@@ -1,5 +1,446 @@
 # 修改日志 (CHANGELOG)
 
+## 2025-02-20 - 测试文档更新和文件结构优化
+
+### 文档更新
+
+#### 1. 测试文档更新 (TESTING.md)
+
+**更新内容**：
+- 更新测试统计数据：从 753 个测试增加到 1366 个测试
+- 更新测试通过率：从 745 通过增加到 1355 通过
+- 更新失败测试数：从 7 个失败减少到 10 个失败（但总数增加是因为新增了更多测试）
+- 更新测试执行时间：从 162 秒增加到 451 秒（由于测试数量增加）
+- 更新测试质量评分：从 8.7/10 调整到 8.5/10
+- 更新改进建议：针对新的失败测试类型（deps 和 error_handlers）
+
+**文件**：`docs/TESTING.md`
+
+**关键变化**：
+- 测试数量增加了 81%（从 753 → 1366）
+- 测试覆盖率保持在 79%
+- 新增的失败测试主要集中在依赖注入和错误处理模块
+
+### 文件结构优化
+
+#### 1. 翻译字典文件整合
+
+**问题**：
+- 项目中存在三个相同的 `translation_dict.json` 文件副本
+  - `./translation_dict.json` (根目录)
+  - `./app/translation_dict.json`
+  - `./app/api/translation_dict.json`
+- 所有三个文件内容完全相同（MD5: `b795659f2585f4d87cacb84f2135ddbb`）
+
+**解决方案**：
+- 保留唯一的规范位置：`./app/api/translation_dict.json`
+- 删除了根目录和 `app/` 目录下的重复副本
+- 代码已正确引用规范位置（`app/api/routes/dictionary.py`）
+- 所有相关测试通过验证（10/10 测试通过）
+
+**影响**：
+- 减少了项目中的冗余文件
+- 简化了文件维护
+- 不影响功能（所有测试通过）
+
+**文件**：
+- 删除：`./translation_dict.json`
+- 删除：`./app/translation_dict.json`
+- 保留：`./app/api/translation_dict.json`
+
+---
+
+## 2025-02-20 - 文档和架构更新
+
+### 文档更新
+
+#### 1. API 文档完全重写
+
+**更新内容**：
+- 更新了基础信息和项目架构说明
+- 完整的接口分类和说明
+- 添加了所有 10 个路由模块的接口文档
+- 新增评论接口文档（创建、列表、点赞/点踩、删除）
+- 新增收藏接口文档
+- 新增管理员接口文档
+- 新增 WebSocket 接口文档
+- 统一的错误响应格式说明
+- 常见错误码表
+- 认证和权限说明
+
+**文件**：`docs/API.md`
+
+#### 2. 数据库模型文档更新
+
+**更新内容**：
+- 更新了文件路径（从 `database_models.py` 改为 `app/models/database.py`）
+- 添加了 `is_super_admin` 字段说明
+- 添加了 `version` 字段说明（知识库和人设卡）
+- 添加了 `DownloadRecord` 模型说明
+- 添加了 `Comment` 和 `CommentReaction` 模型说明
+- 明确说明了**无物理外键设计**
+- 更新了维护建议
+
+**文件**：`docs/database/models.md`
+
+#### 3. Alembic 迁移指南更新
+
+**更新内容**：
+- 更新了文件路径和配置说明
+- 添加了项目配置现状说明
+- 添加了常用命令参考
+- 改进了日常开发流程说明
+- 更新了多数据库支持说明
+- 添加了问题排查表
+
+**文件**：`docs/database/Alembic_migration_guide.md`
+
+#### 4. 架构文档更新
+
+**更新内容**：
+- 更新了目录结构（添加了新的文件和目录）
+- 更新了测试目录结构（property、unit、integration、e2e）
+- 更新了数据模型说明（12 个表的完整说明）
+- 更新了模型关系图
+- 明确说明了**无物理外键设计**
+- 更新了相关文档链接
+
+**文件**：`docs/ARCHITECTURE.md`
+
+### 项目结构优化
+
+#### 1. 文档目录清理
+
+**删除的文件**：
+- 临时报告：CLEANUP_SUMMARY、COVERAGE_PROGRESS_REPORT、FINAL_COVERAGE_REPORT、TEST_FIXES_SUMMARY、test_quality_report
+- 中文更新总结：CHANGELOG_CN
+- TODO 列表
+- 测试和脚本的子目录
+
+**保留的文件**：
+- 核心文档：API.md、ARCHITECTURE.md、CHANGELOG.md、TESTING.md、README_ERROR_CODES.md
+- 数据库文档：models.md、Alembic_migration_guide.md
+- Postman 集合
+
+#### 2. 缓存和临时文件清理
+
+**删除的目录**：
+- `__pycache__/` - Python 缓存
+- `.pytest_cache/` - Pytest 缓存
+- `htmlcov/` - 覆盖率 HTML 报告
+
+**删除的文件**：
+- `.coverage` - 覆盖率数据
+- `coverage.json` - 覆盖率 JSON
+- `test.db` - 测试数据库
+- `check_password.py` - 根目录脚本
+- 其他临时文件
+
+### 数据库设计说明
+
+#### 无物理外键设计
+
+项目采用**无物理外键设计**，所有关系均通过应用层维护：
+
+**优点**：
+- 灵活性高，可以轻松修改关系
+- 数据库迁移更简单
+- 支持多数据库切换
+
+**缺点**：
+- 应用层必须确保数据一致性
+- 删除操作需要手动处理级联删除
+- 需要更谨慎的业务逻辑设计
+
+**实现方式**：
+- 所有关系通过 SQLAlchemy 的 `relationship` 声明（逻辑关系）
+- 数据库中不创建物理外键约束
+- 应用层负责维护数据一致性
+
+### 影响范围
+
+**文档更新**：
+- 所有文档已同步到最新实现
+- 新增了完整的 API 文档
+- 新增了数据库迁移指南
+- 更新了架构文档
+
+**项目结构**：
+- 文档目录更加清晰
+- 删除了大量临时文件
+- 项目体积减小
+
+### 相关文件
+
+- `docs/API.md` - API 文档
+- `docs/ARCHITECTURE.md` - 架构文档
+- `docs/database/models.md` - 数据库模型
+- `docs/database/Alembic_migration_guide.md` - 迁移指南
+
+---
+
+## 2025-12-01 - 用户上传历史和统计接口增强
+
+### 新增功能
+
+#### 1. 用户个人上传历史接口
+
+**新增接口**：
+- `GET /api/me/upload-history` - 获取当前用户个人上传历史记录
+
+**功能说明**：
+- 支持分页查询用户上传记录
+- 返回知识库和人设卡的上传记录
+- 包含状态映射（approved→success，pending→processing，rejected→failed）
+- 提供目标存在性检查和文件大小统计
+- 支持兼容前端的响应格式构建
+
+**实现位置**：
+- 文件：`user_router.py`
+- 行号：第1260-1320行
+
+#### 2. 用户个人上传统计接口
+
+**新增接口**：
+- `GET /api/me/upload-stats` - 获取当前用户个人上传统计
+
+**功能说明**：
+- 获取用户上传总数、成功数、处理中数、失败数
+- 返回后端数据库字段名和前端期望字段名两种格式的统计结果
+- 提供成功率和文件大小统计
+- 兼容前端UI展示需求
+
+**实现位置**：
+- 文件：`user_router.py`
+- 行号：第1321-1380行
+
+### 影响范围
+
+**新增接口**（客户端可选集成）：
+- `GET /api/me/upload-history` - 用户个人上传历史记录
+- `GET /api/me/upload-stats` - 用户个人上传统计
+
+**功能影响**：
+- 用户现在可以查看自己的上传历史和统计数据
+- 与现有的管理员上传历史和统计接口形成互补
+- 提供个人维度的上传管理能力
+
+### 相关文件
+
+- `user_router.py` - 用户路由实现
+- `database_models.py` - 数据库模型（UploadRecord表）
+
+---
+
+## 2025-11-25 - 内容字段入库与列表能力增强
+
+### 功能 / 接口
+- 知识库与人设卡上传新增正文 `content`、标签 `tags`，响应带作者信息、文件列表与大小聚合，删除最后一个文件时自动删除整条知识库（返回 `knowledge_deleted` 标识）
+- 用户上传记录（知识库、人设卡）支持分页、名称/标签/状态筛选与多字段排序，管理员/审核员可查看他人记录
+- 用户收藏列表分页化，支持类型过滤和创建时间/收藏数排序，返回 `items/total/page/page_size` 结构
+- 管理端内容列表新增上传者（ID/用户名模糊）筛选与排序字段/方向参数，日志输出补充上下文
+- 上传/下载相关 CORS 暴露 `Content-Disposition` 头，前端可读取文件名
+
+### 模型 / 存储
+- `KnowledgeBase`、`PersonaCard` 模型新增 `content`、`tags` 字段；返回的作者字段回落到版权人/上传者
+- SQLite 迁移补充 `content`、`tags` 列并在保存前统一将标签列表转逗号字符串
+
+### 文档
+- API 文档补充 content/tags 传参、用户上传/收藏分页参数与响应、删除文件返回字段、管理端筛选与排序参数示例
+- README/TODO 同步上述行为与完成状态
+
+---
+
+## 2025-11-24 - 用户功能和管理员功能增强
+
+### 新增功能
+
+#### 1. 刷新令牌机制
+
+**新增接口**：
+- `POST /api/refresh` - 刷新访问令牌
+
+**功能说明**：
+- 登录接口现在返回 `refresh_token` 和 `expires_in` 字段
+- 支持使用刷新令牌获取新的访问令牌，提升用户体验
+- 访问令牌有效期15分钟，刷新令牌有效期更长
+
+#### 2. 用户头像功能
+
+**新增接口**：
+- `POST /api/users/me/avatar` - 上传头像
+- `DELETE /api/users/me/avatar` - 删除头像
+- `GET /api/users/{user_id}/avatar` - 获取用户头像
+
+**功能说明**：
+- 支持上传、删除和获取用户头像
+- 支持 JPG、JPEG、PNG、GIF、WEBP 格式
+- 自动生成缩略图
+- 如果用户没有上传头像，返回自动生成的头像
+- 头像最大 2MB，最大尺寸 1024x1024 像素
+
+#### 3. 修改密码功能
+
+**新增接口**：
+- `PUT /api/users/me/password` - 修改密码
+
+**功能说明**：
+- 支持用户修改自己的密码
+- 需要提供当前密码进行验证
+- 密码修改后，所有现有Token将失效（通过password_version机制）
+- 带速率限制：每分钟最多5次尝试
+
+#### 4. 管理员功能增强
+
+**新增接口**：
+- `GET /api/admin/broadcast-messages` - 获取广播消息统计
+- `GET /api/admin/stats` - 获取系统统计数据
+- `GET /api/admin/recent-users` - 获取最近注册用户
+- `GET /api/admin/users` - 获取用户列表（支持分页和搜索）
+- `PUT /api/admin/users/{user_id}/role` - 更新用户角色
+- `DELETE /api/admin/users/{user_id}` - 删除用户
+- `POST /api/admin/users` - 创建新用户
+- `GET /api/admin/knowledge/all` - 获取所有知识库（管理员）
+- `GET /api/admin/persona/all` - 获取所有人设卡（管理员）
+- `POST /api/admin/knowledge/{kb_id}/revert` - 恢复知识库审核状态
+- `POST /api/admin/persona/{pc_id}/revert` - 恢复人设卡审核状态
+- `GET /api/admin/upload-history` - 获取上传历史记录
+- `GET /api/admin/upload-stats` - 获取上传统计数据
+- `DELETE /api/admin/uploads/{upload_id}` - 删除上传记录
+- `POST /api/admin/uploads/{upload_id}/reprocess` - 重新处理上传
+
+### 接口变更
+
+#### 登录接口响应格式更新
+
+**变更前**：
+```json
+{
+  "access_token": "...",
+  "token_type": "bearer"
+}
+```
+
+**变更后**：
+```json
+{
+  "access_token": "...",
+  "refresh_token": "...",
+  "token_type": "bearer",
+  "expires_in": 900,
+  "user": {
+    "id": "...",
+    "username": "...",
+    "email": "...",
+    "role": "..."
+  }
+}
+```
+
+---
+
+## 2025-11-23 - 新增功能和接口优化
+
+### 新增功能
+
+#### 1. Star状态检查接口
+
+**新增接口**：
+- `GET /api/knowledge/{kb_id}/starred` - 检查知识库是否已被当前用户Star
+- `GET /api/persona/{pc_id}/starred` - 检查人设卡是否已被当前用户Star
+
+**功能说明**：
+- 返回格式：`{"starred": true/false}`
+- 需要用户认证
+- 用于前端快速检查Star状态，避免获取所有Star记录
+
+#### 2. 分页支持
+
+**新增分页接口**：
+- `GET /api/knowledge/public` - 支持分页、搜索、筛选和排序
+- `GET /api/persona/public` - 支持分页、搜索、筛选和排序
+
+**查询参数**：
+- `page`: 页码（从1开始）
+- `page_size`: 每页数量（1-100）
+- `name`: 按名称搜索（可选）
+- `uploader_id`: 按上传者ID筛选（可选）
+- `sort_by`: 排序字段（created_at, updated_at, star_count）
+- `sort_order`: 排序顺序（asc, desc）
+
+#### 3. 用户Star记录接口增强
+
+**接口**：`GET /api/user/stars`
+
+**新增参数**：
+- `includeDetails`: 是否包含完整详情（可选，默认false）
+
+**功能说明**：
+- 当 `includeDetails=true` 时，返回Star记录的同时包含知识库/人设卡的完整信息
+- 减少前端API调用次数，从 1+N 次请求优化到 1 次请求
+
+---
+
+## 2025-11-22 - API Bug修复和优化
+
+### 修复内容
+
+#### 1. 审核API修复（知识库和人设卡审批失败）
+
+**问题描述**：
+- `approve_knowledge_base`、`reject_knowledge_base`、`approve_persona_card` 和 `reject_persona_card` 四个审核API在调用 `save_knowledge_base` 和 `save_persona_card` 时传的是对象，但这两个方法期望字典参数。
+
+**修复方法**：
+在调用 `save_knowledge_base` 和 `save_persona_card` 之前，用 `to_dict()` 把对象转成字典。
+
+#### 1.1. 审核拒绝API参数传递方式优化
+
+**问题描述**：
+- `reject_knowledge_base` 和 `reject_persona_card` 接口的 `reason` 参数原本使用查询参数（Query），不符合RESTful最佳实践。
+
+**修复方法**：
+将 `reason` 参数从查询参数改为请求体（Body），使用 `Body(..., embed=True)` 接收JSON格式的请求体。
+
+#### 2. 消息发送API修复（消息创建失败）
+
+**问题描述**：
+- `Message.to_dict()` 方法返回的 `created_at` 字段是 ISO 格式的字符串，但 `MessageResponse` Pydantic模型期望接收 `datetime` 对象。
+
+**修复方法**：
+修改 `Message.to_dict()` 方法，确保 `created_at` 字段返回 `datetime` 对象而不是字符串。
+
+#### 3. 消息获取API修复（获取消息列表失败）
+
+**问题描述**：
+- `api_routes.py` 中定义了重复的 `MessageResponse` 类，与 `models.py` 中的定义不一致。
+
+**修复方法**：
+从 `models.py` 导入 `MessageResponse`，删除 `api_routes.py` 中重复的定义。
+
+#### 4. 消息API进一步修复（批量创建和查询优化）
+
+**问题描述**：
+- `bulk_create_messages` 方法在异常时只打印错误并返回空列表
+- SQL查询中使用 `&` 和 `|` 运算符时，运算符优先级可能导致查询逻辑错误
+
+**修复方法**：
+- 改进异常处理，抛出异常而不是静默失败
+- 使用 `and_()` 和 `or_()` 函数替代 `&` 和 `|` 运算符
+
+#### 5. 数据库迁移修复（messages表缺少message_type列）
+
+**问题描述**：
+- 数据库表 `messages` 缺少 `message_type` 和 `broadcast_scope` 列
+
+**修复方法**：
+添加自动数据库迁移方法，在数据库管理器初始化时检查并添加缺失的列。
+
+---
+
+**文档版本**: 4.0  
+**最后更新**: 2025-02-20  
+**维护者**: 开发团队
+
 ## 2025-11-24 - 用户功能和管理员功能增强
 
 ### 新增功能

@@ -2,7 +2,7 @@
 
 ## 概述
 
-本文档描述 MaiMaiNotePad 后端项目的架构设计。项目基于 FastAPI 框架构建，采用标准的三层架构模式，按功能模块和职责清晰划分代码，提供用户认证、知识库管理、人设卡管理、消息系统等功能。
+本文档描述 MaiMaiNotePad 后端项目的架构设计。项目基于 FastAPI 框架构建，采用标准的三层架构模式，按功能模块和职责清晰划分代码，提供用户认证、知识库管理、人设卡管理、消息系统、评论系统等功能。
 
 ## 目录结构
 
@@ -11,14 +11,14 @@ MaiMaiNotePad-BackEnd/
 ├── app/                          # 应用主目录
 │   ├── __init__.py
 │   ├── main.py                   # FastAPI 应用入口
+│   ├── error_handlers.py         # 全局异常处理
 │   ├── api/                      # API 路由层
 │   │   ├── __init__.py           # 路由注册
 │   │   ├── deps.py               # 依赖注入（认证、权限）
 │   │   ├── websocket.py          # WebSocket 处理
 │   │   └── routes/               # 路由模块
-│   │       ├── __init__.py
-│   │       ├── auth.py           # 认证路由（登录、注册、密码重置）
-│   │       ├── users.py          # 用户路由（个人信息、头像）
+│   │       ├── auth.py           # 认证路由
+│   │       ├── users.py          # 用户路由
 │   │       ├── knowledge.py      # 知识库路由
 │   │       ├── persona.py        # 人设卡路由
 │   │       ├── messages.py       # 消息路由
@@ -28,9 +28,9 @@ MaiMaiNotePad-BackEnd/
 │   │       └── comments.py       # 评论路由
 │   ├── core/                     # 核心配置和依赖
 │   │   ├── __init__.py
-│   │   ├── config.py             # 配置管理（Pydantic Settings）
-│   │   ├── security.py           # 安全相关（JWT、密码哈希）
-│   │   ├── database.py           # 数据库连接和会话管理
+│   │   ├── config.py             # 配置管理
+│   │   ├── security.py           # JWT 和密码安全
+│   │   ├── database.py           # 数据库连接
 │   │   ├── middleware.py         # 中间件配置
 │   │   └── logging.py            # 日志配置
 │   ├── models/                   # 数据模型
@@ -48,23 +48,35 @@ MaiMaiNotePad-BackEnd/
 │   │   └── file_service.py       # 文件服务
 │   └── utils/                    # 工具函数
 │       ├── __init__.py
-│       ├── file.py               # 文件处理工具
-│       ├── avatar.py             # 头像处理工具
-│       └── websocket.py          # WebSocket 管理器
-├── tests/                        # 测试目录
-│   ├── __init__.py
-│   ├── conftest.py               # 测试配置
-│   ├── test_auth.py              # 认证测试
-│   ├── test_users.py             # 用户测试
-│   ├── test_knowledge.py         # 知识库测试
-│   └── test_persona.py           # 人设卡测试
+│       ├── file.py               # 文件处理
+│       ├── avatar.py             # 头像处理
+│       └── websocket.py          # WebSocket 管理
 ├── alembic/                      # 数据库迁移
 │   ├── versions/                 # 迁移版本
 │   └── env.py                    # Alembic 环境配置
+├── tests/                        # 测试目录
+│   ├── property/                 # 属性测试
+│   ├── unit/                     # 单元测试
+│   ├── integration/              # 集成测试
+│   ├── e2e/                      # 端到端测试
+│   ├── helpers/                  # 测试辅助
+│   ├── conftest.py               # 测试配置
+│   └── db_manager.py             # 测试数据库管理
 ├── scripts/                      # 辅助脚本
-│   ├── prepare_test_data.py      # 准备测试数据
+│   ├── api_smoke_test_1122.py    # API 烟雾测试
+│   ├── generate_test_templates.py # 生成测试模板
+│   ├── prepare_test_data1122.py  # 准备测试数据
 │   └── reset_security_env.py     # 清档脚本
 ├── docs/                         # 文档目录
+│   ├── API.md                    # API 文档
+│   ├── ARCHITECTURE.md           # 架构文档
+│   ├── CHANGELOG.md              # 变更日志
+│   ├── README_ERROR_CODES.md     # 错误码说明
+│   ├── TESTING.md                # 测试指南
+│   ├── database/                 # 数据库文档
+│   │   ├── models.md             # 数据库模型
+│   │   └── Alembic_migration_guide.md  # 迁移指南
+│   └── MaiMNP_API.postman_collection.json
 ├── uploads/                      # 上传文件存储
 ├── data/                         # 数据库文件
 ├── logs/                         # 日志文件
@@ -359,34 +371,62 @@ async def get_current_user(
 #### 1. User（用户表）
 - 存储用户基本信息
 - 包含认证信息（密码哈希、密码版本）
-- 包含角色信息（admin、moderator）
-- 包含账户状态（激活、锁定）
+- 包含角色信息（admin、moderator、super_admin）
+- 包含账户状态（激活、锁定、禁言）
+- 包含头像信息
 
 #### 2. KnowledgeBase（知识库表）
 - 存储知识库元信息
 - 关联上传者（User）
 - 包含审核状态（is_public、is_pending）
 - 包含统计信息（star_count、downloads）
+- 包含版本号
 
-#### 3. PersonaCard（人设卡表）
+#### 3. KnowledgeBaseFile（知识库文件表）
+- 存储知识库关联的文件
+- 记录文件元数据（名称、大小、类型）
+
+#### 4. PersonaCard（人设卡表）
 - 存储人设卡元信息
 - 结构类似知识库表
 - 支持标签和分类
 
-#### 4. Message（消息表）
+#### 5. PersonaCardFile（人设卡文件表）
+- 存储人设卡关联的文件
+- 记录文件元数据
+
+#### 6. Message（消息表）
 - 存储站内消息
 - 支持私信和公告
 - 包含已读状态
 
-#### 5. StarRecord（收藏记录表）
+#### 7. StarRecord（收藏记录表）
 - 记录用户的 Star 操作
 - 关联用户和目标资源（知识库或人设卡）
 - 支持按类型查询
 
-#### 6. UploadRecord（上传记录表）
+#### 8. EmailVerification（邮箱验证表）
+- 存储邮箱验证码
+- 包含过期时间和使用状态
+
+#### 9. UploadRecord（上传记录表）
 - 记录文件上传历史
 - 包含上传状态和文件信息
 - 用于统计和审计
+
+#### 10. DownloadRecord（下载记录表）
+- 记录文件下载历史
+- 用于统计下载次数
+
+#### 11. Comment（评论表）
+- 存储评论内容
+- 支持嵌套回复（parent_id）
+- 包含点赞/点踩计数
+- 支持软删除
+
+#### 12. CommentReaction（评论反应表）
+- 记录用户对评论的点赞/点踩
+- 防止重复操作
 
 ### 模型关系
 
@@ -395,11 +435,20 @@ User ──┬─── KnowledgeBase (uploader_id)
        ├─── PersonaCard (uploader_id)
        ├─── Message (sender_id / recipient_id)
        ├─── StarRecord (user_id)
-       └─── UploadRecord (user_id)
+       ├─── UploadRecord (uploader_id)
+       └─── Comment (user_id)
 
-KnowledgeBase ─── StarRecord (target_id, target_type='knowledge')
-PersonaCard ─── StarRecord (target_id, target_type='persona')
+KnowledgeBase ──┬─── KnowledgeBaseFile (knowledge_base_id)
+                └─── StarRecord (target_id, target_type='knowledge')
+
+PersonaCard ──┬─── PersonaCardFile (persona_card_id)
+              └─── StarRecord (target_id, target_type='persona')
+
+Comment ──┬─── CommentReaction (comment_id)
+          └─── Comment (parent_id, 自引用)
 ```
+
+**注意**：项目采用**无物理外键设计**，所有关系均通过应用层维护，优点是灵活性高、迁移简单，缺点是需要应用层确保数据一致性。
 
 ## 认证和授权
 
@@ -672,24 +721,33 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "9278"]
 
 ### 短期改进
 
-1. 添加 Redis 缓存
+1. 添加 Redis 缓存层
 2. 实现异步任务队列（Celery）
-3. 添加更多单元测试
+3. 提高单元测试覆盖率
 4. 优化数据库查询性能
+5. 添加 API 限流和速率限制
 
 ### 长期改进
 
 1. 微服务架构拆分
 2. 使用 PostgreSQL 替代 SQLite
-3. 实现分布式文件存储
+3. 实现分布式文件存储（S3/MinIO）
 4. 添加全文搜索（Elasticsearch）
-5. 实现实时通知（WebSocket）
+5. 实现实时通知系统
 6. 添加 API 版本控制
+7. 实现多租户支持
 
-## 参考资料
+## 相关文档
 
-- [FastAPI 官方文档](https://fastapi.tiangolo.com/)
-- [SQLAlchemy 文档](https://docs.sqlalchemy.org/)
-- [Pydantic 文档](https://docs.pydantic.dev/)
-- [Alembic 文档](https://alembic.sqlalchemy.org/)
-- [JWT 规范](https://jwt.io/)
+- [API 文档](./API.md) - 完整的 API 接口说明
+- [数据库模型](./database/models.md) - 数据库表结构详解
+- [Alembic 迁移指南](./database/Alembic_migration_guide.md) - 数据库版本管理
+- [测试指南](./TESTING.md) - 测试策略和方法
+- [错误码说明](./README_ERROR_CODES.md) - 详细的错误码列表
+- [变更日志](./CHANGELOG.md) - API 变更历史
+
+---
+
+**文档版本**: 3.0  
+**最后更新**: 2025-02-20  
+**维护者**: 开发团队
