@@ -1,3 +1,14 @@
+"""
+管理员路由模块
+
+处理管理员相关的API端点，包括：
+- 获取管理员统计数据
+- 用户管理（查询、创建、更新角色、删除）
+- 用户禁言/解除禁言
+- 用户封禁/解除封禁
+- 内容审核管理
+"""
+
 from typing import List, Optional
 from datetime import datetime, timedelta
 
@@ -26,7 +37,7 @@ from app.api.deps import get_current_user
 router = APIRouter()
 
 
-# 管理员相关路由
+# 管理员相关路由（获取统计数据、用户管理、禁言、封禁等）
 @router.get("/stats")
 async def get_admin_stats(
     current_user: dict = Depends(get_current_user),
@@ -379,6 +390,7 @@ async def mute_user(
         current_user: dict = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
+    """禁言用户（仅限admin）"""
     if not current_user.get("is_admin", False):
         raise HTTPException(
             status_code=HTTPStatus.HTTP_403_FORBIDDEN,
@@ -390,7 +402,7 @@ async def mute_user(
         reason = (body.get("reason") or "").strip()
 
         app_logger.info(
-            f"Mute user: user_id={user_id}, duration={duration}, reason={reason}, operator={current_user.get('id')}"
+            f"禁言用户: user_id={user_id}, duration={duration}, reason={reason}, operator={current_user.get('id')}"
         )
 
         now = datetime.now()
@@ -475,6 +487,7 @@ async def unmute_user(
         current_user: dict = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
+    """解除禁言（仅限admin）"""
     if not current_user.get("is_admin", False):
         raise HTTPException(
             status_code=HTTPStatus.HTTP_403_FORBIDDEN,
@@ -483,7 +496,7 @@ async def unmute_user(
 
     try:
         app_logger.info(
-            f"Unmute user: user_id={user_id}, operator={current_user.get('id')}"
+            f"解除禁言: user_id={user_id}, operator={current_user.get('id')}"
         )
 
         user = db.query(User).filter(User.id == user_id).first()

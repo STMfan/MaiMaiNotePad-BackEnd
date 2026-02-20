@@ -1,3 +1,10 @@
+"""
+翻译字典路由模块
+
+处理翻译字典相关的API端点，包括：
+- 获取翻译字典（用于前端国际化）
+"""
+
 from fastapi import APIRouter
 from typing import Dict, Any
 import json
@@ -8,6 +15,9 @@ from app.core.logging import app_logger
 
 
 router = APIRouter()
+
+
+# 翻译字典相关路由
 
 
 def _get_dict_file_path() -> str:

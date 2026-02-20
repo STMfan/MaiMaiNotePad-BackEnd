@@ -1,3 +1,3 @@
 """
-Tests package for MaiMaiNotePad backend.
+MaiMaiNotePad后端测试包。
 """

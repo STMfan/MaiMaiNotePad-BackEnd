@@ -1,6 +1,7 @@
 """
-Authentication service module
-Contains business logic for authentication operations
+认证服务模块
+
+包含登录、注册、密码重置等认证相关的业务逻辑。
 """
 
 import uuid
@@ -24,79 +25,79 @@ logger = logging.getLogger(__name__)
 
 class AuthService:
     """
-    Service class for authentication operations.
-    Handles login, registration, and password reset logic.
+    认证服务类。
+    处理登录、注册和密码重置逻辑。
     """
 
     def __init__(self, db: Session):
         """
-        Initialize AuthService with database session.
+        初始化认证服务。
         
         Args:
-            db: SQLAlchemy database session
+            db: SQLAlchemy 数据库会话
         """
         self.db = db
 
     def authenticate_user(self, username: str, password: str) -> Optional[Dict[str, Any]]:
         """
-        Authenticate user with username and password.
-        Includes timing attack protection and account lock checking.
+        使用用户名和密码进行身份验证。
+        包含计时攻击防护和账户锁定检查。
         
         Args:
-            username: Username
-            password: Plain text password
+            username: 用户名
+            password: 明文密码
             
         Returns:
-            Dictionary with tokens and user info if authentication successful, None otherwise
+            验证成功返回包含令牌和用户信息的字典，否则返回 None
         """
         import time
         try:
             user = self.db.query(User).filter(User.username == username).first()
 
-            # Use dummy hash verification if user doesn't exist (prevent timing attacks)
+            # 用户不存在时使用虚拟哈希验证（防止计时攻击）
             if not user:
                 dummy_hash = "$2b$12$dummy.hash.for.timing.attack.prevention.abcdefghijklmnopqrstuv"
                 try:
                     verify_password(password, dummy_hash)
                 except:
                     pass
-                # Add random delay to further obscure timing differences
+                # 添加随机延迟以进一步模糊时间差异
                 time.sleep(0.1)
                 return None
 
-            # Check if account is locked
+            # 检查账户是否被锁定
             if user.locked_until and user.locked_until > datetime.now():
-                logger.warning(f'Account locked: username={username}, locked_until={user.locked_until}')
+                logger.warning(f'账户已锁定: username={username}, locked_until={user.locked_until}')
                 time.sleep(0.1)
                 return None
 
-            # Verify password
+            # 验证密码
             if verify_password(password, user.hashed_password):
-                # Login successful, reset failed login count
+                # 登录成功，重置失败次数
                 self._reset_failed_login(user)
-                # Return tokens and user info
+                # 返回令牌和用户信息
                 return self.create_tokens(user)
 
-            # Password incorrect, add delay and increment failed login count
+            # 密码错误，添加延迟并递增失败次数
             time.sleep(0.1)
             self._increment_failed_login(user)
             return None
         except Exception as e:
-            logger.error(f'Error authenticating user: {str(e)}')
+            logger.error(f'用户认证失败: {str(e)}')
             return None
 
     def create_tokens(self, user: User) -> Dict[str, Any]:
         """
-        Create access and refresh tokens for authenticated user.
+        为已认证用户创建访问令牌和刷新令牌。
         
         Args:
-            user: Authenticated User object
+            user: 已认证的用户对象
             
         Returns:
-            Dictionary containing access_token, refresh_token, token_type, expires_in, and user info
+            包含 access_token、refresh_token、token_type、expires_in 和用户信息的字典
         """
         try:
-            # Determine user role
+            # 确定用户角色
             if user.is_super_admin:
                 role = "super_admin"
             elif user.is_admin:
@@ -106,7 +107,7 @@ class AuthService:
             else:
                 role = "user"
 
-            # Create tokens
+            # 创建令牌
             access_token = create_user_token(
                 user_id=user.id,
                 username=user.username,
@@ -119,7 +120,7 @@ class AuthService:
                 "access_token": access_token,
                 "refresh_token": refresh_token,
                 "token_type": "bearer",
-                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert to seconds
+                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # 转换为秒
                 "user": {
                     "id": user.id,
                     "username": user.username,
@@ -131,7 +132,7 @@ class AuthService:
                 }
             }
         except Exception as e:
-            logger.error(f'Error creating tokens for user {user.id}: {str(e)}')
+            logger.error(f'为用户 {user.id} 创建令牌失败: {str(e)}')
             raise
 
     def register_user(
@@ -141,30 +142,30 @@ class AuthService:
         email: str
     ) -> Optional[User]:
         """
-        Register a new user (assumes email verification already done).
+        注册新用户（假设邮箱验证已完成）。
         
         Args:
-            username: Username
-            password: Plain text password
-            email: Email address (should be lowercase)
+            username: 用户名
+            password: 明文密码
+            email: 邮箱地址（应为小写）
             
         Returns:
-            User object if successful, None otherwise
+            成功返回用户对象，否则返回 None
         """
         try:
-            # Normalize email to lowercase
+            # 邮箱统一转小写
             email_lower = email.lower()
             
-            # Check for duplicates
+            # 检查是否重复
             legality_check = self.check_register_legality(username, email_lower)
             if legality_check != "ok":
-                logger.warning(f'Registration failed: {legality_check}')
+                logger.warning(f'注册失败: {legality_check}')
                 return None
 
-            # Ensure password doesn't exceed 72 bytes (bcrypt limitation)
+            # 确保密码不超过 72 字节（bcrypt 限制）
             password = password[:72]
 
-            # Create new user
+            # 创建新用户
             new_user = User(
                 id=str(uuid.uuid4()),
                 username=username,
@@ -182,24 +183,24 @@ class AuthService:
             self.db.commit()
             self.db.refresh(new_user)
 
-            logger.info(f'User registered successfully: username={username}, email={email_lower}')
+            logger.info(f'用户注册成功: username={username}, email={email_lower}')
             return new_user
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error registering user {username}: {str(e)}')
+            logger.error(f'注册用户 {username} 失败: {str(e)}')
             return None
 
     def verify_email_code(self, email: str, code: str) -> bool:
         """
-        Verify email verification code (unused and not expired).
-        Marks the code as used if valid.
+        验证邮箱验证码（未使用且未过期）。
+        验证通过后将验证码标记为已使用。
         
         Args:
-            email: Email address (should be lowercase)
-            code: Verification code
+            email: 邮箱地址（应为小写）
+            code: 验证码
             
         Returns:
-            True if code is valid, False otherwise
+            验证码有效返回 True，否则返回 False
         """
         try:
             record = self.db.query(EmailVerification).filter(
@@ -210,30 +211,30 @@ class AuthService:
             ).first()
 
             if record:
-                # Mark as used
+                # 标记为已使用
                 record.is_used = True
                 self.db.commit()
-                logger.info(f'Email verification code verified: email={email}')
+                logger.info(f'邮箱验证码验证成功: email={email}')
                 return True
 
-            logger.warning(f'Invalid or expired verification code: email={email}')
+            logger.warning(f'验证码无效或已过期: email={email}')
             return False
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error verifying email code for {email}: {str(e)}')
+            logger.error(f'验证邮箱验证码失败 {email}: {str(e)}')
             return False
 
     def save_verification_code(self, email: str, code: str) -> Optional[str]:
         """
-        Save email verification code to database.
-        Code expires in 2 minutes.
+        保存邮箱验证码到数据库。
+        验证码有效期为 2 分钟。
         
         Args:
-            email: Email address (should be lowercase)
-            code: Verification code
+            email: 邮箱地址（应为小写）
+            code: 验证码
             
         Returns:
-            Verification record ID if successful, None otherwise
+            成功返回验证记录 ID，否则返回 None
         """
         try:
             verification = EmailVerification(
@@ -246,53 +247,53 @@ class AuthService:
             self.db.add(verification)
             self.db.commit()
             
-            logger.info(f'Verification code saved: email={email}, code_id={verification.id}')
+            logger.info(f'验证码已保存: email={email}, code_id={verification.id}')
             return verification.id
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error saving verification code for {email}: {str(e)}')
+            logger.error(f'保存验证码失败 {email}: {str(e)}')
             return None
 
     def check_email_rate_limit(self, email: str) -> bool:
         """
-        Check if email has exceeded rate limits:
-        - Maximum 5 requests per hour
-        - Maximum 1 request per minute
+        检查邮箱是否超过发送频率限制：
+        - 每小时最多 5 次
+        - 每分钟最多 1 次
         
         Args:
-            email: Email address (should be lowercase)
+            email: 邮箱地址（应为小写）
             
         Returns:
-            True if within rate limits, False if exceeded
+            未超限返回 True，已超限返回 False
         """
         try:
             now = datetime.now()
             one_hour_ago = now - timedelta(hours=1)
             one_minute_ago = now - timedelta(minutes=1)
 
-            # Check hourly limit (5 requests)
+            # 检查每小时限制（5 次）
             hourly_count = self.db.query(EmailVerification).filter(
                 EmailVerification.email == email,
                 EmailVerification.created_at > one_hour_ago
             ).count()
             
             if hourly_count >= 5:
-                logger.warning(f'Email rate limit exceeded (hourly): email={email}, count={hourly_count}')
+                logger.warning(f'邮箱发送频率超限（每小时）: email={email}, count={hourly_count}')
                 return False
 
-            # Check minute limit (1 request)
+            # 检查每分钟限制（1 次）
             minute_count = self.db.query(EmailVerification).filter(
                 EmailVerification.email == email,
                 EmailVerification.created_at > one_minute_ago
             ).count()
             
             if minute_count >= 1:
-                logger.warning(f'Email rate limit exceeded (minute): email={email}')
+                logger.warning(f'邮箱发送频率超限（每分钟）: email={email}')
                 return False
 
             return True
         except Exception as e:
-            logger.error(f'Error checking email rate limit for {email}: {str(e)}')
+            logger.error(f'检查邮箱发送频率失败 {email}: {str(e)}')
             return False
 
     def reset_password(
@@ -302,74 +303,74 @@ class AuthService:
         new_password: str
     ) -> Tuple[bool, str]:
         """
-        Reset user password with email verification.
+        通过邮箱验证重置用户密码。
         
         Args:
-            email: Email address
-            verification_code: Email verification code
-            new_password: New plain text password
+            email: 邮箱地址
+            verification_code: 邮箱验证码
+            new_password: 新明文密码
             
         Returns:
-            Tuple of (success: bool, message: str)
+            (是否成功, 提示消息) 元组
         """
         try:
-            # Normalize email to lowercase
+            # 邮箱统一转小写
             email_lower = email.lower()
 
-            # Verify email code
+            # 验证邮箱验证码
             if not self.verify_email_code(email_lower, verification_code):
                 return False, "验证码错误或已失效"
 
-            # Find user by email
+            # 根据邮箱查找用户
             user = self.db.query(User).filter(User.email == email_lower).first()
             if not user:
                 return False, "用户不存在"
 
-            # Ensure password doesn't exceed 72 bytes (bcrypt limitation)
+            # 确保密码不超过 72 字节（bcrypt 限制）
             new_password = new_password[:72]
 
-            # Update password and increment password version
+            # 更新密码并递增密码版本号
             user.hashed_password = get_password_hash(new_password)
             user.password_version = (user.password_version or 0) + 1
 
-            # Reset failed login attempts
+            # 重置登录失败次数
             user.failed_login_attempts = 0
             user.locked_until = None
 
             self.db.commit()
 
-            logger.info(f'Password reset successfully: username={user.username}, email={email_lower}')
+            logger.info(f'密码重置成功: username={user.username}, email={email_lower}')
             return True, "密码重置成功"
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error resetting password for {email}: {str(e)}')
+            logger.error(f'重置密码失败 {email}: {str(e)}')
             return False, "密码重置失败"
 
     def generate_verification_code(self) -> str:
         """
-        Generate a 6-digit verification code.
+        生成 6 位数字验证码。
         
         Returns:
-            6-digit verification code as string
+            6 位数字验证码字符串
         """
         return ''.join([str(secrets.randbelow(10)) for _ in range(6)])
 
     def send_verification_code(self, email: str) -> Optional[str]:
         """
-        Generate and save verification code for email registration.
+        生成并保存注册用邮箱验证码。
         
         Args:
-            email: Email address (should be lowercase)
+            email: 邮箱地址（应为小写）
             
         Returns:
-            Verification record ID if successful, None otherwise
+            成功返回验证记录 ID，否则返回 None
         """
         try:
             code = self.generate_verification_code()
             code_id = self.save_verification_code(email, code)
             
             if code_id:
-                # Send email with verification code
+                # 发送验证码邮件
                 from app.services.email_service import send_email
                 subject = "MaiMaiNotePad 注册验证码"
                 body = f"您的验证码是: {code}\n\n验证码将在2分钟后过期。"
@@ -377,25 +378,25 @@ class AuthService:
                 
             return code_id
         except Exception as e:
-            logger.error(f'Error sending verification code to {email}: {str(e)}')
+            logger.error(f'发送验证码到 {email} 失败: {str(e)}')
             raise
 
     def send_reset_password_code(self, email: str) -> Optional[str]:
         """
-        Generate and save verification code for password reset.
+        生成并保存重置密码用邮箱验证码。
         
         Args:
-            email: Email address (should be lowercase)
+            email: 邮箱地址（应为小写）
             
         Returns:
-            Verification record ID if successful, None otherwise
+            成功返回验证记录 ID，否则返回 None
         """
         try:
             code = self.generate_verification_code()
             code_id = self.save_verification_code(email, code)
             
             if code_id:
-                # Send email with verification code
+                # 发送验证码邮件
                 from app.services.email_service import send_email
                 subject = "MaiMaiNotePad 重置密码验证码"
                 body = f"您的重置密码验证码是: {code}\n\n验证码将在2分钟后过期。"
@@ -403,37 +404,37 @@ class AuthService:
                 
             return code_id
         except Exception as e:
-            logger.error(f'Error sending reset password code to {email}: {str(e)}')
+            logger.error(f'发送重置密码验证码到 {email} 失败: {str(e)}')
             raise
 
     def refresh_access_token(self, refresh_token: str) -> Dict[str, Any]:
         """
-        Refresh access token using refresh token.
+        使用刷新令牌获取新的访问令牌。
         
         Args:
-            refresh_token: Refresh token
+            refresh_token: 刷新令牌
             
         Returns:
-            Dictionary containing new access_token and user info
+            包含新 access_token 和用户信息的字典
         """
         from app.core.security import verify_token, create_user_token
         
         try:
-            # Verify refresh token
+            # 验证刷新令牌
             payload = verify_token(refresh_token)
             if not payload:
-                raise ValueError("Invalid refresh token")
+                raise ValueError("无效的刷新令牌")
             
             user_id = payload.get("sub")
             if not user_id:
-                raise ValueError("Invalid token payload")
+                raise ValueError("无效的令牌载荷")
             
-            # Get user from database
+            # 从数据库获取用户
             user = self.db.query(User).filter(User.id == user_id).first()
             if not user:
-                raise ValueError("User not found")
+                raise ValueError("用户不存在")
             
-            # Determine user role
+            # 确定用户角色
             if user.is_super_admin:
                 role = "super_admin"
             elif user.is_admin:
@@ -443,7 +444,7 @@ class AuthService:
             else:
                 role = "user"
             
-            # Create new access token
+            # 创建新的访问令牌
             access_token = create_user_token(
                 user_id=user.id,
                 username=user.username,
@@ -458,67 +459,67 @@ class AuthService:
                 "user_id": user.id
             }
         except Exception as e:
-            logger.error(f'Error refreshing access token: {str(e)}')
+            logger.error(f'刷新访问令牌失败: {str(e)}')
             raise
 
     def check_register_legality(self, username: str, email: str) -> str:
         """
-        Check if username and email are available for registration.
+        检查用户名和邮箱是否可用于注册。
         
         Args:
-            username: Username
-            email: Email address (should be lowercase)
+            username: 用户名
+            email: 邮箱地址（应为小写）
             
         Returns:
-            "ok" if available, error message otherwise
+            可用返回 "ok"，否则返回错误消息
         """
         try:
-            # Check if username exists
+            # 检查用户名是否已存在
             user = self.db.query(User).filter(User.username == username).first()
             if user:
                 return "用户名已存在"
 
-            # Check if email exists
+            # 检查邮箱是否已存在
             user = self.db.query(User).filter(User.email == email).first()
             if user:
                 return "该邮箱已被注册"
 
             return "ok"
         except Exception as e:
-            logger.error(f'Error checking registration legality: {str(e)}')
+            logger.error(f'检查注册合法性失败: {str(e)}')
             return "系统错误"
 
     def _increment_failed_login(self, user: User) -> None:
         """
-        Increment failed login attempts and possibly lock account.
-        Account is locked for 30 minutes after 5 failed attempts.
+        递增登录失败次数，可能锁定账户。
+        5 次失败后锁定账户 30 分钟。
         
         Args:
-            user: User object
+            user: 用户对象
         """
         try:
             user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
             user.last_failed_login = datetime.now()
 
-            # Lock account for 30 minutes after 5 failed attempts
+            # 5 次失败后锁定账户 30 分钟
             if user.failed_login_attempts >= 5:
                 user.locked_until = datetime.now() + timedelta(minutes=30)
                 logger.warning(
-                    f'Account locked due to failed login attempts: '
+                    f'账户因多次登录失败被锁定: '
                     f'username={user.username}, attempts={user.failed_login_attempts}'
                 )
 
             self.db.commit()
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error incrementing failed login for user {user.id}: {str(e)}')
+            logger.error(f'递增用户 {user.id} 登录失败次数出错: {str(e)}')
 
     def _reset_failed_login(self, user: User) -> None:
         """
-        Reset failed login attempts after successful login.
+        登录成功后重置失败次数。
         
         Args:
-            user: User object
+            user: 用户对象
         """
         try:
             if user.failed_login_attempts > 0 or user.locked_until:
@@ -527,4 +528,4 @@ class AuthService:
                 self.db.commit()
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error resetting failed login for user {user.id}: {str(e)}')
+            logger.error(f'重置用户 {user.id} 登录失败次数出错: {str(e)}')

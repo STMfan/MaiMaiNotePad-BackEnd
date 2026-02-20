@@ -1,6 +1,7 @@
 """
-SQLAlchemy database models
-Contains all data models for the application
+SQLAlchemy 数据库模型
+
+包含应用的所有数据模型定义。
 """
 
 from datetime import datetime, timedelta
@@ -13,7 +14,7 @@ from app.core.database import Base
 
 
 class User(Base):
-    """User model"""
+    """用户模型"""
     __tablename__ = "users"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -36,14 +37,14 @@ class User(Base):
     ban_reason = Column(String, nullable=True)
     mute_reason = Column(String, nullable=True)
 
-    # Avatar fields
+    # 头像字段
     avatar_path = Column(String, nullable=True)
     avatar_updated_at = Column(DateTime, nullable=True)
 
-    # Password version for token invalidation
+    # 密码版本号，用于令牌失效控制
     password_version = Column(Integer, default=0)
 
-    # Indexes
+    # 索引
     __table_args__ = (
         Index('idx_user_username', 'username'),
         Index('idx_user_email', 'email'),
@@ -53,7 +54,7 @@ class User(Base):
         Index('idx_user_is_super_admin', 'is_super_admin'),
     )
 
-    # Relationships
+    # 关联关系
     uploaded_knowledge_bases = relationship(
         "KnowledgeBase",
         back_populates="uploader",
@@ -87,7 +88,7 @@ class User(Base):
 
 
 class KnowledgeBase(Base):
-    """Knowledge base model"""
+    """知识库模型"""
     __tablename__ = "knowledge_bases"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -96,7 +97,7 @@ class KnowledgeBase(Base):
     uploader_id = Column(String, nullable=False)
     copyright_owner = Column(String, nullable=True)
     content = Column(Text, nullable=True)
-    tags = Column(Text, nullable=True)  # Comma-separated
+    tags = Column(Text, nullable=True)  # 逗号分隔
     star_count = Column(Integer, default=0)
     downloads = Column(Integer, default=0)
     base_path = Column(Text, default="[]")
@@ -107,7 +108,7 @@ class KnowledgeBase(Base):
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
-    # Indexes
+    # 索引
     __table_args__ = (
         Index('idx_kb_uploader_id', 'uploader_id'),
         Index('idx_kb_is_public', 'is_public'),
@@ -117,7 +118,7 @@ class KnowledgeBase(Base):
         Index('idx_kb_updated_at', 'updated_at'),
     )
 
-    # Relationships
+    # 关联关系
     uploader = relationship(
         "User",
         back_populates="uploaded_knowledge_bases",
@@ -127,12 +128,13 @@ class KnowledgeBase(Base):
 
 
     def to_dict(self):
-        """Convert model to dictionary"""
         return {
             "id": self.id,
             "name": self.name,
             "description": self.description,
             "uploader_id": self.uploader_id,
+            "author": self.uploader.username if self.uploader else None,
+            "author_id": self.uploader_id,
             "copyright_owner": self.copyright_owner,
             "content": self.content,
             "tags": self.tags,
@@ -150,7 +152,7 @@ class KnowledgeBase(Base):
 
 
 class KnowledgeBaseFile(Base):
-    """Knowledge base file model"""
+    """知识库文件模型"""
     __tablename__ = "knowledge_base_files"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -163,7 +165,7 @@ class KnowledgeBaseFile(Base):
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
-    # Indexes
+    # 索引
     __table_args__ = (
         Index('idx_kb_file_knowledge_base_id', 'knowledge_base_id'),
         Index('idx_kb_file_file_type', 'file_type'),
@@ -174,7 +176,7 @@ class KnowledgeBaseFile(Base):
 
 
 class PersonaCard(Base):
-    """Persona card model"""
+    """人设卡模型"""
     __tablename__ = "persona_cards"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -183,7 +185,7 @@ class PersonaCard(Base):
     uploader_id = Column(String, nullable=False)
     copyright_owner = Column(String, nullable=True)
     content = Column(Text, nullable=True)
-    tags = Column(Text, nullable=True)  # Comma-separated
+    tags = Column(Text, nullable=True)  # 逗号分隔
     star_count = Column(Integer, default=0)
     downloads = Column(Integer, default=0)
     base_path = Column(String, nullable=False)
@@ -194,7 +196,7 @@ class PersonaCard(Base):
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
-    # Indexes
+    # 索引
     __table_args__ = (
         Index('idx_pc_uploader_id', 'uploader_id'),
         Index('idx_pc_is_public', 'is_public'),
@@ -204,7 +206,7 @@ class PersonaCard(Base):
         Index('idx_pc_updated_at', 'updated_at'),
     )
 
-    # Relationships
+    # 关联关系
     uploader = relationship(
         "User",
         back_populates="uploaded_persona_cards",
@@ -214,12 +216,13 @@ class PersonaCard(Base):
 
 
     def to_dict(self):
-        """Convert model to dictionary"""
         return {
             "id": self.id,
             "name": self.name,
             "description": self.description,
             "uploader_id": self.uploader_id,
+            "author": self.uploader.username if self.uploader else None,
+            "author_id": self.uploader_id,
             "copyright_owner": self.copyright_owner,
             "content": self.content,
             "tags": self.tags,
@@ -237,7 +240,7 @@ class PersonaCard(Base):
 
 
 class PersonaCardFile(Base):
-    """Persona card file model"""
+    """人设卡文件模型"""
     __tablename__ = "persona_card_files"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -250,7 +253,7 @@ class PersonaCardFile(Base):
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
-    # Indexes
+    # 索引
     __table_args__ = (
         Index('idx_pc_file_persona_card_id', 'persona_card_id'),
         Index('idx_pc_file_file_type', 'file_type'),
@@ -261,7 +264,7 @@ class PersonaCardFile(Base):
 
 
 class Message(Base):
-    """Message model"""
+    """消息模型"""
     __tablename__ = "messages"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -275,7 +278,7 @@ class Message(Base):
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now)
 
-    # Indexes
+    # 索引
     __table_args__ = (
         Index('idx_message_recipient_id', 'recipient_id'),
         Index('idx_message_sender_id', 'sender_id'),
@@ -284,7 +287,7 @@ class Message(Base):
         Index('idx_message_recipient_read', 'recipient_id', 'is_read'),
     )
 
-    # Relationships
+    # 关联关系
     recipient = relationship(
         "User",
         foreign_keys=[recipient_id],
@@ -298,18 +301,32 @@ class Message(Base):
         primaryjoin="Message.sender_id==User.id",
     )
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "recipient_id": self.recipient_id,
+            "sender_id": self.sender_id,
+            "title": self.title,
+            "content": self.content,
+            "summary": self.summary,
+            "message_type": self.message_type,
+            "broadcast_scope": self.broadcast_scope,
+            "is_read": self.is_read,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
 
 class StarRecord(Base):
-    """Star record model"""
+    """收藏记录模型"""
     __tablename__ = "star_records"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, nullable=False)
     target_id = Column(String, nullable=False)
-    target_type = Column(String, nullable=False)  # "knowledge" or "persona"
+    target_type = Column(String, nullable=False)  # "knowledge" 或 "persona"
     created_at = Column(DateTime, default=datetime.now)
 
-    # Indexes
+    # 索引
     __table_args__ = (
         Index('idx_star_user_id', 'user_id'),
         Index('idx_star_target_id', 'target_id'),
@@ -318,7 +335,7 @@ class StarRecord(Base):
         Index('idx_star_user_target', 'user_id', 'target_id', 'target_type'),
     )
 
-    # Relationships
+    # 关联关系
     user = relationship(
         "User",
         back_populates="star_records",
@@ -328,7 +345,7 @@ class StarRecord(Base):
 
 
 class EmailVerification(Base):
-    """Email verification code model"""
+    """邮箱验证码模型"""
     __tablename__ = "email_verifications"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -338,7 +355,7 @@ class EmailVerification(Base):
     created_at = Column(DateTime, default=datetime.now)
     expires_at = Column(DateTime, nullable=False)
 
-    # Indexes
+    # 索引
     __table_args__ = (
         Index('idx_email_verification_email', 'email'),
         Index('idx_email_verification_code', 'code'),
@@ -347,20 +364,20 @@ class EmailVerification(Base):
 
 
 class UploadRecord(Base):
-    """Upload record model"""
+    """上传记录模型"""
     __tablename__ = "upload_records"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     uploader_id = Column(String, nullable=False)
     target_id = Column(String, nullable=False)
-    target_type = Column(String, nullable=False)  # "knowledge" or "persona"
+    target_type = Column(String, nullable=False)  # "knowledge" 或 "persona"
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
-    status = Column(String, default="pending")  # "pending", "approved", "rejected"
+    status = Column(String, default="pending")  # "pending"、"approved"、"rejected"
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
-    # Indexes
+    # 索引
     __table_args__ = (
         Index('idx_upload_record_uploader_id', 'uploader_id'),
         Index('idx_upload_record_target_id', 'target_id'),
@@ -371,7 +388,7 @@ class UploadRecord(Base):
 
 
 class DownloadRecord(Base):
-    """Download record model"""
+    """下载记录模型"""
     __tablename__ = "download_records"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -387,7 +404,7 @@ class DownloadRecord(Base):
 
 
 class Comment(Base):
-    """Comment model"""
+    """评论模型"""
     __tablename__ = "comments"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -411,13 +428,13 @@ class Comment(Base):
 
 
 class CommentReaction(Base):
-    """Comment reaction model"""
+    """评论反应模型"""
     __tablename__ = "comment_reactions"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, nullable=False)
     comment_id = Column(String, nullable=False)
-    reaction_type = Column(String, nullable=False)  # "like" or "dislike"
+    reaction_type = Column(String, nullable=False)  # "like" 或 "dislike"
     created_at = Column(DateTime, default=datetime.now)
 
     __table_args__ = (

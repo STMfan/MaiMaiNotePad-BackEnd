@@ -1,6 +1,6 @@
-"""用户路由模块 - 处理用户相关的API端点"""
+"""用户路由模块 - 处理用户信息、头像、收藏、上传历史等用户相关的API端点"""
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request, Body, Query
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import os
 import hashlib
 from datetime import datetime
@@ -28,6 +28,9 @@ from sqlalchemy.orm import Session
 
 # 创建路由器
 router = APIRouter()
+
+
+# 用户相关路由（个人信息、头像、收藏、上传历史等）
 
 
 @router.get(
@@ -114,22 +117,23 @@ async def change_password(
             raise NotFoundError("用户不存在")
 
         # 验证当前密码
-        if not user.verify_password(current_password):
+        from app.core.security import verify_password, get_password_hash
+        if not verify_password(current_password, user.hashed_password):
             app_logger.warning(
                 f"Password change failed: wrong current password, user_id={user_id}")
             raise AuthenticationError("当前密码错误")
 
         # 检查新密码是否与当前密码相同
-        if user.verify_password(new_password):
+        if verify_password(new_password, user.hashed_password):
             raise ValidationError("新密码不能与当前密码相同")
 
-        # 更新密码（会自动增加password_version）
-        user.update_password(new_password)
+        # 更新密码（增加password_version）
+        user.hashed_password = get_password_hash(new_password)
+        user.password_version = (user.password_version or 0) + 1
 
         # 保存到数据库
-        user_data = user.to_dict()
-        if not user_service.save_user(user_data):
-            raise DatabaseError("保存密码失败")
+        db.commit()
+        db.refresh(user)
 
         log_database_operation(
             app_logger,
@@ -196,8 +200,10 @@ async def upload_avatar(
         # 更新数据库
         user.avatar_path = file_path
         user.avatar_updated_at = datetime.now()
-        user_data = user.to_dict()
-        if not user_service.save_user(user_data):
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
             # 如果保存失败，删除已上传的文件
             delete_avatar_file(file_path)
             raise DatabaseError("保存头像信息失败")
@@ -253,8 +259,10 @@ async def delete_avatar_endpoint(
         # 更新数据库
         user.avatar_path = None
         user.avatar_updated_at = datetime.now()
-        user_data = user.to_dict()
-        if not user_service.save_user(user_data):
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
             raise DatabaseError("保存头像信息失败")
 
         log_file_operation(
@@ -286,8 +294,7 @@ async def get_user_avatar(
 ):
     """获取用户头像（如果不存在则生成首字母头像）"""
     try:
-        from fastapi.responses import Response
-        from app.static_routes import static_file_security
+        from fastapi.responses import Response, FileResponse
 
         user_service = UserService(db)
         user = user_service.get_user_by_id(user_id)
@@ -295,11 +302,7 @@ async def get_user_avatar(
             raise NotFoundError("用户不存在")
 
         if user.avatar_path and os.path.exists(user.avatar_path):
-            avatar_path = user.avatar_path
-            prefix = "uploads/avatars/"
-            if avatar_path.startswith(prefix):
-                avatar_path = avatar_path[len(prefix):]
-            return static_file_security.serve_avatar(avatar_path)
+            return FileResponse(user.avatar_path)
 
         username = user.username or "?"
         avatar_bytes = generate_initial_avatar(username, size)
@@ -310,8 +313,10 @@ async def get_user_avatar(
 
         user.avatar_path = file_path
         user.avatar_updated_at = datetime.now()
-        user_data = user.to_dict()
-        if not user_service.save_user(user_data):
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
             delete_avatar_file(file_path)
             raise DatabaseError("保存头像信息失败")
 
@@ -492,13 +497,14 @@ async def get_user_stars(
 async def get_my_upload_history(
     page: int = Query(1, description="页码，从1开始"),
     page_size: int = Query(20, description="每页条数，最大100"),
+    status: Optional[str] = Query(None, description="状态过滤：approved, rejected, pending"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """获取当前用户的个人上传历史记录（分页）"""
     try:
         user_id = current_user.get("id", "")
-        app_logger.info(f"Get user upload history: user_id={user_id}, page={page}, page_size={page_size}")
+        app_logger.info(f"Get user upload history: user_id={user_id}, page={page}, page_size={page_size}, status={status}")
 
         # 限制参数范围
         if page_size < 1 or page_size > 100:
@@ -508,7 +514,7 @@ async def get_my_upload_history(
 
         user_service = UserService(db)
         upload_records = user_service.get_upload_records_by_uploader(
-            user_id, page=page, page_size=page_size)
+            user_id, page=page, page_size=page_size, status=status)
 
         # 构建返回数据
         history_list = []
@@ -558,7 +564,7 @@ async def get_my_upload_history(
             })
 
         # 获取总数量
-        total_count = user_service.get_upload_records_count_by_uploader(user_id)
+        total_count = user_service.get_upload_records_count_by_uploader(user_id, status=status)
 
         log_database_operation(
             app_logger,

@@ -1,6 +1,7 @@
 """
-Persona card service module
-Contains business logic for persona card management
+人设卡服务模块
+
+包含人设卡管理相关的业务逻辑，包括增删改查、审核、收藏和下载功能。
 """
 
 import logging
@@ -15,49 +16,49 @@ logger = logging.getLogger(__name__)
 
 class PersonaService:
     """
-    Service class for persona card management operations.
-    Handles persona card CRUD operations, approval, star, and download functionality.
+    人设卡管理服务类。
+    处理人设卡的增删改查、审核、收藏和下载功能。
     """
 
     def __init__(self, db: Session):
         """
-        Initialize PersonaService with database session.
+        初始化人设卡服务。
         
         Args:
-            db: SQLAlchemy database session
+            db: SQLAlchemy 数据库会话
         """
         self.db = db
 
     def get_persona_card_by_id(self, pc_id: str, include_files: bool = False) -> Optional[PersonaCard]:
         """
-        Get persona card by ID.
+        根据 ID 获取人设卡。
         
         Args:
-            pc_id: Persona card ID
-            include_files: Whether to include file information
+            pc_id: 人设卡 ID
+            include_files: 是否包含文件信息
             
         Returns:
-            PersonaCard object if found, None otherwise
+            找到返回人设卡对象，否则返回 None
         """
         try:
             pc = self.db.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
             return pc
         except Exception as e:
-            logger.error(f'Error getting persona card by ID {pc_id}: {str(e)}')
+            logger.error(f'获取人设卡失败 ID={pc_id}: {str(e)}')
             return None
 
     def get_all_persona_cards(self) -> List[PersonaCard]:
         """
-        Get all persona cards.
+        获取所有人设卡。
         
         Returns:
-            List of PersonaCard objects
+            人设卡对象列表
         """
         try:
             pcs = self.db.query(PersonaCard).all()
             return pcs
         except Exception as e:
-            logger.error(f'Error getting all persona cards: {str(e)}')
+            logger.error(f'获取所有人设卡失败: {str(e)}')
             return []
 
     def get_public_persona_cards(
@@ -70,18 +71,18 @@ class PersonaService:
         sort_order: str = "desc"
     ) -> Tuple[List[PersonaCard], int]:
         """
-        Get public persona cards with pagination, search, and sorting.
+        获取公开人设卡列表，支持分页、搜索和排序。
         
         Args:
-            page: Page number (1-indexed)
-            page_size: Number of items per page
-            name: Search by name (optional)
-            uploader_id: Filter by uploader ID (optional)
-            sort_by: Sort field (created_at, updated_at, star_count)
-            sort_order: Sort order (asc, desc)
+            page: 页码（从 1 开始）
+            page_size: 每页数量
+            name: 按名称搜索（可选）
+            uploader_id: 按上传者 ID 筛选（可选）
+            sort_by: 排序字段（created_at、updated_at、star_count）
+            sort_order: 排序方向（asc、desc）
             
         Returns:
-            Tuple of (list of PersonaCard objects, total count)
+            (人设卡列表, 总数) 元组
         """
         try:
             query = self.db.query(PersonaCard).filter(
@@ -89,17 +90,14 @@ class PersonaService:
                 PersonaCard.is_pending == False
             )
 
-            # Apply filters
             if name:
                 query = query.filter(PersonaCard.name.ilike(f"%{name}%"))
             
             if uploader_id:
                 query = query.filter(PersonaCard.uploader_id == uploader_id)
 
-            # Get total count before pagination
             total = query.count()
 
-            # Apply sorting
             sort_field_map = {
                 "created_at": PersonaCard.created_at,
                 "updated_at": PersonaCard.updated_at,
@@ -112,13 +110,12 @@ class PersonaService:
             else:
                 query = query.order_by(sort_field.desc())
 
-            # Apply pagination
             offset = (page - 1) * page_size
             pcs = query.offset(offset).limit(page_size).all()
 
             return pcs, total
         except Exception as e:
-            logger.error(f'Error getting public persona cards: {str(e)}')
+            logger.error(f'获取公开人设卡列表失败: {str(e)}')
             return [], 0
 
     def get_user_persona_cards(
@@ -133,27 +130,26 @@ class PersonaService:
         sort_order: str = "desc"
     ) -> Tuple[List[PersonaCard], int]:
         """
-        Get persona cards uploaded by a specific user.
+        获取指定用户上传的人设卡列表。
         
         Args:
-            user_id: User ID
-            page: Page number (1-indexed)
-            page_size: Number of items per page
-            name: Search by name (optional)
-            tag: Search by tag (optional)
-            status: Status filter (all/pending/approved/rejected)
-            sort_by: Sort field (created_at/updated_at/name/downloads/star_count)
-            sort_order: Sort order (asc/desc)
+            user_id: 用户 ID
+            page: 页码（从 1 开始）
+            page_size: 每页数量
+            name: 按名称搜索（可选）
+            tag: 按标签搜索（可选）
+            status: 状态筛选（all/pending/approved/rejected）
+            sort_by: 排序字段（created_at/updated_at/name/downloads/star_count）
+            sort_order: 排序方向（asc/desc）
             
         Returns:
-            Tuple of (list of PersonaCard objects, total count)
+            (人设卡列表, 总数) 元组
         """
         try:
             pcs = self.db.query(PersonaCard).filter(
                 PersonaCard.uploader_id == user_id
             ).all()
 
-            # Filter by status
             def match_status(pc):
                 if status == "pending":
                     return pc.is_pending
@@ -163,7 +159,6 @@ class PersonaService:
                     return not pc.is_pending and (not pc.is_public)
                 return True
 
-            # Apply filters
             filtered = []
             for pc in pcs:
                 if name and name.lower() not in pc.name.lower():
@@ -178,7 +173,6 @@ class PersonaService:
                     continue
                 filtered.append(pc)
 
-            # Sort
             sort_field_map = {
                 "created_at": lambda pc: pc.created_at,
                 "updated_at": lambda pc: pc.updated_at,
@@ -197,24 +191,23 @@ class PersonaService:
 
             return page_items, total
         except Exception as e:
-            logger.error(f'Error getting user persona cards for user {user_id}: {str(e)}')
+            logger.error(f'获取用户 {user_id} 的人设卡列表失败: {str(e)}')
             return [], 0
 
     def save_persona_card(self, pc_data: Dict[str, Any]) -> Optional[PersonaCard]:
         """
-        Save or update persona card.
+        保存或更新人设卡。
         
         Args:
-            pc_data: Dictionary containing persona card data
+            pc_data: 人设卡数据字典
             
         Returns:
-            PersonaCard object if successful, None otherwise
+            成功返回人设卡对象，否则返回 None
         """
         try:
             pc_id = pc_data.get("id")
             
             if pc_id:
-                # Update existing persona card
                 pc = self.get_persona_card_by_id(pc_id)
                 if not pc:
                     return None
@@ -223,18 +216,17 @@ class PersonaService:
                     if hasattr(pc, key) and key not in ["id", "created_at"]:
                         setattr(pc, key, value)
             else:
-                # Create new persona card
                 pc = PersonaCard(**pc_data)
                 self.db.add(pc)
             
             self.db.commit()
             self.db.refresh(pc)
             
-            logger.info(f'Persona card saved: pc_id={pc.id}')
+            logger.info(f'人设卡已保存: pc_id={pc.id}')
             return pc
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error saving persona card: {str(e)}')
+            logger.error(f'保存人设卡失败: {str(e)}')
             return None
 
     def update_persona_card(
@@ -246,71 +238,65 @@ class PersonaService:
         is_moderator: bool = False
     ) -> Tuple[bool, str, Optional[PersonaCard]]:
         """
-        Update persona card information.
+        更新人设卡信息。
         
         Args:
-            pc_id: Persona card ID
-            update_data: Dictionary of fields to update
-            user_id: User ID making the update
-            is_admin: Whether user is admin
-            is_moderator: Whether user is moderator
+            pc_id: 人设卡 ID
+            update_data: 要更新的字段字典
+            user_id: 操作用户 ID
+            is_admin: 是否为管理员
+            is_moderator: 是否为审核员
             
         Returns:
-            Tuple of (success: bool, message: str, pc: Optional[PersonaCard])
+            (是否成功, 提示消息, 人设卡对象) 元组
         """
         try:
             pc = self.get_persona_card_by_id(pc_id)
             if not pc:
                 return False, "人设卡不存在", None
 
-            # Check permissions
             if pc.uploader_id != user_id and not is_admin and not is_moderator:
                 return False, "没有权限修改此人设卡", None
 
-            # Restrict updates for public or pending persona cards
             if pc.is_public or pc.is_pending:
                 allowed_fields = {"content"}
                 disallowed_fields = [key for key in update_data.keys() if key not in allowed_fields]
                 if disallowed_fields:
                     return False, "公开或审核中的人设卡仅允许修改补充说明", None
 
-            # Remove protected fields
             update_data.pop("copyright_owner", None)
             update_data.pop("name", None)
 
-            # Check is_public permission
             if not (pc.is_public or pc.is_pending):
                 if "is_public" in update_data and not (is_admin or is_moderator):
                     return False, "只有管理员可以直接修改公开状态", None
 
-            # Apply updates
             for key, value in update_data.items():
                 if hasattr(pc, key):
                     setattr(pc, key, value)
 
-            # Update timestamp if non-content fields changed
             if any(field != "content" for field in update_data.keys()):
                 pc.updated_at = datetime.now()
 
             self.db.commit()
             self.db.refresh(pc)
 
-            logger.info(f'Persona card updated: pc_id={pc_id}, user_id={user_id}')
+            logger.info(f'人设卡已更新: pc_id={pc_id}, user_id={user_id}')
             return True, "人设卡更新成功", pc
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error updating persona card {pc_id}: {str(e)}')
+            logger.error(f'更新人设卡 {pc_id} 失败: {str(e)}')
             return False, "修改人设卡失败", None
 
     def delete_persona_card(self, pc_id: str) -> bool:
         """
-        Delete persona card from database.
+        从数据库删除人设卡。
         
         Args:
-            pc_id: Persona card ID
+            pc_id: 人设卡 ID
             
         Returns:
-            True if successful, False otherwise
+            成功返回 True，否则返回 False
         """
         try:
             pc = self.get_persona_card_by_id(pc_id)
@@ -320,23 +306,23 @@ class PersonaService:
             self.db.delete(pc)
             self.db.commit()
 
-            logger.info(f'Persona card deleted: pc_id={pc_id}')
+            logger.info(f'人设卡已删除: pc_id={pc_id}')
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error deleting persona card {pc_id}: {str(e)}')
+            logger.error(f'删除人设卡 {pc_id} 失败: {str(e)}')
             return False
 
     def is_starred(self, user_id: str, pc_id: str) -> bool:
         """
-        Check if persona card is starred by user.
+        检查用户是否已收藏该人设卡。
         
         Args:
-            user_id: User ID
-            pc_id: Persona card ID
+            user_id: 用户 ID
+            pc_id: 人设卡 ID
             
         Returns:
-            True if starred, False otherwise
+            已收藏返回 True，否则返回 False
         """
         try:
             from app.models.database import StarRecord
@@ -347,22 +333,21 @@ class PersonaService:
             ).first()
             return record is not None
         except Exception as e:
-            logger.error(f'Error checking star status: {str(e)}')
+            logger.error(f'检查收藏状态失败: {str(e)}')
             return False
 
     def add_star(self, user_id: str, pc_id: str) -> bool:
         """
-        Add star to persona card.
+        收藏人设卡。
         
         Args:
-            user_id: User ID
-            pc_id: Persona card ID
+            user_id: 用户 ID
+            pc_id: 人设卡 ID
             
         Returns:
-            True if successful, False if already starred
+            成功返回 True，已收藏返回 False
         """
         try:
-            # Check if already starred
             if self.is_starred(user_id, pc_id):
                 return False
 
@@ -378,30 +363,29 @@ class PersonaService:
             )
             self.db.add(star)
 
-            # Increment star count
             pc = self.get_persona_card_by_id(pc_id)
             if pc:
                 pc.star_count = (pc.star_count or 0) + 1
 
             self.db.commit()
 
-            logger.info(f'Star added: user_id={user_id}, pc_id={pc_id}')
+            logger.info(f'已收藏: user_id={user_id}, pc_id={pc_id}')
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error adding star: {str(e)}')
+            logger.error(f'收藏人设卡失败: {str(e)}')
             return False
 
     def remove_star(self, user_id: str, pc_id: str) -> bool:
         """
-        Remove star from persona card.
+        取消收藏人设卡。
         
         Args:
-            user_id: User ID
-            pc_id: Persona card ID
+            user_id: 用户 ID
+            pc_id: 人设卡 ID
             
         Returns:
-            True if successful, False if not starred
+            成功返回 True，未收藏返回 False
         """
         try:
             from app.models.database import StarRecord
@@ -417,29 +401,28 @@ class PersonaService:
 
             self.db.delete(star)
 
-            # Decrement star count
             pc = self.get_persona_card_by_id(pc_id)
             if pc and pc.star_count > 0:
                 pc.star_count = pc.star_count - 1
 
             self.db.commit()
 
-            logger.info(f'Star removed: user_id={user_id}, pc_id={pc_id}')
+            logger.info(f'已取消收藏: user_id={user_id}, pc_id={pc_id}')
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error removing star: {str(e)}')
+            logger.error(f'取消收藏人设卡失败: {str(e)}')
             return False
 
     def increment_downloads(self, pc_id: str) -> bool:
         """
-        Increment download count for persona card.
+        递增人设卡下载次数。
         
         Args:
-            pc_id: Persona card ID
+            pc_id: 人设卡 ID
             
         Returns:
-            True if successful, False otherwise
+            成功返回 True，否则返回 False
         """
         try:
             pc = self.get_persona_card_by_id(pc_id)
@@ -449,22 +432,22 @@ class PersonaService:
             pc.downloads = (pc.downloads or 0) + 1
             self.db.commit()
 
-            logger.info(f'Download count incremented: pc_id={pc_id}, count={pc.downloads}')
+            logger.info(f'下载次数已递增: pc_id={pc_id}, count={pc.downloads}')
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error incrementing downloads for {pc_id}: {str(e)}')
+            logger.error(f'递增人设卡 {pc_id} 下载次数失败: {str(e)}')
             return False
 
     def get_files_by_persona_card_id(self, pc_id: str) -> List[PersonaCardFile]:
         """
-        Get all files for a persona card.
+        获取人设卡的所有文件。
         
         Args:
-            pc_id: Persona card ID
+            pc_id: 人设卡 ID
             
         Returns:
-            List of PersonaCardFile objects
+            人设卡文件对象列表
         """
         try:
             files = self.db.query(PersonaCardFile).filter(
@@ -472,18 +455,18 @@ class PersonaService:
             ).all()
             return files
         except Exception as e:
-            logger.error(f'Error getting files for persona card {pc_id}: {str(e)}')
+            logger.error(f'获取人设卡 {pc_id} 的文件列表失败: {str(e)}')
             return []
 
     def delete_files_by_persona_card_id(self, pc_id: str) -> bool:
         """
-        Delete all files for a persona card.
+        删除人设卡的所有文件记录。
         
         Args:
-            pc_id: Persona card ID
+            pc_id: 人设卡 ID
             
         Returns:
-            True if successful, False otherwise
+            成功返回 True，否则返回 False
         """
         try:
             self.db.query(PersonaCardFile).filter(
@@ -491,11 +474,11 @@ class PersonaService:
             ).delete()
             self.db.commit()
 
-            logger.info(f'Files deleted for persona card: pc_id={pc_id}')
+            logger.info(f'人设卡文件已删除: pc_id={pc_id}')
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error deleting files for persona card {pc_id}: {str(e)}')
+            logger.error(f'删除人设卡 {pc_id} 的文件失败: {str(e)}')
             return False
 
     def create_upload_record(
@@ -507,17 +490,17 @@ class PersonaService:
         status: str = "success"
     ) -> Optional[str]:
         """
-        Create upload record for persona card.
+        创建人设卡上传记录。
         
         Args:
-            uploader_id: Uploader user ID
-            target_id: Persona card ID
-            name: Persona card name
-            description: Persona card description
-            status: Upload status (success/pending)
+            uploader_id: 上传者用户 ID
+            target_id: 人设卡 ID
+            name: 人设卡名称
+            description: 人设卡描述
+            status: 上传状态（success/pending）
             
         Returns:
-            Upload record ID if successful, None otherwise
+            成功返回上传记录 ID，否则返回 None
         """
         try:
             import uuid
@@ -535,22 +518,22 @@ class PersonaService:
             self.db.add(record)
             self.db.commit()
 
-            logger.info(f'Upload record created: target_id={target_id}, status={status}')
+            logger.info(f'上传记录已创建: target_id={target_id}, status={status}')
             return record.id
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error creating upload record: {str(e)}')
+            logger.error(f'创建上传记录失败: {str(e)}')
             return None
 
     def delete_upload_records_by_target(self, target_id: str) -> bool:
         """
-        Delete upload records for a persona card.
+        删除人设卡的上传记录。
         
         Args:
-            target_id: Persona card ID
+            target_id: 人设卡 ID
             
         Returns:
-            True if successful, False otherwise
+            成功返回 True，否则返回 False
         """
         try:
             self.db.query(UploadRecord).filter(
@@ -559,36 +542,34 @@ class PersonaService:
             ).delete()
             self.db.commit()
 
-            logger.info(f'Upload records deleted: target_id={target_id}')
+            logger.info(f'上传记录已删除: target_id={target_id}')
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error deleting upload records for {target_id}: {str(e)}')
+            logger.error(f'删除上传记录失败 {target_id}: {str(e)}')
             return False
 
     def resolve_uploader_id(self, uploader_identifier: str) -> Optional[str]:
         """
-        Resolve uploader identifier to user ID.
-        Accepts either user ID or username.
+        将上传者标识解析为用户 ID。
+        支持用户 ID 或用户名。
         
         Args:
-            uploader_identifier: User ID or username
+            uploader_identifier: 用户 ID 或用户名
             
         Returns:
-            User ID if found, None otherwise
+            找到返回用户 ID，否则返回 None
         """
         try:
-            # Try to find by ID first
             user = self.db.query(User).filter(User.id == uploader_identifier).first()
             if user:
                 return user.id
             
-            # Try to find by username
             user = self.db.query(User).filter(User.username == uploader_identifier).first()
             if user:
                 return user.id
             
             return None
         except Exception as e:
-            logger.error(f'Error resolving uploader identifier {uploader_identifier}: {str(e)}')
+            logger.error(f'解析上传者标识失败 {uploader_identifier}: {str(e)}')
             return None

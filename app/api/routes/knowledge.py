@@ -1,3 +1,15 @@
+"""
+知识库路由模块
+
+处理知识库相关的API端点，包括：
+- 上传知识库
+- 查询知识库（公开、个人、详情）
+- 编辑知识库
+- 删除知识库
+- 收藏/取消收藏知识库
+- 下载知识库
+"""
+
 import os
 from datetime import datetime
 from typing import List, Optional
@@ -26,13 +38,17 @@ from app.services.file_service import FileService, FileValidationError, FileData
 router = APIRouter()
 
 
+# 知识库相关路由（上传、查询、编辑、删除等）
+
+
 def kb_to_dict(kb) -> dict:
-    """Convert KnowledgeBase model to dict"""
     return {
         "id": kb.id,
         "name": kb.name,
         "description": kb.description,
         "uploader_id": kb.uploader_id,
+        "author": getattr(kb, "uploader", None).username if getattr(kb, "uploader", None) else None,
+        "author_id": kb.uploader_id,
         "copyright_owner": kb.copyright_owner,
         "content": kb.content,
         "tags": kb.tags,
@@ -229,13 +245,11 @@ async def get_knowledge_base(kb_id: str, db: Session = Depends(get_db)):
         if not kb:
             raise NotFoundError("知识库不存在")
 
-        # Build response with files if needed
         kb_dict = kb_to_dict(kb)
         
-        # Get files for this knowledge base
         files = knowledge_service.get_files_by_knowledge_base_id(kb_id)
         kb_dict["files"] = [{
-            "id": f.id,
+            "file_id": f.id,
             "file_name": f.file_name,
             "original_name": f.original_name,
             "file_type": f.file_type,

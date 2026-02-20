@@ -48,24 +48,27 @@ api_router.include_router(
     tags=["auth"]
 )
 
+#
 # 知识库路由
 api_router.include_router(
     knowledge.router,
     prefix="/knowledge",
     tags=["knowledge"]
 )
-
+#
 # 人设卡路由
+# persona 路由自身已包含 /persona 前缀，这里不再额外加一级
 api_router.include_router(
     persona.router,
-    prefix="/persona",
+    prefix="",
     tags=["persona"]
 )
-
+#
 # 消息路由
+# messages 路由自身已包含 /messages 与 /admin/broadcast-messages 等前缀，这里使用空前缀
 api_router.include_router(
     messages.router,
-    prefix="/messages",
+    prefix="",
     tags=["messages"]
 )
 
@@ -76,24 +79,28 @@ api_router.include_router(
     tags=["admin"]
 )
 
+#
 # 审核路由
+# review 路由内部已包含 /review 前缀，这里不再重复添加
 api_router.include_router(
     review.router,
-    prefix="/review",
+    prefix="",
     tags=["review"]
 )
 
+#
 # 字典路由
 api_router.include_router(
     dictionary.router,
     prefix="/dictionary",
     tags=["dictionary"]
 )
-
+#
 # 评论路由
+# comments 路由本身已定义 /comments 前缀，这里使用空前缀
 api_router.include_router(
     comments.router,
-    prefix="/comments",
+    prefix="",
     tags=["comments"]
 )
 

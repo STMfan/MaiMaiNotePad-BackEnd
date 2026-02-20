@@ -147,9 +147,11 @@ class TestDataFactory:
         if knowledge_base is None:
             knowledge_base = self.create_knowledge_base()
         
+        file_name = f"test_file_{uuid.uuid4().hex[:8]}.txt"
         defaults = {
             "knowledge_base_id": knowledge_base.id,
-            "file_name": f"test_file_{uuid.uuid4().hex[:8]}.txt",
+            "file_name": file_name,
+            "original_name": kwargs.get("original_name", file_name),  # Add original_name
             "file_path": f"/tmp/kb_file_{uuid.uuid4().hex[:8]}.txt",
             "file_size": 1024,
             "file_type": "text/plain"
@@ -167,9 +169,11 @@ class TestDataFactory:
         if persona_card is None:
             persona_card = self.create_persona_card()
         
+        file_name = f"test_file_{uuid.uuid4().hex[:8]}.txt"
         defaults = {
             "persona_card_id": persona_card.id,
-            "file_name": f"test_file_{uuid.uuid4().hex[:8]}.txt",
+            "file_name": file_name,
+            "original_name": kwargs.get("original_name", file_name),  # Add original_name
             "file_path": f"/tmp/pc_file_{uuid.uuid4().hex[:8]}.txt",
             "file_size": 1024,
             "file_type": "text/plain"

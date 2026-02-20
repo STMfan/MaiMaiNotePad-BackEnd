@@ -1,6 +1,6 @@
 """
-User service module
-Contains business logic for user management
+用户服务模块
+包含用户管理相关的业务逻辑
 """
 
 import os
@@ -18,28 +18,28 @@ logger = logging.getLogger(__name__)
 
 class UserService:
     """
-    Service class for user management operations.
-    Handles user CRUD operations and authentication logic.
+    用户管理服务类。
+    处理用户的增删改查操作和认证逻辑。
     """
 
     def __init__(self, db: Session):
         """
-        Initialize UserService with database session.
+        初始化用户服务。
         
         Args:
-            db: SQLAlchemy database session
+            db: SQLAlchemy 数据库会话
         """
         self.db = db
 
     def get_user_by_id(self, user_id: str) -> Optional[User]:
         """
-        Get user by ID.
+        根据 ID 获取用户。
         
         Args:
-            user_id: User ID
+            user_id: 用户 ID
             
         Returns:
-            User object if found, None otherwise
+            找到返回用户对象，否则返回 None
         """
         try:
             return self.db.query(User).filter(User.id == user_id).first()
@@ -49,13 +49,13 @@ class UserService:
 
     def get_user_by_username(self, username: str) -> Optional[User]:
         """
-        Get user by username.
+        根据用户名获取用户。
         
         Args:
-            username: Username
+            username: 用户名
             
         Returns:
-            User object if found, None otherwise
+            找到返回用户对象，否则返回 None
         """
         try:
             return self.db.query(User).filter(User.username == username).first()
@@ -65,13 +65,13 @@ class UserService:
 
     def get_user_by_email(self, email: str) -> Optional[User]:
         """
-        Get user by email.
+        根据邮箱获取用户。
         
         Args:
-            email: Email address (will be converted to lowercase)
+            email: 邮箱地址（会自动转为小写）
             
         Returns:
-            User object if found, None otherwise
+            找到返回用户对象，否则返回 None
         """
         try:
             email_lower = email.lower() if email else ""
@@ -82,10 +82,10 @@ class UserService:
 
     def get_all_users(self) -> List[User]:
         """
-        Get all users from database.
+        获取数据库中所有用户。
         
         Returns:
-            List of User objects
+            用户对象列表
         """
         try:
             return self.db.query(User).all()
@@ -103,35 +103,35 @@ class UserService:
         is_super_admin: bool = False
     ) -> Optional[User]:
         """
-        Create a new user.
+        创建新用户。
         
         Args:
-            username: Username
-            email: Email address
-            password: Plain text password
-            is_admin: Whether user is admin
-            is_moderator: Whether user is moderator
-            is_super_admin: Whether user is super admin
+            username: 用户名
+            email: 邮箱地址
+            password: 明文密码
+            is_admin: 是否为管理员
+            is_moderator: 是否为审核员
+            is_super_admin: 是否为超级管理员
             
         Returns:
-            Created User object if successful, None otherwise
+            成功返回创建的用户对象，否则返回 None
         """
         try:
-            # Check if username already exists
+            # 检查用户名是否已存在
             if self.get_user_by_username(username):
                 logger.warning(f'Username {username} already exists')
                 return None
 
-            # Check if email already exists
+            # 检查邮箱是否已存在
             email_lower = email.lower() if email else ""
             if self.get_user_by_email(email_lower):
                 logger.warning(f'Email {email_lower} already exists')
                 return None
 
-            # Ensure password doesn't exceed 72 bytes (bcrypt limitation)
+            # 确保密码不超过 72 字节（bcrypt 限制）
             password = password[:72]
 
-            # Create new user
+            # 创建新用户
             new_user = User(
                 id=str(uuid.uuid4()),
                 username=username,
@@ -163,15 +163,15 @@ class UserService:
         email: Optional[str] = None
     ) -> Optional[User]:
         """
-        Update user information.
+        更新用户信息。
         
         Args:
-            user_id: User ID
-            username: New username (optional)
-            email: New email (optional)
+            user_id: 用户 ID
+            username: 新用户名（可选）
+            email: 新邮箱（可选）
             
         Returns:
-            Updated User object if successful, None otherwise
+            成功返回更新后的用户对象，否则返回 None
         """
         try:
             user = self.get_user_by_id(user_id)
@@ -179,24 +179,24 @@ class UserService:
                 logger.warning(f'User {user_id} not found')
                 return None
 
-            # Check if super admin username change is attempted
+            # 检查是否尝试修改超级管理员用户名
             if username and username != user.username and user.is_super_admin:
                 logger.warning(f'Super admin username change attempted and blocked: {user.username} -> {username}')
                 raise ValueError("不能修改超级管理员用户名")
 
-            # Update username if provided
+            # 如果提供了新用户名则更新
             if username and username != user.username:
-                # Check if new username already exists
+                # 检查新用户名是否已存在
                 existing = self.get_user_by_username(username)
                 if existing and existing.id != user_id:
                     logger.warning(f'Username {username} already exists')
                     return None
                 user.username = username
 
-            # Update email if provided
+            # 如果提供了新邮箱则更新
             if email and email != user.email:
                 email_lower = email.lower()
-                # Check if new email already exists
+                # 检查新邮箱是否已存在
                 existing = self.get_user_by_email(email_lower)
                 if existing and existing.id != user_id:
                     logger.warning(f'Email {email_lower} already exists')
@@ -220,15 +220,15 @@ class UserService:
         new_password: str
     ) -> bool:
         """
-        Update user password.
+        更新用户密码。
         
         Args:
-            user_id: User ID
-            old_password: Current password
-            new_password: New password
+            user_id: 用户 ID
+            old_password: 当前密码
+            new_password: 新密码
             
         Returns:
-            True if successful, False otherwise
+            成功返回 True，否则返回 False
         """
         try:
             user = self.get_user_by_id(user_id)
@@ -236,17 +236,17 @@ class UserService:
                 logger.warning(f'User {user_id} not found')
                 return False
 
-            # Verify old password
+            # 验证旧密码
             if not verify_password(old_password, user.hashed_password):
                 logger.warning(f'User {user.username} tried to update password but old password verification failed')
                 return False
 
-            # Ensure new password doesn't exceed 72 bytes (bcrypt limitation)
+            # 确保新密码不超过 72 字节（bcrypt 限制）
             new_password = new_password[:72]
 
-            # Update password
+            # 更新密码
             user.hashed_password = get_password_hash(new_password)
-            # Increment password version to invalidate existing tokens
+            # 递增密码版本号以使现有令牌失效
             user.password_version = (user.password_version or 0) + 1
 
             self.db.commit()
@@ -265,15 +265,15 @@ class UserService:
         is_moderator: Optional[bool] = None
     ) -> Optional[User]:
         """
-        Update user role.
+        更新用户角色。
         
         Args:
-            user_id: User ID
-            is_admin: Whether user is admin (optional)
-            is_moderator: Whether user is moderator (optional)
+            user_id: 用户 ID
+            is_admin: 是否为管理员（可选）
+            is_moderator: 是否为审核员（可选）
             
         Returns:
-            Updated User object if successful, None otherwise
+            成功返回更新后的用户对象，否则返回 None
         """
         try:
             user = self.get_user_by_id(user_id)
@@ -298,39 +298,39 @@ class UserService:
 
     def verify_credentials(self, username: str, password: str) -> Optional[User]:
         """
-        Verify user credentials (with timing attack protection).
+        验证用户凭证（带计时攻击防护）。
         
         Args:
-            username: Username
-            password: Plain text password
+            username: 用户名
+            password: 明文密码
             
         Returns:
-            User object if credentials are valid, None otherwise
+            凭证有效返回用户对象，否则返回 None
         """
         import time
         try:
             user = self.get_user_by_username(username)
 
-            # Use dummy hash verification if user doesn't exist (prevent timing attacks)
+            # 如果用户不存在，使用虚拟哈希验证（防止计时攻击）
             if not user:
                 dummy_hash = "$2b$12$dummy.hash.for.timing.attack.prevention.abcdefghijklmnopqrstuv"
                 try:
                     verify_password(password, dummy_hash)
                 except:
                     pass
-                # Add random delay to further obscure timing differences
+                # 添加随机延迟以进一步模糊时间差异
                 time.sleep(0.1)
                 return None
 
-            # Verify real password
+            # 验证真实密码
             if verify_password(password, user.hashed_password):
-                # Login successful, reset failed login count
+                # 登录成功，重置失败次数
                 self.reset_failed_login(user.id)
                 return user
 
-            # Password incorrect, add delay
+            # 密码错误，添加延迟
             time.sleep(0.1)
-            # Increment failed login count
+            # 递增登录失败次数
             self.increment_failed_login(user.id)
             return None
         except Exception as e:
@@ -339,13 +339,13 @@ class UserService:
 
     def check_account_lock(self, user_id: str) -> bool:
         """
-        Check if account is locked.
+        检查账户是否被锁定。
         
         Args:
-            user_id: User ID
+            user_id: 用户 ID
             
         Returns:
-            True if account is not locked, False if locked
+            账户未锁定返回 True，已锁定返回 False
         """
         try:
             user = self.get_user_by_id(user_id)
@@ -362,10 +362,10 @@ class UserService:
 
     def increment_failed_login(self, user_id: str) -> None:
         """
-        Increment failed login attempts and possibly lock account.
+        递增登录失败次数，可能锁定账户。
         
         Args:
-            user_id: User ID
+            user_id: 用户 ID
         """
         try:
             user = self.get_user_by_id(user_id)
@@ -375,7 +375,7 @@ class UserService:
             user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
             user.last_failed_login = datetime.now()
 
-            # Lock account for 30 minutes after 5 failed attempts
+            # 5 次失败后锁定账户 30 分钟
             if user.failed_login_attempts >= 5:
                 user.locked_until = datetime.now() + timedelta(minutes=30)
                 logger.warning(f'Account locked: username={user.username}, attempts={user.failed_login_attempts}')
@@ -387,10 +387,10 @@ class UserService:
 
     def reset_failed_login(self, user_id: str) -> None:
         """
-        Reset failed login attempts.
+        重置登录失败次数。
         
         Args:
-            user_id: User ID
+            user_id: 用户 ID
         """
         try:
             user = self.get_user_by_id(user_id)
@@ -407,21 +407,21 @@ class UserService:
 
     def ensure_super_admin_exists(self) -> None:
         """
-        Ensure default super admin account exists.
-        Creates super admin if it doesn't exist.
+        确保默认超级管理员账户存在。
+        如果不存在则创建。
         """
         try:
-            # Check if super admin exists
+            # 检查超级管理员是否存在
             super_admin = self.db.query(User).filter(User.is_super_admin == True).first()
             if super_admin:
                 return
 
-            # Create super admin
+            # 创建超级管理员
             super_username = os.getenv('SUPERADMIN_USERNAME', 'superadmin')
             super_pwd = os.getenv('SUPERADMIN_PWD', 'admin123456')
             external_domain = os.getenv('EXTERNAL_DOMAIN', 'example.com')
 
-            super_pwd = super_pwd[:72]  # bcrypt limitation
+            super_pwd = super_pwd[:72]  # bcrypt 限制
 
             super_admin = User(
                 id=str(uuid.uuid4()),
@@ -446,17 +446,17 @@ class UserService:
 
     def promote_to_admin(self, user_id: str, highest_pwd: str) -> bool:
         """
-        Promote user to admin role.
+        将用户提升为管理员角色。
         
         Args:
-            user_id: User ID
-            highest_pwd: Highest password for verification
+            user_id: 用户 ID
+            highest_pwd: 最高权限密码用于验证
             
         Returns:
-            True if successful, False otherwise
+            成功返回 True，否则返回 False
         """
         try:
-            # Verify highest password
+            # 验证最高权限密码
             highest_password_hash = get_password_hash(os.getenv('HIGHEST_PASSWORD', ''))
             if not verify_password(highest_pwd, highest_password_hash):
                 logger.error(f'User {user_id} tried to become admin but highest password verification failed')
@@ -478,17 +478,17 @@ class UserService:
 
     def promote_to_moderator(self, user_id: str, highest_pwd: str) -> bool:
         """
-        Promote user to moderator role.
+        将用户提升为审核员角色。
         
         Args:
-            user_id: User ID
-            highest_pwd: Highest password for verification
+            user_id: 用户 ID
+            highest_pwd: 最高权限密码用于验证
             
         Returns:
-            True if successful, False otherwise
+            成功返回 True，否则返回 False
         """
         try:
-            # Verify highest password
+            # 验证最高权限密码
             highest_password_hash = get_password_hash(os.getenv('HIGHEST_PASSWORD', ''))
             if not verify_password(highest_pwd, highest_password_hash):
                 logger.error(f'User {user_id} tried to become moderator but highest password verification failed')
@@ -507,3 +507,319 @@ class UserService:
             self.db.rollback()
             logger.error(f'Error promoting user {user_id} to moderator: {str(e)}')
             return False
+
+    def get_upload_records_by_uploader(
+        self,
+        uploader_id: str,
+        page: int = 1,
+        page_size: int = 20,
+        status: Optional[str] = None
+    ) -> List:
+        """
+        Get upload records by uploader with pagination and optional status filter.
+        
+        Args:
+            uploader_id: Uploader user ID
+            page: Page number (starting from 1)
+            page_size: Number of records per page
+            status: Optional status filter (approved, rejected, pending)
+            
+        Returns:
+            List of UploadRecord objects
+        """
+        try:
+            from app.models.database import UploadRecord
+            
+            query = self.db.query(UploadRecord).filter(
+                UploadRecord.uploader_id == uploader_id
+            )
+            
+            # Apply status filter if provided
+            if status:
+                query = query.filter(UploadRecord.status == status)
+            
+            # Apply pagination
+            offset = (page - 1) * page_size
+            records = query.order_by(UploadRecord.created_at.desc()).offset(offset).limit(page_size).all()
+            
+            return records
+        except Exception as e:
+            logger.error(f'Error getting upload records for uploader {uploader_id}: {str(e)}')
+            return []
+
+    def get_upload_records_count_by_uploader(
+        self,
+        uploader_id: str,
+        status: Optional[str] = None
+    ) -> int:
+        """
+        Get total count of upload records by uploader with optional status filter.
+        
+        Args:
+            uploader_id: Uploader user ID
+            status: Optional status filter (approved, rejected, pending)
+            
+        Returns:
+            Total count of upload records
+        """
+        try:
+            from app.models.database import UploadRecord
+            
+            query = self.db.query(UploadRecord).filter(
+                UploadRecord.uploader_id == uploader_id
+            )
+            
+            # Apply status filter if provided
+            if status:
+                query = query.filter(UploadRecord.status == status)
+            
+            return query.count()
+        except Exception as e:
+            logger.error(f'Error counting upload records for uploader {uploader_id}: {str(e)}')
+            return 0
+
+    def get_upload_stats_by_uploader(self, uploader_id: str) -> dict:
+        """
+        Get upload statistics for a user.
+
+        Args:
+            uploader_id: Uploader user ID
+
+        Returns:
+            Dictionary with upload statistics
+        """
+        try:
+            from app.models.database import UploadRecord
+
+            # Get all records
+            all_records = self.db.query(UploadRecord).filter(
+                UploadRecord.uploader_id == uploader_id
+            ).all()
+
+            # Calculate statistics
+            total = len(all_records)
+            success = sum(1 for r in all_records if r.status == "approved")
+            pending = sum(1 for r in all_records if r.status == "pending")
+            failed = sum(1 for r in all_records if r.status == "rejected")
+            knowledge = sum(1 for r in all_records if r.target_type == "knowledge")
+            persona = sum(1 for r in all_records if r.target_type == "persona")
+
+            return {
+                "total": total,
+                "success": success,
+                "pending": pending,
+                "failed": failed,
+                "knowledge": knowledge,
+                "persona": persona
+            }
+        except Exception as e:
+            logger.error(f'Error getting upload stats for uploader {uploader_id}: {str(e)}')
+            return {
+                "total": 0,
+                "success": 0,
+                "pending": 0,
+                "failed": 0,
+                "knowledge": 0,
+                "persona": 0
+            }
+
+
+    def get_knowledge_base_by_id(self, kb_id: str):
+        """
+        Get knowledge base by ID.
+        
+        Args:
+            kb_id: Knowledge base ID
+            
+        Returns:
+            KnowledgeBase object if found, None otherwise
+        """
+        try:
+            from app.models.database import KnowledgeBase
+            return self.db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+        except Exception as e:
+            logger.error(f'Error getting knowledge base {kb_id}: {str(e)}')
+            return None
+
+    def get_persona_card_by_id(self, pc_id: str):
+        """
+        Get persona card by ID.
+        
+        Args:
+            pc_id: Persona card ID
+            
+        Returns:
+            PersonaCard object if found, None otherwise
+        """
+        try:
+            from app.models.database import PersonaCard
+            return self.db.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
+        except Exception as e:
+            logger.error(f'Error getting persona card {pc_id}: {str(e)}')
+            return None
+
+    def get_total_file_size_by_target(
+        self,
+        target_id: str,
+        target_type: str
+    ) -> int:
+        """
+        Get total file size for a target (knowledge base or persona card).
+        
+        Args:
+            target_id: Target ID
+            target_type: Target type ('knowledge' or 'persona')
+            
+        Returns:
+            Total file size in bytes
+        """
+        try:
+            if target_type == "knowledge":
+                from app.models.database import KnowledgeBaseFile
+                files = self.db.query(KnowledgeBaseFile).filter(
+                    KnowledgeBaseFile.knowledge_base_id == target_id
+                ).all()
+            elif target_type == "persona":
+                from app.models.database import PersonaCardFile
+                files = self.db.query(PersonaCardFile).filter(
+                    PersonaCardFile.persona_card_id == target_id
+                ).all()
+            else:
+                return 0
+            
+            total_size = sum(f.file_size for f in files if f.file_size)
+            return total_size
+        except Exception as e:
+            logger.error(f'Error getting total file size for {target_type} {target_id}: {str(e)}')
+            return 0
+
+    def get_dashboard_trend_stats(self, user_id: str, days: int = 30) -> Dict[str, Any]:
+        """
+        Get download and star trend statistics for a user.
+        
+        Args:
+            user_id: User ID (uploader)
+            days: Number of days to include in the trend (default 30, max 90)
+            
+        Returns:
+            Dictionary with trend statistics, including a list of daily items.
+        """
+        try:
+            from sqlalchemy import func
+            from app.models.database import KnowledgeBase, PersonaCard, DownloadRecord, StarRecord
+
+            if days < 1:
+                days = 1
+            if days > 90:
+                days = 90
+
+            end_date = datetime.now().date()
+            start_date = end_date - timedelta(days=days - 1)
+            start_dt = datetime.combine(start_date, datetime.min.time())
+            end_dt = datetime.combine(end_date, datetime.max.time())
+
+            kb_downloads: Dict[str, int] = {}
+            persona_downloads: Dict[str, int] = {}
+            kb_stars: Dict[str, int] = {}
+            persona_stars: Dict[str, int] = {}
+
+            kb_download_rows = (
+                self.db.query(
+                    func.date(DownloadRecord.created_at).label("day"),
+                    func.count(DownloadRecord.id).label("count"),
+                )
+                .join(KnowledgeBase, DownloadRecord.target_id == KnowledgeBase.id)
+                .filter(
+                    DownloadRecord.target_type == "knowledge",
+                    KnowledgeBase.uploader_id == user_id,
+                    DownloadRecord.created_at >= start_dt,
+                    DownloadRecord.created_at <= end_dt,
+                )
+                .group_by(func.date(DownloadRecord.created_at))
+                .all()
+            )
+            for row in kb_download_rows:
+                day_str = row.day.strftime("%Y-%m-%d") if hasattr(row.day, "strftime") else str(row.day)
+                kb_downloads[day_str] = int(row.count or 0)
+
+            persona_download_rows = (
+                self.db.query(
+                    func.date(DownloadRecord.created_at).label("day"),
+                    func.count(DownloadRecord.id).label("count"),
+                )
+                .join(PersonaCard, DownloadRecord.target_id == PersonaCard.id)
+                .filter(
+                    DownloadRecord.target_type == "persona",
+                    PersonaCard.uploader_id == user_id,
+                    DownloadRecord.created_at >= start_dt,
+                    DownloadRecord.created_at <= end_dt,
+                )
+                .group_by(func.date(DownloadRecord.created_at))
+                .all()
+            )
+            for row in persona_download_rows:
+                day_str = row.day.strftime("%Y-%m-%d") if hasattr(row.day, "strftime") else str(row.day)
+                persona_downloads[day_str] = int(row.count or 0)
+
+            kb_star_rows = (
+                self.db.query(
+                    func.date(StarRecord.created_at).label("day"),
+                    func.count(StarRecord.id).label("count"),
+                )
+                .join(KnowledgeBase, StarRecord.target_id == KnowledgeBase.id)
+                .filter(
+                    StarRecord.target_type == "knowledge",
+                    KnowledgeBase.uploader_id == user_id,
+                    StarRecord.created_at >= start_dt,
+                    StarRecord.created_at <= end_dt,
+                )
+                .group_by(func.date(StarRecord.created_at))
+                .all()
+            )
+            for row in kb_star_rows:
+                day_str = row.day.strftime("%Y-%m-%d") if hasattr(row.day, "strftime") else str(row.day)
+                kb_stars[day_str] = int(row.count or 0)
+
+            persona_star_rows = (
+                self.db.query(
+                    func.date(StarRecord.created_at).label("day"),
+                    func.count(StarRecord.id).label("count"),
+                )
+                .join(PersonaCard, StarRecord.target_id == PersonaCard.id)
+                .filter(
+                    StarRecord.target_type == "persona",
+                    PersonaCard.uploader_id == user_id,
+                    StarRecord.created_at >= start_dt,
+                    StarRecord.created_at <= end_dt,
+                )
+                .group_by(func.date(StarRecord.created_at))
+                .all()
+            )
+            for row in persona_star_rows:
+                day_str = row.day.strftime("%Y-%m-%d") if hasattr(row.day, "strftime") else str(row.day)
+                persona_stars[day_str] = int(row.count or 0)
+
+            items = []
+            for i in range(days):
+                day = start_date + timedelta(days=i)
+                day_str = day.strftime("%Y-%m-%d")
+                items.append(
+                    {
+                        "date": day_str,
+                        "knowledgeDownloads": kb_downloads.get(day_str, 0),
+                        "personaDownloads": persona_downloads.get(day_str, 0),
+                        "knowledgeStars": kb_stars.get(day_str, 0),
+                        "personaStars": persona_stars.get(day_str, 0),
+                    }
+                )
+
+            return {
+                "days": days,
+                "items": items,
+            }
+        except Exception as e:
+            logger.error(f'Error getting dashboard trend stats for user {user_id}: {str(e)}')
+            return {
+                "days": days,
+                "items": [],
+            }

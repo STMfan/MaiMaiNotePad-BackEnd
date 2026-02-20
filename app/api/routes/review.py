@@ -1,3 +1,15 @@
+"""
+审核路由模块
+
+处理内容审核相关的API端点，包括：
+- 获取待审核的知识库列表
+- 获取待审核的人设卡列表
+- 审核通过知识库
+- 审核拒绝知识库
+- 审核通过人设卡
+- 审核拒绝人设卡
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, status as HTTPStatus, Body, Query
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -27,7 +39,7 @@ from app.core.logging import app_logger
 router = APIRouter()
 
 
-# 审核相关路由
+# 审核相关路由（获取待审核内容、审核通过、审核拒绝等）
 @router.get(
     "/review/knowledge/pending",
     response_model=PageResponse[dict]

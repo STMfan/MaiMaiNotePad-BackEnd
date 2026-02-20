@@ -190,7 +190,7 @@ def load_error_messages() -> Dict[str, Any]:
         if isinstance(data, dict):
             return data
     except Exception as e:
-        app_logger.warning(f"Failed to load error messages config: {str(e)}")
+        app_logger.warning(f"加载错误消息配置失败: {str(e)}")
     return {}
 
 
@@ -241,11 +241,11 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 # 暂时留空，后续可以根据具体认证机制实现
                 pass
         except Exception as e:
-            app_logger.warning(f"Failed to get user info: {str(e)}")
+            app_logger.warning(f"获取用户信息失败: {str(e)}")
         
         # 记录请求开始
         app_logger.info(
-            f"Request started: {method} {path} - ID={request_id} - IP={client_ip} - User-Agent={user_agent}"
+            f"请求开始: {method} {path} - ID={request_id} - IP={client_ip} - User-Agent={user_agent}"
         )
         
         try:
@@ -257,7 +257,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
             
             # 记录请求完成
             app_logger.info(
-                f"Request completed: {method} {path} - ID={request_id} - Status={response.status_code} - Time={processing_time:.2f}ms"
+                f"请求完成: {method} {path} - ID={request_id} - Status={response.status_code} - Time={processing_time:.2f}ms"
             )
             
             # 添加请求ID到响应头
@@ -271,7 +271,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
             
             # 记录HTTP异常
             app_logger.warning(
-                f"HTTP Exception: {method} {path} - ID={request_id} - Status={http_exc.status_code} - Time={processing_time:.2f}ms - Detail={http_exc.detail}"
+                f"HTTP 异常: {method} {path} - ID={request_id} - Status={http_exc.status_code} - Time={processing_time:.2f}ms - Detail={http_exc.detail}"
             )
             
             # 返回错误响应
@@ -290,7 +290,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
             # 记录未捕获的异常
             log_exception(
                 app_logger,
-                f"Unhandled exception in {method} {path}",
+                f"未捕获的异常 {method} {path}",
                 exception=exc,
                 reraise=False
             )
@@ -299,7 +299,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
             return self._create_error_response(
                 status_code=500,
                 error_type="INTERNAL_SERVER_ERROR",
-                message="Internal server error",
+                message="服务器内部错误",
                 request_id=request_id,
                 path=path,
                 include_details=False  # 不向客户端暴露详细错误信息
@@ -373,7 +373,7 @@ class ValidationError(APIError):
 class AuthenticationError(APIError):
     """认证错误"""
     
-    def __init__(self, message: str = "Authentication failed"):
+    def __init__(self, message: str = "认证失败"):
         super().__init__(
             message=message,
             status_code=401,
@@ -384,7 +384,7 @@ class AuthenticationError(APIError):
 class AuthorizationError(APIError):
     """授权错误"""
     
-    def __init__(self, message: str = "Access denied"):
+    def __init__(self, message: str = "拒绝访问"):
         super().__init__(
             message=message,
             status_code=403,
@@ -395,7 +395,7 @@ class AuthorizationError(APIError):
 class NotFoundError(APIError):
     """资源未找到错误"""
     
-    def __init__(self, message: str = "Resource not found"):
+    def __init__(self, message: str = "资源不存在"):
         super().__init__(
             message=message,
             status_code=404,
@@ -406,7 +406,7 @@ class NotFoundError(APIError):
 class ConflictError(APIError):
     """资源冲突错误"""
     
-    def __init__(self, message: str = "Resource conflict"):
+    def __init__(self, message: str = "资源冲突"):
         super().__init__(
             message=message,
             status_code=409,
@@ -417,7 +417,7 @@ class ConflictError(APIError):
 class RateLimitError(APIError):
     """请求频率限制错误"""
     
-    def __init__(self, message: str = "Rate limit exceeded"):
+    def __init__(self, message: str = "请求过于频繁"):
         super().__init__(
             message=message,
             status_code=429,
@@ -459,7 +459,7 @@ def setup_exception_handlers(app):
         
         # 记录错误
         app_logger.warning(
-            f"API Error: {request.method} {request.url.path} - ID={request_id} - Type={exc.error_type} - Message={exc.message}"
+            f"API 错误: {request.method} {request.url.path} - ID={request_id} - Type={exc.error_type} - Message={exc.message}"
         )
         code = resolve_error_code(exc.status_code, exc.message, exc.details)
         display_message = resolve_display_message(code, exc.message)
@@ -487,7 +487,7 @@ def setup_exception_handlers(app):
         
         # 记录错误
         app_logger.warning(
-            f"Validation Error: {request.method} {request.url.path} - ID={request_id} - Message={exc.message}"
+            f"数据验证错误: {request.method} {request.url.path} - ID={request_id} - Message={exc.message}"
         )
         code = resolve_error_code(exc.status_code, exc.message, exc.details)
         display_message = resolve_display_message(code, exc.message)

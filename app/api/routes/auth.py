@@ -1,4 +1,4 @@
-"""认证路由模块 - 处理登录、注册、密码重置等认证相关的API端点"""
+"""认证路由模块 - 处理用户登录、注册、密码重置等认证相关的API端点"""
 from fastapi import APIRouter, Depends, Form, Request
 from typing import Dict, Any
 import hashlib
@@ -21,6 +21,9 @@ from sqlalchemy.orm import Session
 
 # 创建路由器
 router = APIRouter()
+
+
+# 认证相关路由（登录、注册、密码重置等）
 
 
 @router.post(

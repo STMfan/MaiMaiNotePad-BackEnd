@@ -1,5 +1,7 @@
 """
-Security utilities for JWT and password management
+安全工具模块
+
+提供 JWT 令牌管理和密码哈希功能。
 """
 
 import jwt
@@ -12,11 +14,11 @@ import warnings
 from app.core.config import settings
 
 
-# Password hashing context
+# 密码哈希上下文
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-# JWT configuration with validation
+# JWT 配置及校验
 SECRET_KEY = settings.JWT_SECRET_KEY
 if not SECRET_KEY:
     SECRET_KEY = secrets.token_urlsafe(32)
@@ -33,7 +35,7 @@ if SECRET_KEY == "your-secret-key-change-this-in-production":
 
 ALGORITHM = settings.JWT_ALGORITHM
 
-# Calculate access token expiration
+# 计算访问令牌过期时间
 _access_minutes_default = 15
 if settings.JWT_EXPIRATION_HOURS > 0:
     _access_minutes_default = settings.JWT_EXPIRATION_HOURS * 60
@@ -44,49 +46,49 @@ REFRESH_TOKEN_EXPIRE_DAYS = settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
-    Verify a plain password against a hashed password.
+    验证明文密码与哈希密码是否匹配。
     
     Args:
-        plain_password: Plain text password
-        hashed_password: Hashed password from database
+        plain_password: 明文密码
+        hashed_password: 数据库中的哈希密码
         
     Returns:
-        bool: True if password matches, False otherwise
+        bool: 密码匹配返回 True，否则返回 False
     """
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
     """
-    Generate password hash using bcrypt.
+    使用 bcrypt 生成密码哈希。
     
     Args:
-        password: Plain text password
+        password: 明文密码
         
     Returns:
-        str: Hashed password
+        str: 哈希后的密码
         
-    Note:
-        bcrypt has a maximum password length of 72 bytes
+    注意:
+        bcrypt 最大密码长度为 72 字节
     """
-    # Limit password to 72 bytes for bcrypt
+    # 限制密码长度为 72 字节（bcrypt 限制）
     return pwd_context.hash(password[:72])
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """
-    Create JWT access token.
+    创建 JWT 访问令牌。
     
     Args:
-        data: Payload data to encode in token
-        expires_delta: Optional custom expiration time
+        data: 要编码到令牌中的载荷数据
+        expires_delta: 可选的自定义过期时间
         
     Returns:
-        str: Encoded JWT token
+        str: 编码后的 JWT 令牌
     """
     to_encode = data.copy()
     
-    # Set expiration time
+    # 设置过期时间
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
@@ -94,20 +96,20 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     
     to_encode.update({"exp": expire})
     
-    # Generate JWT
+    # 生成 JWT
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
 
 def verify_token(token: str) -> Optional[Dict[str, Any]]:
     """
-    Verify and decode JWT token.
+    验证并解码 JWT 令牌。
     
     Args:
-        token: JWT token string
+        token: JWT 令牌字符串
         
     Returns:
-        Optional[Dict[str, Any]]: Decoded payload if valid, None otherwise
+        Optional[Dict[str, Any]]: 有效则返回解码后的载荷，否则返回 None
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -118,19 +120,19 @@ def verify_token(token: str) -> Optional[Dict[str, Any]]:
 
 def get_user_from_token(token: str) -> Optional[Dict[str, Any]]:
     """
-    Extract user information from JWT token.
+    从 JWT 令牌中提取用户信息。
     
     Args:
-        token: JWT token string
+        token: JWT 令牌字符串
         
     Returns:
-        Optional[Dict[str, Any]]: User payload if valid and not expired, None otherwise
+        Optional[Dict[str, Any]]: 有效且未过期则返回用户载荷，否则返回 None
     """
     payload = verify_token(token)
     if payload is None:
         return None
     
-    # Check if token is expired
+    # 检查令牌是否过期
     exp = payload.get("exp")
     if exp is None:
         return None
@@ -143,16 +145,16 @@ def get_user_from_token(token: str) -> Optional[Dict[str, Any]]:
 
 def create_user_token(user_id: str, username: str, role: str, password_version: int = 0) -> str:
     """
-    Create JWT access token for a user.
+    为用户创建 JWT 访问令牌。
     
     Args:
-        user_id: User ID
-        username: Username
-        role: User role
-        password_version: Password version for token invalidation
+        user_id: 用户 ID
+        username: 用户名
+        role: 用户角色
+        password_version: 密码版本号，用于令牌失效控制
         
     Returns:
-        str: JWT access token
+        str: JWT 访问令牌
     """
     return create_access_token(
         data={
@@ -160,20 +162,20 @@ def create_user_token(user_id: str, username: str, role: str, password_version: 
             "username": username,
             "role": role,
             "type": "access",
-            "pwd_ver": password_version  # Password version number
+            "pwd_ver": password_version  # 密码版本号
         }
     )
 
 
 def create_refresh_token(user_id: str) -> str:
     """
-    Create JWT refresh token.
+    创建 JWT 刷新令牌。
     
     Args:
-        user_id: User ID
+        user_id: 用户 ID
         
     Returns:
-        str: JWT refresh token
+        str: JWT 刷新令牌
     """
     return create_access_token(
         data={

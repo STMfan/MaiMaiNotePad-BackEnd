@@ -1,7 +1,7 @@
 """
-API route handlers
+API 路由处理器
 
-This module exports all route routers for registration in the main API router.
+此模块导出所有路由路由器以在主 API 路由器中注册。
 """
 
 from app.api.routes.users import router as users_router

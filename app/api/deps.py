@@ -1,6 +1,7 @@
 """
-API dependency injection module
-Provides authentication and authorization dependencies for FastAPI routes
+API 依赖注入模块
+
+提供 FastAPI 路由所需的认证和授权依赖。
 """
 
 from typing import Optional
@@ -13,7 +14,7 @@ from app.core.security import verify_token
 from app.services.user_service import UserService
 
 
-# HTTP Bearer security scheme
+# HTTP Bearer 安全方案
 security = HTTPBearer()
 
 
@@ -22,67 +23,67 @@ async def get_current_user(
     db: Session = Depends(get_db)
 ) -> dict:
     """
-    Get current authenticated user from JWT token.
+    从 JWT 令牌获取当前已认证用户。
     
     Args:
-        credentials: HTTP Bearer credentials containing JWT token
-        db: Database session
+        credentials: 包含 JWT 令牌的 HTTP Bearer 凭证
+        db: 数据库会话
         
     Returns:
-        dict: User information dictionary containing:
-            - id: User ID
-            - username: Username
-            - email: Email address
-            - role: User role (for backward compatibility)
-            - is_admin: Whether user is admin
-            - is_moderator: Whether user is moderator
-            - is_super_admin: Whether user is super admin
+        dict: 用户信息字典，包含：
+            - id: 用户 ID
+            - username: 用户名
+            - email: 邮箱地址
+            - role: 用户角色（向后兼容）
+            - is_admin: 是否为管理员
+            - is_moderator: 是否为审核员
+            - is_super_admin: 是否为超级管理员
             
     Raises:
-        HTTPException: 401 if token is invalid or user not found
+        HTTPException: 令牌无效或用户不存在时返回 401
     """
     token = credentials.credentials
     
-    # Verify JWT token
+    # 验证 JWT 令牌
     payload = verify_token(token)
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
+            detail="无效的认证凭证",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Extract user ID from token
+    # 从令牌中提取用户 ID
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
+            detail="无效的认证凭证",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Get user from database
+    # 从数据库获取用户
     user_service = UserService(db)
     user = user_service.get_user_by_id(user_id)
     
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
+            detail="用户不存在",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Verify password version (invalidate token if password changed)
+    # 验证密码版本号（密码修改后令牌失效）
     token_pwd_ver = payload.get("pwd_ver", 0)
     user_pwd_ver = user.password_version or 0
     if token_pwd_ver < user_pwd_ver:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expired due to password change. Please login again.",
+            detail="密码已修改，令牌已失效，请重新登录",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Determine user role for backward compatibility
+    # 确定用户角色（向后兼容）
     if user.is_super_admin:
         role = "super_admin"
     elif user.is_admin:
@@ -92,7 +93,7 @@ async def get_current_user(
     else:
         role = "user"
     
-    # Return user information dictionary
+    # 返回用户信息字典
     return {
         "id": user.id,
         "username": user.username,
@@ -108,21 +109,21 @@ async def get_admin_user(
     current_user: dict = Depends(get_current_user)
 ) -> dict:
     """
-    Get current admin user (requires admin or super admin role).
+    获取当前管理员用户（需要管理员或超级管理员角色）。
     
     Args:
-        current_user: Current authenticated user from get_current_user
+        current_user: 来自 get_current_user 的当前已认证用户
         
     Returns:
-        dict: User information dictionary
+        dict: 用户信息字典
         
     Raises:
-        HTTPException: 403 if user doesn't have admin permissions
+        HTTPException: 用户没有管理员权限时返回 403
     """
     if not current_user.get("is_admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
+            detail="权限不足"
         )
     return current_user
 
@@ -131,21 +132,21 @@ async def get_moderator_user(
     current_user: dict = Depends(get_current_user)
 ) -> dict:
     """
-    Get current moderator user (requires moderator, admin, or super admin role).
+    获取当前审核员用户（需要审核员、管理员或超级管理员角色）。
     
     Args:
-        current_user: Current authenticated user from get_current_user
+        current_user: 来自 get_current_user 的当前已认证用户
         
     Returns:
-        dict: User information dictionary
+        dict: 用户信息字典
         
     Raises:
-        HTTPException: 403 if user doesn't have moderator permissions
+        HTTPException: 用户没有审核员权限时返回 403
     """
     if not current_user.get("is_moderator"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
+            detail="权限不足"
         )
     return current_user
 
@@ -157,47 +158,46 @@ async def get_current_user_optional(
     db: Session = Depends(get_db)
 ) -> Optional[dict]:
     """
-    Get current authenticated user (optional, returns None if no token provided).
+    获取当前已认证用户（可选，未提供令牌时返回 None）。
     
-    This dependency is useful for endpoints that work differently for authenticated
-    vs unauthenticated users, but don't require authentication.
+    适用于已认证和未认证用户行为不同但不强制要求认证的端点。
     
     Args:
-        credentials: Optional HTTP Bearer credentials containing JWT token
-        db: Database session
+        credentials: 可选的 HTTP Bearer 凭证
+        db: 数据库会话
         
     Returns:
-        Optional[dict]: User information dictionary if authenticated, None otherwise
+        Optional[dict]: 已认证返回用户信息字典，否则返回 None
     """
     if not credentials:
         return None
     
     token = credentials.credentials
     
-    # Verify JWT token
+    # 验证 JWT 令牌
     payload = verify_token(token)
     if not payload:
         return None
     
-    # Extract user ID from token
+    # 从令牌中提取用户 ID
     user_id = payload.get("sub")
     if not user_id:
         return None
     
-    # Get user from database
+    # 从数据库获取用户
     user_service = UserService(db)
     user = user_service.get_user_by_id(user_id)
     
     if not user:
         return None
     
-    # Verify password version (invalidate token if password changed)
+    # 验证密码版本号（密码修改后令牌失效）
     token_pwd_ver = payload.get("pwd_ver", 0)
     user_pwd_ver = user.password_version or 0
     if token_pwd_ver < user_pwd_ver:
         return None
     
-    # Determine user role for backward compatibility
+    # 确定用户角色（向后兼容）
     if user.is_super_admin:
         role = "super_admin"
     elif user.is_admin:
@@ -207,7 +207,7 @@ async def get_current_user_optional(
     else:
         role = "user"
     
-    # Return user information dictionary
+    # 返回用户信息字典
     return {
         "id": user.id,
         "username": user.username,

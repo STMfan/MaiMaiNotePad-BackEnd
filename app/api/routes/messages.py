@@ -1,3 +1,14 @@
+"""
+消息路由模块
+
+处理消息相关的API端点，包括：
+- 发送消息
+- 查询消息
+- 标记消息已读/未读
+- 删除消息
+- 广播消息
+"""
+
 from datetime import datetime
 from typing import Optional
 
@@ -23,7 +34,7 @@ from app.utils.websocket import message_ws_manager
 router = APIRouter()
 
 
-# 消息相关路由
+# 消息相关路由（发送、查询、标记已读、删除等）
 @router.post(
     "/messages/send",
     response_model=BaseResponse[dict]

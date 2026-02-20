@@ -1,7 +1,7 @@
 """
-Middleware configuration module
-Provides unified middleware initialization and management
-Includes: rate limiting, CORS, error handling, etc.
+中间件配置模块
+
+提供统一的中间件初始化和管理，包括：速率限制、CORS、错误处理等。
 """
 
 from fastapi import FastAPI
@@ -16,43 +16,43 @@ from app.core.logging import app_logger
 
 def setup_middlewares(app: FastAPI) -> None:
     """
-    Configure all middlewares for the FastAPI application.
+    为 FastAPI 应用配置所有中间件。
     
     Args:
-        app: FastAPI application instance
+        app: FastAPI 应用实例
         
-    Middleware execution order (from outer to inner):
-    1. ErrorHandlerMiddleware - Error handling and request logging (to be added)
-    2. SlowAPIMiddleware - Rate limiting
-    3. CORSMiddleware - CORS support
+    中间件执行顺序（从外到内）：
+    1. ErrorHandlerMiddleware - 错误处理和请求日志（待添加）
+    2. SlowAPIMiddleware - 速率限制
+    3. CORSMiddleware - 跨域支持
     """
     try:
-        # 1. Initialize rate limiter
-        app_logger.info("Initializing rate limiter...")
+        # 1. 初始化速率限制器
+        app_logger.info("正在初始化速率限制器...")
         limiter = Limiter(key_func=get_remote_address, storage_uri="memory://")
         app.state.limiter = limiter
         app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-        app_logger.info("Rate limiter initialized")
+        app_logger.info("速率限制器初始化完成")
 
-        # 2. Add rate limiting middleware
-        app_logger.info("Adding rate limiting middleware...")
+        # 2. 添加速率限制中间件
+        app_logger.info("正在添加速率限制中间件...")
         app.add_middleware(SlowAPIMiddleware)
-        app_logger.info("Rate limiting middleware added")
+        app_logger.info("速率限制中间件添加完成")
 
-        # 3. Add CORS middleware
-        app_logger.info("Configuring CORS middleware...")
+        # 3. 添加 CORS 中间件
+        app_logger.info("正在配置 CORS 中间件...")
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],  # Should be configured with specific domains in production
+            allow_origins=["*"],  # 生产环境应配置具体域名
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
             expose_headers=["Content-Disposition"],
         )
-        app_logger.info("CORS middleware configured")
+        app_logger.info("CORS 中间件配置完成")
 
-        app_logger.info("All middlewares configured successfully")
+        app_logger.info("所有中间件配置成功")
         
     except Exception as e:
-        app_logger.error(f"Middleware configuration failed: {str(e)}")
+        app_logger.error(f"中间件配置失败: {str(e)}")
         raise

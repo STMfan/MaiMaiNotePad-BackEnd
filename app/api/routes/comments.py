@@ -1,3 +1,14 @@
+"""
+评论路由模块
+
+处理评论相关的API端点，包括：
+- 获取评论列表
+- 创建评论
+- 点赞/取消点赞评论
+- 删除评论
+- 恢复评论
+"""
+
 from datetime import datetime
 from typing import Optional, List
 
@@ -14,6 +25,9 @@ from sqlalchemy.orm import Session
 
 
 router = APIRouter()
+
+
+# 评论相关路由（获取、创建、点赞、删除等）
 
 
 @router.get(

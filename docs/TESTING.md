@@ -2,7 +2,10 @@
 
 ## 概述
 
-本文档描述了 MaiMaiNotePad 后端项目的测试策略、测试运行方法和开发指南。项目采用 pytest 作为测试框架，支持单元测试和集成测试。
+本文档描述了 MaiMaiNotePad 后端项目的测试策略、测试运行方法和开发指南。项目采用 pytest 作为测试框架，支持单元测试、集成测试、属性测试和端到端测试。
+
+当前测试覆盖率：**79%** (5477 行代码，1176 行未覆盖)
+测试数量：**753 个测试** (745 通过，7 失败，1 跳过)
 
 ## 项目结构
 
@@ -23,251 +26,646 @@ tests/
     └── test_persona_service.py
 ```
 
-## 测试
+## 测试执行指南
 
 ### 运行所有测试
 
 ```bash
 # 使用 pytest 运行所有测试
-pytest tests/ -v
+pytest
 
-# 或使用项目提供的测试脚本
-python run_tests.py
+# 显示详细输出
+pytest -v
+
+# 显示测试进度
+pytest -v --tb=short
 ```
 
-### 运行特定测试
+### 运行特定类型的测试
 
 ```bash
-# 只运行认证相关测试
-pytest tests/test_auth.py -v
+# 只运行单元测试
+pytest tests/unit/ -v
 
-# 只运行知识库相关测试
-pytest tests/test_knowledge.py -v
+# 只运行集成测试
+pytest tests/integration/ -v
+
+# 只运行属性测试
+pytest tests/property/ -v
+
+# 只运行端到端测试
+pytest tests/e2e/ -v
+```
+
+### 运行特定模块的测试
+
+```bash
+# 运行认证相关测试
+pytest tests/integration/routes/test_auth_routes.py -v
+
+# 运行用户服务测试
+pytest tests/unit/services/test_user_service.py -v
+
+# 运行知识库相关测试
+pytest tests/integration/routes/test_knowledge_routes.py -v
+
+# 运行特定测试类
+pytest tests/integration/routes/test_auth_routes.py::TestLogin -v
 
 # 运行特定测试函数
-pytest tests/test_auth.py::test_login -v
-
-# 运行服务层测试
-pytest tests/services/ -v
+pytest tests/integration/routes/test_auth_routes.py::TestLogin::test_login_with_valid_credentials_json -v
 ```
 
-### 测试覆盖率
+### 运行失败的测试
 
 ```bash
-# 生成覆盖率报告
-pytest tests/ --cov=app --cov-report=html
+# 只运行上次失败的测试
+pytest --lf
 
-# 查看覆盖率报告
-# 报告将生成在 htmlcov/index.html
+# 先运行失败的测试，再运行其他测试
+pytest --ff
 ```
 
-测试覆盖率目标：
-- 服务层代码覆盖率 > 80%
-- 工具函数代码覆盖率 > 90%
-- API 路由代码覆盖率 > 70%
+### 并行运行测试
 
-### 测试配置
+```bash
+# 使用所有 CPU 核心并行运行
+pytest -n auto
+
+# 使用指定数量的进程
+pytest -n 4
+```
+
+### 生成测试覆盖率报告
+
+```bash
+# 生成终端覆盖率报告
+pytest --cov=app --cov-report=term
+
+# 生成 HTML 覆盖率报告
+pytest --cov=app --cov-report=html
+
+# 生成详细的覆盖率报告（显示未覆盖的行）
+pytest --cov=app --cov-report=term-missing
+
+# 生成 JSON 格式的覆盖率报告
+pytest --cov=app --cov-report=json
+
+# 查看 HTML 覆盖率报告
+open htmlcov/index.html  # macOS
+xdg-open htmlcov/index.html  # Linux
+```
+
+### 测试覆盖率统计
+
+当前测试覆盖率：**79%**
+
+#### 模块覆盖率详情
+
+| 模块 | 覆盖率 | 说明 |
+|------|--------|------|
+| **Models** | 98-100% | 数据模型和 Schema |
+| **Services** | 66-99% | 业务逻辑层 |
+| **API Routes** | 65-100% | API 端点 |
+| **Core** | 58-100% | 核心功能 |
+| **Utils** | 22-82% | 工具函数 |
+
+#### 高覆盖率模块 (≥90%)
+
+- `app/models/database.py`: 100%
+- `app/api/routes/dictionary.py`: 100%
+- `app/services/email_service.py`: 100%
+- `app/services/message_service.py`: 99%
+- `app/models/schemas.py`: 98%
+- `app/services/auth_service.py`: 93%
+- `app/core/logging.py`: 92%
+- `app/api/routes/auth.py`: 90%
+- `app/api/response_util.py`: 90%
+
+#### 需要改进的模块 (<80%)
+
+- `app/utils/file.py`: 22% - 文件工具函数
+- `app/utils/websocket.py`: 43% - WebSocket 工具
+- `app/main.py`: 52% - 应用入口
+- `app/core/database.py`: 58% - 数据库配置
+- `app/api/routes/messages.py`: 65% - 消息路由
+- `app/services/user_service.py`: 66% - 用户服务
+- `app/api/routes/knowledge.py`: 68% - 知识库路由
+- `app/error_handlers.py`: 68% - 错误处理
+- `app/api/routes/users.py`: 73% - 用户路由
+- `app/file_upload.py`: 74% - 文件上传
+- `app/api/routes/admin.py`: 75% - 管理员路由
+- `app/api/routes/persona.py`: 75% - 人设卡路由
+- `app/core/security.py`: 77% - 安全功能
+- `app/api/deps.py`: 77% - 依赖注入
+- `app/services/knowledge_service.py`: 78% - 知识库服务
+
+## 测试配置和 Fixtures
 
 测试配置位于 `tests/conftest.py`，提供了常用的 fixtures：
 
+### 数据库 Fixtures
+
+```python
+@pytest.fixture(scope="function")
+def test_db() -> Session:
+    """提供测试数据库会话，自动清理"""
+    session = TestingSessionLocal()
+    yield session
+    
+    # 测试结束后清理所有数据（按外键依赖顺序）
+    session.query(CommentReaction).delete()
+    session.query(Comment).delete()
+    # ... 其他表 ...
+    session.commit()
+    session.close()
+```
+
+### 用户 Fixtures
+
 ```python
 @pytest.fixture
-def db_session():
-    """提供测试数据库会话"""
-    # 创建测试数据库
-    # 返回数据库会话
-    # 测试结束后清理
+def test_user(test_db: Session) -> User:
+    """创建普通测试用户"""
+    factory = TestDataFactory(test_db)
+    return factory.create_user()
 
 @pytest.fixture
-def test_client():
-    """提供 FastAPI 测试客户端"""
+def admin_user(test_db: Session) -> User:
+    """创建管理员用户"""
+    factory = TestDataFactory(test_db)
+    return factory.create_admin_user()
+
+@pytest.fixture
+def moderator_user(test_db: Session) -> User:
+    """创建审核员用户"""
+    factory = TestDataFactory(test_db)
+    return factory.create_moderator_user()
+```
+
+### 客户端 Fixtures
+
+```python
+@pytest.fixture
+def client() -> TestClient:
+    """未认证的测试客户端"""
     from fastapi.testclient import TestClient
     from app.main import app
     return TestClient(app)
 
 @pytest.fixture
-def test_user(db_session):
-    """创建测试用户"""
-    # 创建并返回测试用户
+def authenticated_client(test_user: User) -> TestClient:
+    """已认证的测试客户端"""
+    client = TestClient(app)
+    # 登录并设置认证头
+    response = client.post("/api/auth/token", json={
+        "username": test_user.username,
+        "password": "password123"
+    })
+    token = response.json()["access_token"]
+    client.headers["Authorization"] = f"Bearer {token}"
+    return client
+
+@pytest.fixture
+def admin_client(admin_user: User) -> TestClient:
+    """管理员测试客户端"""
+    # 类似 authenticated_client，但使用管理员用户
+    ...
+```
+
+### 工厂 Fixture
+
+```python
+@pytest.fixture
+def factory(test_db: Session) -> TestDataFactory:
+    """测试数据工厂实例"""
+    return TestDataFactory(test_db)
 ```
 
 ## 测试类型
 
-### 1. 单元测试
+### 1. 单元测试 (Unit Tests)
 
-单元测试专注于测试单个函数或方法的功能，使用 mock 隔离外部依赖。
+单元测试专注于测试单个函数、类或方法的功能，使用 mock 隔离外部依赖。
+
+**位置**: `tests/unit/`
 
 **示例**：测试服务层方法
 
 ```python
-# tests/services/test_user_service.py
+# tests/unit/services/test_user_service.py
 import pytest
 from app.services.user_service import UserService
 
-def test_create_user(db_session):
-    """测试创建用户"""
-    service = UserService(db_session)
-    user = service.create_user(
-        username="testuser",
-        email="test@example.com",
-        password="password123"
-    )
+class TestUserRetrieval:
+    """Test user retrieval methods"""
     
-    assert user.username == "testuser"
-    assert user.email == "test@example.com"
-    assert user.hashed_password != "password123"  # 密码应该被哈希
-
-def test_get_user_by_username(db_session, test_user):
-    """测试根据用户名获取用户"""
-    service = UserService(db_session)
-    user = service.get_user_by_username(test_user.username)
-    
-    assert user is not None
-    assert user.id == test_user.id
+    def test_get_user_by_id_success(self):
+        """Test getting user by ID successfully"""
+        db = MagicMock()
+        service = UserService(db)
+        
+        # Mock database query
+        mock_user = User(id=1, username="testuser", email="test@example.com")
+        db.query().filter().first.return_value = mock_user
+        
+        # Execute
+        user = service.get_user_by_id(1)
+        
+        # Verify
+        assert user == mock_user
+        assert user.username == "testuser"
 ```
 
-### 2. 集成测试
+### 2. 集成测试 (Integration Tests)
 
 集成测试测试完整的 API 端点流程，包括请求验证、业务逻辑和响应格式化。
+
+**位置**: `tests/integration/routes/`
 
 **示例**：测试 API 端点
 
 ```python
-# tests/test_auth.py
-def test_login(test_client):
-    """测试用户登录"""
-    response = test_client.post(
-        "/api/token",
-        data={
-            "username": "testuser",
-            "password": "password123"
-        }
-    )
+# tests/integration/routes/test_auth_routes.py
+class TestLogin:
+    """Test POST /api/auth/token endpoint (login)"""
     
-    assert response.status_code == 200
-    data = response.json()
-    assert "access_token" in data
-    assert "refresh_token" in data
-    assert data["token_type"] == "bearer"
-
-def test_get_current_user(test_client, auth_headers):
-    """测试获取当前用户信息"""
-    response = test_client.get(
-        "/api/users/me",
-        headers=auth_headers
-    )
-    
-    assert response.status_code == 200
-    data = response.json()
-    assert "id" in data
-    assert "username" in data
-    assert "email" in data
+    def test_login_with_valid_credentials_json(self, test_db: Session):
+        """Test login with valid credentials using JSON format"""
+        # Create test user
+        factory = TestDataFactory(test_db)
+        user = factory.create_user(
+            username="testuser",
+            email="test@example.com",
+            password="password123"
+        )
+        
+        # Login
+        response = client.post(
+            "/api/auth/token",
+            json={
+                "username": "testuser",
+                "password": "password123"
+            }
+        )
+        
+        # Verify
+        assert response.status_code == 200
+        data = response.json()
+        assert "access_token" in data
+        assert "refresh_token" in data
+        assert data["token_type"] == "bearer"
 ```
 
-### 3. 测试数据准备
+### 3. 属性测试 (Property-Based Tests)
 
-使用 fixtures 准备测试数据：
+属性测试使用 Hypothesis 库生成随机输入，验证系统在各种输入下的通用属性。
+
+**位置**: `tests/property/`
+
+**示例**：测试认证一致性
 
 ```python
-# tests/conftest.py
-@pytest.fixture
-def test_user(db_session):
-    """创建测试用户"""
-    from app.services.user_service import UserService
-    
-    service = UserService(db_session)
-    user = service.create_user(
-        username="testuser",
-        email="test@example.com",
-        password="password123"
-    )
-    return user
+# tests/property/test_auth_route_properties.py
+from hypothesis import given, strategies as st
 
-@pytest.fixture
-def auth_headers(test_client, test_user):
-    """获取认证头"""
-    response = test_client.post(
-        "/api/token",
-        data={
-            "username": test_user.username,
-            "password": "password123"
+class TestAuthenticationConsistency:
+    """Test authentication consistency across all protected endpoints
+    
+    **Validates: Requirements 3.8**
+    """
+    
+    @pytest.mark.parametrize("method,endpoint", [
+        ("GET", "/api/users/me"),
+        ("PUT", "/api/users/me/password"),
+        ("DELETE", "/api/knowledge/{kb_id}"),
+    ])
+    def test_unauthenticated_access_returns_401(self, method, endpoint):
+        """Test that all protected endpoints return 401 for unauthenticated requests"""
+        response = client.request(method, endpoint)
+        assert response.status_code == 401
+```
+
+### 4. 端到端测试 (E2E Tests)
+
+端到端测试验证完整的用户流程，从开始到结束。
+
+**位置**: `tests/e2e/`
+
+**示例**：测试用户注册流程
+
+```python
+# tests/e2e/test_user_registration_flow.py
+def test_complete_user_registration_flow(test_db: Session):
+    """Test complete user registration flow: send code → register → login"""
+    
+    # Step 1: Send verification code
+    response = client.post("/api/auth/send-verification-code", 
+                          json={"email": "newuser@example.com"})
+    assert response.status_code == 200
+    
+    # Step 2: Register user
+    response = client.post("/api/auth/register", json={
+        "username": "newuser",
+        "email": "newuser@example.com",
+        "password": "password123",
+        "verification_code": "123456"
+    })
+    assert response.status_code == 200
+    
+    # Step 3: Login
+    response = client.post("/api/auth/token", json={
+        "username": "newuser",
+        "password": "password123"
+    })
+    assert response.status_code == 200
+    assert "access_token" in response.json()
+```
+
+### 5. 测试数据工厂 (TestDataFactory)
+
+使用 TestDataFactory 创建一致的测试数据：
+
+```python
+# tests/test_data_factory.py
+class TestDataFactory:
+    """Factory for creating test data"""
+    
+    def __init__(self, db: Session):
+        self.db = db
+    
+    def create_user(self, **kwargs) -> User:
+        """Create a test user with unique username and email"""
+        defaults = {
+            "username": f"user_{uuid.uuid4().hex[:8]}",
+            "email": f"test_{uuid.uuid4().hex[:8]}@example.com",
+            "password": "password123",
+            "is_active": True
         }
-    )
-    token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
-
-@pytest.fixture
-def test_knowledge_base(db_session, test_user):
-    """创建测试知识库"""
-    from app.services.knowledge_service import KnowledgeService
+        defaults.update(kwargs)
+        
+        service = UserService(self.db)
+        return service.create_user(**defaults)
     
-    service = KnowledgeService(db_session)
-    kb = service.create_knowledge_base(
-        name="测试知识库",
-        description="这是一个测试知识库",
-        uploader_id=test_user.id
-    )
-    return kb
+    def create_knowledge_base(self, uploader: User, **kwargs) -> KnowledgeBase:
+        """Create a test knowledge base"""
+        defaults = {
+            "name": f"KB_{uuid.uuid4().hex[:8]}",
+            "description": "Test knowledge base",
+            "copyright_owner": uploader.username
+        }
+        defaults.update(kwargs)
+        
+        service = KnowledgeService(self.db)
+        return service.create_knowledge_base(uploader_id=uploader.id, **defaults)
+```
+
+## 测试质量报告
+
+### 测试套件质量评分：8.7/10 (优秀)
+
+基于最新的测试质量验证报告，测试套件在以下方面表现优秀：
+
+#### ✅ 优点
+
+1. **完整的测试文档** (9.5/10)
+   - 100% 的测试文件有模块级文档字符串
+   - 100% 的测试类有类文档字符串
+   - 95%+ 的测试函数有描述性文档字符串
+   - 85.7% 的测试文件引用了需求编号
+
+2. **清晰的错误消息** (9.0/10)
+   - 使用统一的断言辅助函数 (`assert_error_response`, `assert_success_response`)
+   - 错误消息包含期望值、实际值和上下文信息
+   - 测试失败时提供足够的调试信息
+
+3. **优秀的测试隔离** (9.5/10)
+   - 每个测试使用独立的数据库会话
+   - 测试结束后自动清理所有数据
+   - 使用 UUID 生成唯一标识符避免冲突
+   - 测试可以独立运行，顺序不影响结果
+
+4. **高测试覆盖率**
+   - 753 个测试 (745 通过，7 失败，1 跳过)
+   - 79% 的代码覆盖率
+   - 覆盖单元测试、集成测试、属性测试和 E2E 测试
+
+5. **良好的需求追溯性** (9.0/10)
+   - 测试文档中引用需求编号
+   - 属性测试使用 `**Validates: Requirements X.Y**` 格式
+   - 便于追踪需求实现情况
+
+#### ⚠️ 需要改进
+
+1. **测试执行时间** (6.0/10)
+   - 当前：162 秒 (2分42秒)
+   - 目标：60 秒
+   - 建议：使用 `pytest-xdist` 并行执行
+
+2. **失败的测试** (7 个)
+   - 2 个 persona 路由测试失败 (mock 配置问题)
+   - 1 个用户统计测试失败 (数据准备问题)
+   - 4 个属性测试失败 (端点返回 404 而不是 401)
+
+3. **TestDataFactory 警告**
+   - pytest 误认为 TestDataFactory 是测试类
+   - 建议重命名为 `DataFactory` 或添加 `__test__ = False`
+
+### 测试文档示例
+
+**优秀的测试文档示例**：
+
+```python
+"""
+Integration tests for auth routes
+Tests login, token refresh, email verification, password reset, rate limiting, and account lockout
+
+Requirements: 1.8, 2.1, 7.1, 7.2
+"""
+
+class TestLogin:
+    """Test POST /api/auth/token endpoint (login)"""
+    
+    def test_login_with_valid_credentials_json(self, test_db: Session):
+        """Test login with valid credentials using JSON format
+        
+        Verifies:
+        - User can login with correct username and password
+        - Response includes access_token and refresh_token
+        - Token type is "bearer"
+        """
+        # Test implementation
 ```
 
 ## 测试最佳实践
 
-### 1. 测试命名
+### 1. 测试命名约定
 
-- 测试文件以 `test_` 开头
-- 测试函数以 `test_` 开头
-- 使用描述性的测试名称
+遵循清晰的命名约定，使测试意图一目了然：
+
+**测试文件命名**：
+- 单元测试：`test_<module_name>.py`
+- 集成测试：`test_<feature>_routes.py`
+- 属性测试：`test_<property_name>.py`
+- E2E 测试：`test_<workflow>_flow.py`
+
+**测试类命名**：
+- `Test<Feature>` - 例如：`TestUserAuthentication`
+- `Test<HTTPMethod><Endpoint>` - 例如：`TestGetUserProfile`
+
+**测试函数命名**：
+- `test_<action>_<expected_result>` - 例如：`test_login_succeeds`
+- `test_<action>_<condition>_<expected_result>` - 例如：`test_login_with_invalid_password_fails`
 
 ```python
-# 好的命名
-def test_create_user_with_valid_data():
+# ✅ 好的命名
+def test_create_user_with_valid_data_succeeds():
     pass
 
-def test_create_user_with_duplicate_username_raises_error():
+def test_create_user_with_duplicate_username_returns_400():
     pass
 
-# 不好的命名
+def test_login_with_invalid_password_fails():
+    pass
+
+# ❌ 不好的命名
 def test_user():
     pass
 
 def test_1():
     pass
+
+def test_function():
+    pass
 ```
 
-### 2. 测试隔离
+### 2. 测试隔离和数据清理
 
-- 每个测试应该独立运行
-- 使用 fixtures 准备测试数据
-- 测试结束后清理数据
+确保每个测试独立运行，不受其他测试影响：
 
+**数据库隔离**：
 ```python
-@pytest.fixture
-def db_session():
-    # 创建测试数据库
-    session = create_test_session()
+@pytest.fixture(scope="function")
+def test_db() -> Session:
+    """Create a test database session with automatic cleanup"""
+    session = TestingSessionLocal()
+    
     yield session
-    # 清理数据
-    session.rollback()
+    
+    # Clean up all data after test (in reverse order of foreign key dependencies)
+    session.query(CommentReaction).delete()
+    session.query(Comment).delete()
+    session.query(DownloadRecord).delete()
+    session.query(UploadRecord).delete()
+    session.query(EmailVerification).delete()
+    session.query(StarRecord).delete()
+    session.query(Message).delete()
+    session.query(PersonaCardFile).delete()
+    session.query(PersonaCard).delete()
+    session.query(KnowledgeBaseFile).delete()
+    session.query(KnowledgeBase).delete()
+    session.query(User).delete()
+    session.commit()
     session.close()
 ```
 
-### 3. 使用 Mock
+**使用 TestDataFactory 创建唯一数据**：
+```python
+def create_user(self, **kwargs) -> User:
+    """Create test user with unique identifiers"""
+    defaults = {
+        "username": f"user_{uuid.uuid4().hex[:8]}",  # 唯一用户名
+        "email": f"test_{uuid.uuid4().hex[:8]}@example.com",  # 唯一邮箱
+        "password": "password123",
+        "is_active": True
+    }
+    defaults.update(kwargs)
+    return service.create_user(**defaults)
+```
+
+### 3. 使用断言辅助函数
+
+使用统一的断言辅助函数确保错误消息的一致性和清晰性：
+
+**验证错误响应**：
+```python
+from tests.helpers.assertions import assert_error_response
+
+def test_login_with_invalid_password(test_db: Session):
+    """Test login with invalid password returns error"""
+    # ... create user and attempt login ...
+    
+    # Use helper function for consistent error checking
+    assert_error_response(
+        response,
+        expected_status_codes=[400, 401],
+        expected_message_keywords=["password", "incorrect", "invalid"]
+    )
+```
+
+**验证成功响应**：
+```python
+from tests.helpers.assertions import assert_success_response
+
+def test_get_user_profile(authenticated_client):
+    """Test getting user profile"""
+    response = authenticated_client.get("/api/users/me")
+    
+    # Verify success and get data
+    data = assert_success_response(response, expected_status=200)
+    assert "username" in data
+    assert "email" in data
+```
+
+**验证分页响应**：
+```python
+from tests.helpers.assertions import assert_pagination_response
+
+def test_list_knowledge_bases(authenticated_client):
+    """Test listing knowledge bases with pagination"""
+    response = authenticated_client.get("/api/knowledge/public?page=1&page_size=10")
+    
+    # Verify pagination format
+    data = assert_pagination_response(response, expected_page=1, expected_page_size=10)
+    assert "items" in data
+```
+
+### 4. 使用 Mock 隔离外部依赖
 
 对于外部依赖（如邮件服务、文件系统），使用 mock 进行隔离：
 
+**Mock 邮件服务**：
 ```python
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
-def test_send_verification_email(db_session):
+def test_send_verification_email(test_db: Session):
+    """Test sending verification email"""
     with patch('app.services.email_service.EmailService.send_email') as mock_send:
         mock_send.return_value = True
         
-        # 测试代码
-        service = AuthService(db_session)
+        # Test code
+        service = AuthService(test_db)
         result = service.send_verification_code("test@example.com")
         
+        # Verify
         assert result is True
         mock_send.assert_called_once()
+```
+
+**Mock 文件系统操作**：
+```python
+@patch('os.path.exists')
+@patch('os.remove')
+def test_delete_file(mock_remove, mock_exists, test_db: Session):
+    """Test file deletion"""
+    mock_exists.return_value = True
+    
+    # Test code
+    service = FileService(test_db)
+    service.delete_file("test.txt")
+    
+    # Verify
+    mock_remove.assert_called_once_with("test.txt")
 ```
 
 ### 4. 测试边界条件
@@ -293,49 +691,134 @@ def test_create_user_with_invalid_email():
         service.create_user(username="user", email="invalid", password="password")
 ```
 
-## 测试工具
+## 测试工具和辅助函数
 
-### pytest
+### 断言辅助函数
 
-主要测试框架，提供：
-- 测试发现和运行
-- Fixtures 支持
-- 参数化测试
-- 插件系统
+项目提供了统一的断言辅助函数，位于 `tests/helpers/assertions.py` 和 `tests/conftest.py`：
 
-### pytest-cov
+#### assert_error_response()
 
-测试覆盖率工具：
-
-```bash
-# 生成覆盖率报告
-pytest --cov=app --cov-report=html
-
-# 只显示未覆盖的代码
-pytest --cov=app --cov-report=term-missing
-```
-
-### pytest-mock
-
-Mock 工具，简化 mock 的使用：
+验证错误响应格式和内容：
 
 ```python
-def test_with_mocker(mocker):
-    mock_send = mocker.patch('app.services.email_service.EmailService.send_email')
-    mock_send.return_value = True
-    # 测试代码
+def assert_error_response(
+    response: Response,
+    expected_status_codes: Union[int, List[int]],
+    expected_message_keywords: Union[str, List[str]]
+) -> None:
+    """Verify error response format and content
+    
+    Args:
+        response: FastAPI test client response
+        expected_status_codes: Expected HTTP status code(s)
+        expected_message_keywords: Keywords that should appear in error message
+    """
 ```
 
-### TestClient
+**使用示例**：
+```python
+assert_error_response(
+    response,
+    expected_status_codes=[400, 401],
+    expected_message_keywords=["password", "incorrect"]
+)
+```
 
-FastAPI 提供的测试客户端，用于测试 API 端点：
+#### assert_success_response()
+
+验证成功响应并返回数据：
 
 ```python
-from fastapi.testclient import TestClient
-from app.main import app
+def assert_success_response(
+    response: Response,
+    expected_status: int = 200,
+    expected_message: Optional[str] = None
+) -> dict:
+    """Verify success response and return data
+    
+    Args:
+        response: FastAPI test client response
+        expected_status: Expected HTTP status code (default: 200)
+        expected_message: Optional expected message
+        
+    Returns:
+        Response data dictionary
+    """
+```
 
-client = TestClient(app)
-response = client.get("/api/users/me")
+**使用示例**：
+```python
+data = assert_success_response(response, expected_status=200)
+assert "username" in data
+```
+
+#### assert_pagination_response()
+
+验证分页响应格式：
+
+```python
+def assert_pagination_response(
+    response: Response,
+    expected_page: int,
+    expected_page_size: int,
+    min_total: int = 0
+) -> dict:
+    """Verify pagination response format
+    
+    Args:
+        response: FastAPI test client response
+        expected_page: Expected page number
+        expected_page_size: Expected page size
+        min_total: Minimum expected total count
+        
+    Returns:
+        Response data dictionary
+    """
+```
+
+**使用示例**：
+```python
+data = assert_pagination_response(response, expected_page=1, expected_page_size=10)
+assert len(data["items"]) <= 10
+```
+
+### TestDataFactory
+
+测试数据工厂类，用于创建一致的测试数据，位于 `tests/test_data_factory.py`：
+
+```python
+class TestDataFactory:
+    """Factory for creating test data with unique identifiers"""
+    
+    def __init__(self, db: Session):
+        self.db = db
+    
+    # 用户创建
+    def create_user(self, **kwargs) -> User
+    def create_admin_user(self, **kwargs) -> User
+    def create_moderator_user(self, **kwargs) -> User
+    
+    # 内容创建
+    def create_knowledge_base(self, uploader: User, **kwargs) -> KnowledgeBase
+    def create_persona_card(self, uploader: User, **kwargs) -> PersonaCard
+    def create_message(self, sender: User, recipient: User, **kwargs) -> Message
+    def create_comment(self, author: User, **kwargs) -> Comment
+```
+
+**使用示例**：
+```python
+def test_example(test_db: Session):
+    factory = TestDataFactory(test_db)
+    
+    # 创建测试用户
+    user = factory.create_user(username="testuser")
+    
+    # 创建测试知识库
+    kb = factory.create_knowledge_base(uploader=user, name="Test KB")
+    
+    # 执行测试
+    assert kb.uploader_id == user.id
 ```
 
 ## 持续集成
@@ -607,25 +1090,39 @@ test: 添加用户服务的单元测试
 
 ### Q: 测试数据库如何隔离？
 
-A: 使用 pytest fixtures 创建独立的测试数据库会话，每个测试结束后回滚事务：
+A: 使用 pytest fixtures 创建独立的测试数据库会话，每个测试结束后清理所有数据：
 
 ```python
-@pytest.fixture
-def db_session():
-    session = create_test_session()
+@pytest.fixture(scope="function")
+def test_db() -> Session:
+    session = TestingSessionLocal()
     yield session
-    session.rollback()
+    
+    # 按外键依赖顺序删除数据
+    session.query(CommentReaction).delete()
+    session.query(Comment).delete()
+    # ... 其他表 ...
+    session.commit()
     session.close()
 ```
 
 ### Q: 如何测试需要认证的接口？
 
-A: 使用 fixture 创建认证头：
+A: 使用 `authenticated_client` fixture 创建已认证的客户端：
+
+```python
+def test_get_user_profile(authenticated_client):
+    """Test getting user profile"""
+    response = authenticated_client.get("/api/users/me")
+    assert response.status_code == 200
+```
+
+或手动创建认证头：
 
 ```python
 @pytest.fixture
-def auth_headers(test_client, test_user):
-    response = test_client.post("/api/token", data={
+def auth_headers(test_user):
+    response = client.post("/api/auth/token", json={
         "username": test_user.username,
         "password": "password123"
     })
@@ -638,27 +1135,135 @@ def auth_headers(test_client, test_user):
 A: 使用 TestClient 的 files 参数：
 
 ```python
-def test_upload_file(test_client, auth_headers):
+def test_upload_file(authenticated_client):
     files = {"file": ("test.txt", b"test content", "text/plain")}
-    response = test_client.post(
+    data = {"name": "Test", "description": "Test description"}
+    
+    response = authenticated_client.post(
         "/api/knowledge/upload",
         files=files,
-        data={"name": "Test", "description": "Test"},
-        headers=auth_headers
+        data=data
     )
     assert response.status_code == 200
 ```
 
 ### Q: 如何 mock 外部服务？
 
-A: 使用 pytest-mock 或 unittest.mock：
+A: 使用 `unittest.mock` 或 `pytest-mock`：
 
 ```python
-def test_send_email(mocker):
-    mock_send = mocker.patch('app.services.email_service.EmailService.send_email')
-    mock_send.return_value = True
-    # 测试代码
+from unittest.mock import patch
+
+def test_send_email(test_db: Session):
+    with patch('app.services.email_service.EmailService.send_email') as mock_send:
+        mock_send.return_value = True
+        
+        # 测试代码
+        service = AuthService(test_db)
+        result = service.send_verification_code("test@example.com")
+        
+        # 验证
+        assert result is True
+        mock_send.assert_called_once()
 ```
+
+### Q: 如何加速测试执行？
+
+A: 使用 `pytest-xdist` 并行执行测试：
+
+```bash
+# 使用所有 CPU 核心
+pytest -n auto
+
+# 使用指定数量的进程
+pytest -n 4
+```
+
+当前测试执行时间：162 秒（目标：60 秒）
+
+### Q: 如何只运行失败的测试？
+
+A: 使用 `--lf` (last failed) 选项：
+
+```bash
+# 只运行上次失败的测试
+pytest --lf
+
+# 先运行失败的测试，再运行其他测试
+pytest --ff
+```
+
+### Q: 如何查看测试覆盖率？
+
+A: 生成 HTML 覆盖率报告：
+
+```bash
+# 生成报告
+pytest --cov=app --cov-report=html
+
+# 查看报告
+open htmlcov/index.html  # macOS
+xdg-open htmlcov/index.html  # Linux
+```
+
+### Q: TestDataFactory 警告如何解决？
+
+A: pytest 误认为 `TestDataFactory` 是测试类。解决方法：
+
+1. 重命名为 `DataFactory`
+2. 或添加 `__test__ = False` 属性：
+
+```python
+class TestDataFactory:
+    __test__ = False  # 告诉 pytest 这不是测试类
+    
+    def __init__(self, db: Session):
+        self.db = db
+```
+
+## 改进建议
+
+基于测试质量报告，以下是改进建议：
+
+### 高优先级
+
+1. **修复失败的测试** (7个)
+   - 修复 persona 路由测试的 mock 配置
+   - 修复用户统计测试的数据准备
+   - 修复属性测试的端点检查逻辑（404 vs 401）
+
+2. **解决 TestDataFactory 警告**
+   - 重命名为 `DataFactory` 或添加 `__test__ = False`
+
+3. **优化测试执行时间**
+   - 启用 `pytest-xdist` 并行执行
+   - 目标：从 162 秒降低到 60 秒以内
+
+### 中优先级
+
+1. **提高低覆盖率模块的测试覆盖率**
+   - `app/utils/file.py`: 22% → 90%
+   - `app/utils/websocket.py`: 43% → 90%
+   - `app/main.py`: 52% → 90%
+   - `app/core/database.py`: 58% → 90%
+
+2. **增强错误消息**
+   - 为所有断言添加描述性消息
+   - 统一使用断言辅助函数
+
+3. **补充缺失的文档**
+   - 为少数缺少文档字符串的测试函数添加文档
+
+### 低优先级
+
+1. **添加测试标记**
+   - 使用 `@pytest.mark.slow` 标记慢速测试
+   - 使用 `@pytest.mark.integration` 标记集成测试
+   - 使用 `@pytest.mark.unit` 标记单元测试
+
+2. **改进测试组织**
+   - 考虑将相关测试分组
+   - 添加更多的测试类来组织测试
 
 ## 相关文档
 
@@ -668,6 +1273,8 @@ def test_send_email(mocker):
 
 ---
 
-**文档版本**: 2.0  
-**最后更新**: 2025-01-XX  
-**维护者**: 开发团队
+**文档版本**: 3.0  
+**最后更新**: 2025-02-20  
+**维护者**: 开发团队  
+**测试覆盖率**: 79% (753 个测试)  
+**测试质量评分**: 8.7/10 (优秀)

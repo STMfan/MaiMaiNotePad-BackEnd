@@ -1,3 +1,15 @@
+"""
+人设卡路由模块
+
+处理人设卡相关的API端点，包括：
+- 上传人设卡
+- 查询人设卡（公开、个人、详情）
+- 编辑人设卡
+- 删除人设卡
+- 收藏/取消收藏人设卡
+- 下载人设卡
+"""
+
 import os
 from datetime import datetime
 from typing import List, Optional
@@ -21,12 +33,13 @@ from app.models.schemas import (
 from app.api.deps import get_current_user, get_current_user_optional
 from app.core.database import get_db
 from app.services.persona_service import PersonaService
+from app.services.file_service import FileService, FileValidationError, FileDatabaseError
 
 # 创建路由器
 router = APIRouter()
 
 
-# 人设卡相关路由
+# 人设卡相关路由（上传、查询、编辑、删除等）
 @router.post("/persona/upload")
 async def upload_persona_card(
         files: List[UploadFile] = File(...),
@@ -63,8 +76,17 @@ async def upload_persona_card(
                 details={"code": "PERSONA_ONLY_ONE_ALLOWED"}
             )
 
-        pc = await file_upload_service.upload_persona_card(
-            files=files,
+        # 读取上传文件内容，构建文件数据
+        file_data = []
+        for file in files:
+            content_bytes = await file.read()
+            file_data.append((file.filename, content_bytes))
+            await file.seek(0)
+
+        # 使用文件服务保存人设卡及其文件
+        file_service = FileService(db)
+        pc = file_service.upload_persona_card(
+            files=file_data,
             name=name,
             description=description,
             uploader_id=user_id,
@@ -73,24 +95,21 @@ async def upload_persona_card(
             tags=tags
         )
 
+        # 根据是否公开调整可见性与审核状态
         try:
-            pc_data = pc.to_dict()
-            pc_data.pop("created_at", None)
-            pc_data.pop("updated_at", None)
-
             if is_public:
-                pc_data["is_public"] = False
-                pc_data["is_pending"] = True
+                pc.is_public = False
+                pc.is_pending = True
                 upload_status = "pending"
             else:
-                pc_data["is_public"] = False
-                pc_data["is_pending"] = False
+                pc.is_public = False
+                pc.is_pending = False
                 upload_status = "success"
 
-            pc = persona_service.save_persona_card(pc_data)
-            if not pc:
-                raise DatabaseError("保存人设卡失败")
+            db.commit()
+            db.refresh(pc)
         except Exception as e:
+            db.rollback()
             log_exception(app_logger, "Update persona card visibility after upload error", exception=e)
             raise DatabaseError("更新人设卡可见性状态失败")
 
@@ -130,6 +149,10 @@ async def upload_persona_card(
             data=pc.to_dict()
         )
 
+    except FileValidationError as e:
+        raise ValidationError(e.message, details=e.details)
+    except FileDatabaseError as e:
+        raise DatabaseError(e.message, details=e.details)
     except (ValidationError, FileOperationError, DatabaseError, HTTPException):
         raise
     except Exception as e:
@@ -195,16 +218,24 @@ async def get_persona_card(pc_id: str, db: Session = Depends(get_db)):
     try:
         app_logger.info(f"Get persona card detail: pc_id={pc_id}")
 
-        # 使用服务层
         persona_service = PersonaService(db)
         
-        # 检查人设卡是否存在
         pc = persona_service.get_persona_card_by_id(pc_id)
         if not pc:
             raise NotFoundError("人设卡不存在")
 
-        # 返回完整的人设卡信息（包含文件和metadata）
         pc_dict = pc.to_dict()
+
+        files = persona_service.get_files_by_persona_card_id(pc_id)
+        pc_dict["files"] = [{
+            "file_id": f.id,
+            "file_name": f.file_name,
+            "original_name": f.original_name,
+            "file_type": f.file_type,
+            "file_size": f.file_size,
+            "created_at": f.created_at.isoformat() if f.created_at else None,
+        } for f in files] if files else []
+
         return Success(
             message="人设卡详情获取成功",
             data=pc_dict
@@ -774,8 +805,9 @@ async def download_persona_card_files(
             if pc.uploader_id != current_user.get("id") and not is_admin_or_moderator:
                 raise AuthorizationError("没有权限下载此人设卡")
 
-        # 创建ZIP文件
-        zip_result = await file_upload_service.create_persona_card_zip(pc_id)
+        # 创建ZIP文件（使用文件服务）
+        file_service = FileService(db)
+        zip_result = file_service.create_persona_card_zip(pc_id)
         zip_path = zip_result["zip_path"]
         zip_filename = zip_result["zip_filename"]
 
@@ -794,6 +826,16 @@ async def download_persona_card_files(
 
     except (HTTPException, NotFoundError, AuthenticationError, AuthorizationError):
         raise
+    except FileValidationError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_404_NOT_FOUND,
+            detail=e.message
+        )
+    except FileDatabaseError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message
+        )
     except Exception as e:
         raise HTTPException(
             status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -826,8 +868,9 @@ async def download_persona_card_file(
         if not pc.is_public and pc.uploader_id != user_id and not current_user.get("is_admin", False):
             raise AuthorizationError("没有权限下载此人设卡")
 
-        # 获取文件信息
-        file_info = await file_upload_service.get_persona_card_file_path(pc_id, file_id)
+        # 获取文件信息（使用文件服务）
+        file_service = FileService(db)
+        file_info = file_service.get_persona_card_file_path(pc_id, file_id)
         if not file_info:
             raise NotFoundError("文件不存在")
 

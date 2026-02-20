@@ -1,0 +1,29 @@
+# 测试环境配置模板
+# 复制此文件为 .test_env 并根据本地环境进行自定义
+
+# 数据库配置
+# 使用 SQLite 进行快速本地测试
+DATABASE_URL=sqlite:///./test.db
+# 或使用 PostgreSQL 进行类生产环境测试：
+# DATABASE_URL=postgresql://user:password@localhost/test_db
+
+# JWT 配置
+JWT_SECRET_KEY=test_secret_key_for_testing_only
+
+# 邮件服务配置
+MAIL_USER=test@example.com
+MAIL_PWD=test_password
+MAIL_SERVER=smtp.example.com
+MAIL_PORT=587
+
+# 管理员账户配置
+SUPERADMIN_PWD=admin123
+HIGHEST_PASSWORD=highest123
+
+# 测试配置
+# Hypothesis 配置文件：'ci' 为 100 次迭代，'dev' 为 10 次迭代
+HYPOTHESIS_PROFILE=ci
+
+# 并行测试
+# 设置为 'true' 以启用 pytest-xdist 并行测试执行
+TEST_PARALLEL=true

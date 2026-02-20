@@ -1,9 +1,10 @@
-"""Message service module
+"""
+消息服务模块
 
-This module provides business logic for message operations including:
-- Message CRUD operations
-- Broadcast message functionality
-- Message read/unread status management
+提供消息相关的业务逻辑，包括：
+- 消息增删改查
+- 广播消息功能
+- 消息已读/未读状态管理
 """
 
 import re
@@ -15,24 +16,26 @@ from app.models.database import Message, User
 
 
 class MessageService:
-    """Service class for message operations"""
+    """消息服务类"""
 
     def __init__(self, db: Session):
-        """Initialize message service with database session
+        """
+        初始化消息服务。
         
         Args:
-            db: SQLAlchemy database session
+            db: SQLAlchemy 数据库会话
         """
         self.db = db
 
     def get_message_by_id(self, message_id: str) -> Optional[Message]:
-        """Get message by ID
+        """
+        根据 ID 获取消息。
         
         Args:
-            message_id: Message ID
+            message_id: 消息 ID
             
         Returns:
-            Message object or None if not found
+            找到返回消息对象，否则返回 None
         """
         return self.db.query(Message).filter(Message.id == message_id).first()
 
@@ -42,15 +45,16 @@ class MessageService:
         page: int = 1,
         page_size: int = 20
     ) -> List[Message]:
-        """Get messages received by user
+        """
+        获取用户收到的消息列表。
         
         Args:
-            user_id: User ID
-            page: Page number (1-indexed)
-            page_size: Number of messages per page
+            user_id: 用户 ID
+            page: 页码（从 1 开始）
+            page_size: 每页数量
             
         Returns:
-            List of Message objects
+            消息对象列表
         """
         offset = (page - 1) * page_size
         return self.db.query(Message).filter(
@@ -64,16 +68,17 @@ class MessageService:
         page: int = 1,
         page_size: int = 20
     ) -> List[Message]:
-        """Get conversation messages between two users
+        """
+        获取两个用户之间的对话消息。
         
         Args:
-            user_id: Current user ID
-            other_user_id: Other user ID
-            page: Page number (1-indexed)
-            page_size: Number of messages per page
+            user_id: 当前用户 ID
+            other_user_id: 对方用户 ID
+            page: 页码（从 1 开始）
+            page_size: 每页数量
             
         Returns:
-            List of Message objects
+            消息对象列表
         """
         offset = (page - 1) * page_size
         return self.db.query(Message).filter(
@@ -88,16 +93,17 @@ class MessageService:
         page: int = 1,
         page_size: int = 20
     ) -> List[Message]:
-        """Get user messages filtered by type
+        """
+        按类型获取用户消息。
         
         Args:
-            user_id: User ID
-            message_type: Message type (e.g., 'direct', 'announcement')
-            page: Page number (1-indexed)
-            page_size: Number of messages per page
+            user_id: 用户 ID
+            message_type: 消息类型（如 'direct'、'announcement'）
+            page: 页码（从 1 开始）
+            page_size: 每页数量
             
         Returns:
-            List of Message objects
+            消息对象列表
         """
         offset = (page - 1) * page_size
         return self.db.query(Message).filter(
@@ -106,41 +112,44 @@ class MessageService:
         ).order_by(Message.created_at.desc()).offset(offset).limit(page_size).all()
 
     def get_all_users(self) -> List[User]:
-        """Get all users
+        """
+        获取所有用户。
         
         Returns:
-            List of User objects
+            用户对象列表
         """
         return self.db.query(User).all()
 
     def get_users_by_ids(self, user_ids: List[str]) -> List[User]:
-        """Get users by IDs
+        """
+        根据 ID 列表获取用户。
         
         Args:
-            user_ids: List of user IDs
+            user_ids: 用户 ID 列表
             
         Returns:
-            List of User objects
+            用户对象列表
         """
         return self.db.query(User).filter(User.id.in_(user_ids)).all()
 
     def generate_summary(self, content: str) -> str:
-        """Generate summary from content
+        """
+        从内容生成摘要。
         
         Args:
-            content: Message content
+            content: 消息内容
             
         Returns:
-            Generated summary (max 150 characters)
+            生成的摘要（最多 150 字符）
         """
-        # Remove HTML tags
+        # 移除 HTML 标签
         text = re.sub(r'<[^>]+>', '', content)
-        # Remove extra whitespace
+        # 移除多余空白
         text = ' '.join(text.split())
         
         if len(text) > 150:
             truncated = text[:150]
-            # Try to find last punctuation
+            # 尝试在标点处截断
             last_punctuation = max(
                 truncated.rfind('。'),
                 truncated.rfind('！'),
@@ -166,25 +175,26 @@ class MessageService:
         message_type: str = "direct",
         broadcast_scope: Optional[str] = None
     ) -> List[Message]:
-        """Create messages for multiple recipients
+        """
+        为多个接收者创建消息。
         
         Args:
-            sender_id: Sender user ID
-            recipient_ids: Set of recipient user IDs
-            title: Message title
-            content: Message content
-            summary: Message summary (auto-generated if not provided)
-            message_type: Message type ('direct' or 'announcement')
-            broadcast_scope: Broadcast scope (e.g., 'all_users')
+            sender_id: 发送者用户 ID
+            recipient_ids: 接收者用户 ID 集合
+            title: 消息标题
+            content: 消息内容
+            summary: 消息摘要（未提供则自动生成）
+            message_type: 消息类型（'direct' 或 'announcement'）
+            broadcast_scope: 广播范围（如 'all_users'）
             
         Returns:
-            List of created Message objects
+            创建的消息对象列表
         """
-        # Generate summary if not provided
+        # 未提供摘要则自动生成
         if not summary and content:
             summary = self.generate_summary(content)
 
-        # Create message objects
+        # 创建消息对象
         messages = []
         for recipient_id in recipient_ids:
             message = Message(
@@ -201,30 +211,31 @@ class MessageService:
             self.db.add(message)
             messages.append(message)
 
-        # Commit all messages
+        # 提交所有消息
         self.db.commit()
         
-        # Refresh to get IDs
+        # 刷新以获取 ID
         for message in messages:
             self.db.refresh(message)
 
         return messages
 
     def mark_message_read(self, message_id: str, user_id: str) -> bool:
-        """Mark message as read
+        """
+        标记消息为已读。
         
         Args:
-            message_id: Message ID
-            user_id: User ID (must be recipient)
+            message_id: 消息 ID
+            user_id: 用户 ID（必须是接收者）
             
         Returns:
-            True if successful, False otherwise
+            成功返回 True，否则返回 False
         """
         message = self.get_message_by_id(message_id)
         if not message:
             return False
         
-        # Verify user is recipient
+        # 验证用户是接收者
         if str(message.recipient_id) != str(user_id):
             return False
         
@@ -233,20 +244,21 @@ class MessageService:
         return True
 
     def delete_message(self, message_id: str, user_id: str) -> bool:
-        """Delete a single message
+        """
+        删除单条消息。
         
         Args:
-            message_id: Message ID
-            user_id: User ID (must be recipient)
+            message_id: 消息 ID
+            user_id: 用户 ID（必须是接收者）
             
         Returns:
-            True if successful, False otherwise
+            成功返回 True，否则返回 False
         """
         message = self.get_message_by_id(message_id)
         if not message:
             return False
         
-        # Verify user is recipient
+        # 验证用户是接收者
         if str(message.recipient_id) != str(user_id):
             return False
         
@@ -255,26 +267,26 @@ class MessageService:
         return True
 
     def delete_broadcast_messages(self, message_id: str, sender_id: str) -> int:
-        """Delete all messages in a broadcast
+        """
+        删除广播消息的所有副本。
         
         Args:
-            message_id: Any message ID from the broadcast
-            sender_id: Sender user ID (must be sender)
+            message_id: 广播中任一消息的 ID
+            sender_id: 发送者用户 ID（必须是发送者）
             
         Returns:
-            Number of messages deleted
+            删除的消息数量
         """
-        # Get the original message to find broadcast details
+        # 获取原始消息以查找广播详情
         original_message = self.get_message_by_id(message_id)
         if not original_message:
             return 0
         
-        # Verify user is sender
+        # 验证用户是发送者
         if str(original_message.sender_id) != str(sender_id):
             return 0
         
-        # Find all messages with same sender, title, and created_at (within 1 second)
-        # This identifies messages from the same broadcast
+        # 查找同一发送者、同一标题、同一时间（1 秒内）的所有消息
         messages = self.db.query(Message).filter(
             Message.sender_id == sender_id,
             Message.title == original_message.title,
@@ -282,14 +294,14 @@ class MessageService:
             Message.broadcast_scope == "all_users"
         ).all()
         
-        # Filter by created_at within 1 second
+        # 按创建时间 1 秒内筛选
         target_time = original_message.created_at
         broadcast_messages = [
             msg for msg in messages
             if abs((msg.created_at - target_time).total_seconds()) < 1
         ]
         
-        # Delete all broadcast messages
+        # 删除所有广播消息
         count = 0
         for message in broadcast_messages:
             self.db.delete(message)
@@ -306,32 +318,33 @@ class MessageService:
         content: Optional[str] = None,
         summary: Optional[str] = None
     ) -> bool:
-        """Update a single message
+        """
+        更新单条消息。
         
         Args:
-            message_id: Message ID
-            user_id: User ID (must be recipient)
-            title: New title (optional)
-            content: New content (optional)
-            summary: New summary (optional)
+            message_id: 消息 ID
+            user_id: 用户 ID（必须是接收者）
+            title: 新标题（可选）
+            content: 新内容（可选）
+            summary: 新摘要（可选）
             
         Returns:
-            True if successful, False otherwise
+            成功返回 True，否则返回 False
         """
         message = self.get_message_by_id(message_id)
         if not message:
             return False
         
-        # Verify user is recipient
+        # 验证用户是接收者
         if str(message.recipient_id) != str(user_id):
             return False
         
-        # Update fields
+        # 更新字段
         if title:
             message.title = title
         if content:
             message.content = content
-        if summary is not None:  # Allow empty string
+        if summary is not None:  # 允许空字符串
             message.summary = summary
         
         self.db.commit()
@@ -345,28 +358,29 @@ class MessageService:
         content: Optional[str] = None,
         summary: Optional[str] = None
     ) -> int:
-        """Update all messages in a broadcast
+        """
+        更新广播消息的所有副本。
         
         Args:
-            message_id: Any message ID from the broadcast
-            sender_id: Sender user ID (must be sender)
-            title: New title (optional)
-            content: New content (optional)
-            summary: New summary (optional)
+            message_id: 广播中任一消息的 ID
+            sender_id: 发送者用户 ID（必须是发送者）
+            title: 新标题（可选）
+            content: 新内容（可选）
+            summary: 新摘要（可选）
             
         Returns:
-            Number of messages updated
+            更新的消息数量
         """
-        # Get the original message to find broadcast details
+        # 获取原始消息以查找广播详情
         original_message = self.get_message_by_id(message_id)
         if not original_message:
             return 0
         
-        # Verify user is sender
+        # 验证用户是发送者
         if str(original_message.sender_id) != str(sender_id):
             return 0
         
-        # Find all messages with same sender, title, and created_at (within 1 second)
+        # 查找同一发送者、同一标题、同一时间（1 秒内）的所有消息
         messages = self.db.query(Message).filter(
             Message.sender_id == sender_id,
             Message.title == original_message.title,
@@ -374,21 +388,21 @@ class MessageService:
             Message.broadcast_scope == "all_users"
         ).all()
         
-        # Filter by created_at within 1 second
+        # 按创建时间 1 秒内筛选
         target_time = original_message.created_at
         broadcast_messages = [
             msg for msg in messages
             if abs((msg.created_at - target_time).total_seconds()) < 1
         ]
         
-        # Update all broadcast messages
+        # 更新所有广播消息
         count = 0
         for message in broadcast_messages:
             if title:
                 message.title = title
             if content:
                 message.content = content
-            if summary is not None:  # Allow empty string
+            if summary is not None:  # 允许空字符串
                 message.summary = summary
             count += 1
         
@@ -396,27 +410,28 @@ class MessageService:
         return count
 
     def get_broadcast_messages(self, page: int = 1, page_size: int = 20) -> List[Message]:
-        """Get broadcast messages (unique by sender, title, and time)
+        """
+        获取广播消息列表（按发送者、标题和时间去重）。
         
         Args:
-            page: Page number (1-indexed)
-            page_size: Number of messages per page
+            page: 页码（从 1 开始）
+            page_size: 每页数量
             
         Returns:
-            List of unique broadcast Message objects
+            去重后的广播消息对象列表
         """
-        # Get all announcement messages
+        # 获取所有公告消息
         all_messages = self.db.query(Message).filter(
             Message.message_type == "announcement",
             Message.broadcast_scope == "all_users"
         ).order_by(Message.created_at.desc()).all()
         
-        # Group by sender_id, title, and created_at (within 1 second)
+        # 按发送者、标题和创建时间（1 秒内）分组
         unique_messages = []
         seen = set()
         
         for msg in all_messages:
-            # Create a key based on sender, title, and rounded timestamp
+            # 基于发送者、标题和取整时间戳创建唯一键
             timestamp_key = int(msg.created_at.timestamp()) if msg.created_at else 0
             key = (msg.sender_id, msg.title, timestamp_key)
             
@@ -424,20 +439,21 @@ class MessageService:
                 seen.add(key)
                 unique_messages.append(msg)
         
-        # Paginate
+        # 分页
         offset = (page - 1) * page_size
         return unique_messages[offset:offset + page_size]
 
     def get_broadcast_message_stats(self, message_id: str) -> Dict[str, Any]:
-        """Get statistics for a broadcast message
+        """
+        获取广播消息的统计信息。
         
         Args:
-            message_id: Any message ID from the broadcast
+            message_id: 广播中任一消息的 ID
             
         Returns:
-            Dictionary with stats (total_sent, total_read, total_unread)
+            包含 total_sent、total_read、total_unread 的统计字典
         """
-        # Get the original message
+        # 获取原始消息
         original_message = self.get_message_by_id(message_id)
         if not original_message:
             return {
@@ -446,7 +462,7 @@ class MessageService:
                 "total_unread": 0
             }
         
-        # Find all messages with same sender, title, and created_at (within 1 second)
+        # 查找同一发送者、同一标题、同一时间（1 秒内）的所有消息
         messages = self.db.query(Message).filter(
             Message.sender_id == original_message.sender_id,
             Message.title == original_message.title,
@@ -454,7 +470,7 @@ class MessageService:
             Message.broadcast_scope == "all_users"
         ).all()
         
-        # Filter by created_at within 1 second
+        # 按创建时间 1 秒内筛选
         target_time = original_message.created_at
         broadcast_messages = [
             msg for msg in messages
@@ -472,10 +488,11 @@ class MessageService:
         }
 
     def count_broadcast_messages(self) -> int:
-        """Count total broadcast messages
+        """
+        统计广播消息总数。
         
         Returns:
-            Total count of broadcast messages
+            广播消息总数
         """
         return self.db.query(Message).filter(
             Message.message_type == "announcement",

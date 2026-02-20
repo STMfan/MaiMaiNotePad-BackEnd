@@ -1,6 +1,7 @@
 """
-Knowledge base service module
-Contains business logic for knowledge base management
+知识库服务模块
+
+包含知识库管理相关的业务逻辑，包括增删改查、审核、收藏和下载功能。
 """
 
 import logging
@@ -15,35 +16,35 @@ logger = logging.getLogger(__name__)
 
 class KnowledgeService:
     """
-    Service class for knowledge base management operations.
-    Handles knowledge base CRUD operations, approval, star, and download functionality.
+    知识库管理服务类。
+    处理知识库的增删改查、审核、收藏和下载功能。
     """
 
     def __init__(self, db: Session):
         """
-        Initialize KnowledgeService with database session.
+        初始化知识库服务。
         
         Args:
-            db: SQLAlchemy database session
+            db: SQLAlchemy 数据库会话
         """
         self.db = db
 
     def get_knowledge_base_by_id(self, kb_id: str, include_files: bool = False) -> Optional[KnowledgeBase]:
         """
-        Get knowledge base by ID.
+        根据 ID 获取知识库。
         
         Args:
-            kb_id: Knowledge base ID
-            include_files: Whether to include file information
+            kb_id: 知识库 ID
+            include_files: 是否包含文件信息
             
         Returns:
-            KnowledgeBase object if found, None otherwise
+            找到返回知识库对象，否则返回 None
         """
         try:
             kb = self.db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
             return kb
         except Exception as e:
-            logger.error(f'Error getting knowledge base by ID {kb_id}: {str(e)}')
+            logger.error(f'获取知识库失败 ID={kb_id}: {str(e)}')
             return None
 
     def get_public_knowledge_bases(
@@ -56,18 +57,18 @@ class KnowledgeService:
         sort_order: str = "desc"
     ) -> Tuple[List[KnowledgeBase], int]:
         """
-        Get public knowledge bases with pagination, search, and sorting.
+        获取公开知识库列表，支持分页、搜索和排序。
         
         Args:
-            page: Page number (1-indexed)
-            page_size: Number of items per page
-            name: Search by name (optional)
-            uploader_id: Filter by uploader ID (optional)
-            sort_by: Sort field (created_at, updated_at, star_count)
-            sort_order: Sort order (asc, desc)
+            page: 页码（从 1 开始）
+            page_size: 每页数量
+            name: 按名称搜索（可选）
+            uploader_id: 按上传者 ID 筛选（可选）
+            sort_by: 排序字段（created_at、updated_at、star_count）
+            sort_order: 排序方向（asc、desc）
             
         Returns:
-            Tuple of (list of KnowledgeBase objects, total count)
+            (知识库列表, 总数) 元组
         """
         try:
             query = self.db.query(KnowledgeBase).filter(
@@ -75,17 +76,17 @@ class KnowledgeService:
                 KnowledgeBase.is_pending == False
             )
 
-            # Apply filters
+            # 应用筛选条件
             if name:
                 query = query.filter(KnowledgeBase.name.ilike(f"%{name}%"))
             
             if uploader_id:
                 query = query.filter(KnowledgeBase.uploader_id == uploader_id)
 
-            # Get total count before pagination
+            # 分页前获取总数
             total = query.count()
 
-            # Apply sorting
+            # 应用排序
             sort_field_map = {
                 "created_at": KnowledgeBase.created_at,
                 "updated_at": KnowledgeBase.updated_at,
@@ -98,13 +99,13 @@ class KnowledgeService:
             else:
                 query = query.order_by(sort_field.desc())
 
-            # Apply pagination
+            # 应用分页
             offset = (page - 1) * page_size
             kbs = query.offset(offset).limit(page_size).all()
 
             return kbs, total
         except Exception as e:
-            logger.error(f'Error getting public knowledge bases: {str(e)}')
+            logger.error(f'获取公开知识库列表失败: {str(e)}')
             return [], 0
 
     def get_user_knowledge_bases(
@@ -119,27 +120,27 @@ class KnowledgeService:
         sort_order: str = "desc"
     ) -> Tuple[List[KnowledgeBase], int]:
         """
-        Get knowledge bases uploaded by a specific user.
+        获取指定用户上传的知识库列表。
         
         Args:
-            user_id: User ID
-            page: Page number (1-indexed)
-            page_size: Number of items per page
-            name: Search by name (optional)
-            tag: Search by tag (optional)
-            status: Status filter (all/pending/approved/rejected)
-            sort_by: Sort field (created_at/updated_at/name/downloads/star_count)
-            sort_order: Sort order (asc/desc)
+            user_id: 用户 ID
+            page: 页码（从 1 开始）
+            page_size: 每页数量
+            name: 按名称搜索（可选）
+            tag: 按标签搜索（可选）
+            status: 状态筛选（all/pending/approved/rejected）
+            sort_by: 排序字段（created_at/updated_at/name/downloads/star_count）
+            sort_order: 排序方向（asc/desc）
             
         Returns:
-            Tuple of (list of KnowledgeBase objects, total count)
+            (知识库列表, 总数) 元组
         """
         try:
             kbs = self.db.query(KnowledgeBase).filter(
                 KnowledgeBase.uploader_id == user_id
             ).all()
 
-            # Filter by status
+            # 按状态筛选
             def match_status(kb):
                 if status == "pending":
                     return kb.is_pending
@@ -149,7 +150,7 @@ class KnowledgeService:
                     return not kb.is_pending and (not kb.is_public)
                 return True
 
-            # Apply filters
+            # 应用筛选条件
             filtered = []
             for kb in kbs:
                 if name and name.lower() not in kb.name.lower():
@@ -164,7 +165,7 @@ class KnowledgeService:
                     continue
                 filtered.append(kb)
 
-            # Sort
+            # 排序
             sort_field_map = {
                 "created_at": lambda kb: kb.created_at,
                 "updated_at": lambda kb: kb.updated_at,
@@ -183,24 +184,24 @@ class KnowledgeService:
 
             return page_items, total
         except Exception as e:
-            logger.error(f'Error getting user knowledge bases for user {user_id}: {str(e)}')
+            logger.error(f'获取用户 {user_id} 的知识库列表失败: {str(e)}')
             return [], 0
 
     def save_knowledge_base(self, kb_data: Dict[str, Any]) -> Optional[KnowledgeBase]:
         """
-        Save or update knowledge base.
+        保存或更新知识库。
         
         Args:
-            kb_data: Dictionary containing knowledge base data
+            kb_data: 知识库数据字典
             
         Returns:
-            KnowledgeBase object if successful, None otherwise
+            成功返回知识库对象，否则返回 None
         """
         try:
             kb_id = kb_data.get("id")
             
             if kb_id:
-                # Update existing knowledge base
+                # 更新已有知识库
                 kb = self.get_knowledge_base_by_id(kb_id)
                 if not kb:
                     return None
@@ -209,31 +210,31 @@ class KnowledgeService:
                     if hasattr(kb, key) and key not in ["id", "created_at"]:
                         setattr(kb, key, value)
             else:
-                # Create new knowledge base
+                # 创建新知识库
                 kb = KnowledgeBase(**kb_data)
                 self.db.add(kb)
             
             self.db.commit()
             self.db.refresh(kb)
             
-            logger.info(f'Knowledge base saved: kb_id={kb.id}')
+            logger.info(f'知识库已保存: kb_id={kb.id}')
             return kb
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error saving knowledge base: {str(e)}')
+            logger.error(f'保存知识库失败: {str(e)}')
             return None
 
     def check_duplicate_name(self, user_id: str, name: str, exclude_kb_id: Optional[str] = None) -> bool:
         """
-        Check if user already has a knowledge base with the same name.
+        检查用户是否已有同名知识库。
         
         Args:
-            user_id: User ID
-            name: Knowledge base name
-            exclude_kb_id: KB ID to exclude from check (for updates)
+            user_id: 用户 ID
+            name: 知识库名称
+            exclude_kb_id: 排除的知识库 ID（用于更新时）
             
         Returns:
-            True if duplicate exists, False otherwise
+            存在重复返回 True，否则返回 False
         """
         try:
             query = self.db.query(KnowledgeBase).filter(
@@ -246,7 +247,7 @@ class KnowledgeService:
             
             return query.first() is not None
         except Exception as e:
-            logger.error(f'Error checking duplicate name: {str(e)}')
+            logger.error(f'检查知识库重名失败: {str(e)}')
             return False
 
     def update_knowledge_base(
@@ -258,71 +259,71 @@ class KnowledgeService:
         is_moderator: bool = False
     ) -> Tuple[bool, str, Optional[KnowledgeBase]]:
         """
-        Update knowledge base information.
+        更新知识库信息。
         
         Args:
-            kb_id: Knowledge base ID
-            update_data: Dictionary of fields to update
-            user_id: User ID making the update
-            is_admin: Whether user is admin
-            is_moderator: Whether user is moderator
+            kb_id: 知识库 ID
+            update_data: 要更新的字段字典
+            user_id: 操作用户 ID
+            is_admin: 是否为管理员
+            is_moderator: 是否为审核员
             
         Returns:
-            Tuple of (success: bool, message: str, kb: Optional[KnowledgeBase])
+            (是否成功, 提示消息, 知识库对象) 元组
         """
         try:
             kb = self.get_knowledge_base_by_id(kb_id)
             if not kb:
                 return False, "知识库不存在", None
 
-            # Check permissions
+            # 权限检查
             if kb.uploader_id != user_id and not is_admin and not is_moderator:
                 return False, "是你的知识库吗你就改", None
 
-            # Restrict updates for public or pending knowledge bases
+            # 公开或审核中的知识库限制修改范围
             if kb.is_public or kb.is_pending:
                 allowed_fields = {"content"}
                 disallowed_fields = [key for key in update_data.keys() if key not in allowed_fields]
                 if disallowed_fields:
                     return False, "公开或审核中的知识库仅允许修改补充说明", None
 
-            # Remove protected fields
+            # 移除受保护字段
             update_data.pop("copyright_owner", None)
             update_data.pop("name", None)
 
-            # Check is_public permission
+            # 检查公开状态修改权限
             if not (kb.is_public or kb.is_pending):
                 if "is_public" in update_data and not (is_admin or is_moderator):
                     return False, "只有管理员可以直接修改公开状态", None
 
-            # Apply updates
+            # 应用更新
             for key, value in update_data.items():
                 if hasattr(kb, key):
                     setattr(kb, key, value)
 
-            # Update timestamp if non-content fields changed
+            # 非内容字段变更时更新时间戳
             if any(field != "content" for field in update_data.keys()):
                 kb.updated_at = datetime.now()
 
             self.db.commit()
             self.db.refresh(kb)
 
-            logger.info(f'Knowledge base updated: kb_id={kb_id}, user_id={user_id}')
+            logger.info(f'知识库已更新: kb_id={kb_id}, user_id={user_id}')
             return True, "修改知识库成功", kb
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error updating knowledge base {kb_id}: {str(e)}')
+            logger.error(f'更新知识库 {kb_id} 失败: {str(e)}')
             return False, "修改知识库失败", None
 
     def delete_knowledge_base(self, kb_id: str) -> bool:
         """
-        Delete knowledge base from database.
+        从数据库删除知识库。
         
         Args:
-            kb_id: Knowledge base ID
+            kb_id: 知识库 ID
             
         Returns:
-            True if successful, False otherwise
+            成功返回 True，否则返回 False
         """
         try:
             kb = self.get_knowledge_base_by_id(kb_id)
@@ -332,23 +333,23 @@ class KnowledgeService:
             self.db.delete(kb)
             self.db.commit()
 
-            logger.info(f'Knowledge base deleted: kb_id={kb_id}')
+            logger.info(f'知识库已删除: kb_id={kb_id}')
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error deleting knowledge base {kb_id}: {str(e)}')
+            logger.error(f'删除知识库 {kb_id} 失败: {str(e)}')
             return False
 
     def is_starred(self, user_id: str, kb_id: str) -> bool:
         """
-        Check if knowledge base is starred by user.
+        检查用户是否已收藏该知识库。
         
         Args:
-            user_id: User ID
-            kb_id: Knowledge base ID
+            user_id: 用户 ID
+            kb_id: 知识库 ID
             
         Returns:
-            True if starred, False otherwise
+            已收藏返回 True，否则返回 False
         """
         try:
             from app.models.database import StarRecord
@@ -359,22 +360,22 @@ class KnowledgeService:
             ).first()
             return record is not None
         except Exception as e:
-            logger.error(f'Error checking star status: {str(e)}')
+            logger.error(f'检查收藏状态失败: {str(e)}')
             return False
 
     def add_star(self, user_id: str, kb_id: str) -> bool:
         """
-        Add star to knowledge base.
+        收藏知识库。
         
         Args:
-            user_id: User ID
-            kb_id: Knowledge base ID
+            user_id: 用户 ID
+            kb_id: 知识库 ID
             
         Returns:
-            True if successful, False if already starred
+            成功返回 True，已收藏返回 False
         """
         try:
-            # Check if already starred
+            # 检查是否已收藏
             if self.is_starred(user_id, kb_id):
                 return False
 
@@ -390,30 +391,30 @@ class KnowledgeService:
             )
             self.db.add(star)
 
-            # Increment star count
+            # 递增收藏数
             kb = self.get_knowledge_base_by_id(kb_id)
             if kb:
                 kb.star_count = (kb.star_count or 0) + 1
 
             self.db.commit()
 
-            logger.info(f'Star added: user_id={user_id}, kb_id={kb_id}')
+            logger.info(f'已收藏: user_id={user_id}, kb_id={kb_id}')
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error adding star: {str(e)}')
+            logger.error(f'收藏知识库失败: {str(e)}')
             return False
 
     def remove_star(self, user_id: str, kb_id: str) -> bool:
         """
-        Remove star from knowledge base.
+        取消收藏知识库。
         
         Args:
-            user_id: User ID
-            kb_id: Knowledge base ID
+            user_id: 用户 ID
+            kb_id: 知识库 ID
             
         Returns:
-            True if successful, False if not starred
+            成功返回 True，未收藏返回 False
         """
         try:
             from app.models.database import StarRecord
@@ -429,29 +430,29 @@ class KnowledgeService:
 
             self.db.delete(star)
 
-            # Decrement star count
+            # 递减收藏数
             kb = self.get_knowledge_base_by_id(kb_id)
             if kb and kb.star_count > 0:
                 kb.star_count = kb.star_count - 1
 
             self.db.commit()
 
-            logger.info(f'Star removed: user_id={user_id}, kb_id={kb_id}')
+            logger.info(f'已取消收藏: user_id={user_id}, kb_id={kb_id}')
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error removing star: {str(e)}')
+            logger.error(f'取消收藏知识库失败: {str(e)}')
             return False
 
     def increment_downloads(self, kb_id: str) -> bool:
         """
-        Increment download count for knowledge base.
+        递增知识库下载次数。
         
         Args:
-            kb_id: Knowledge base ID
+            kb_id: 知识库 ID
             
         Returns:
-            True if successful, False otherwise
+            成功返回 True，否则返回 False
         """
         try:
             kb = self.get_knowledge_base_by_id(kb_id)
@@ -461,22 +462,22 @@ class KnowledgeService:
             kb.downloads = (kb.downloads or 0) + 1
             self.db.commit()
 
-            logger.info(f'Download count incremented: kb_id={kb_id}, count={kb.downloads}')
+            logger.info(f'下载次数已递增: kb_id={kb_id}, count={kb.downloads}')
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error incrementing downloads for {kb_id}: {str(e)}')
+            logger.error(f'递增知识库 {kb_id} 下载次数失败: {str(e)}')
             return False
 
     def get_files_by_knowledge_base_id(self, kb_id: str) -> List[KnowledgeBaseFile]:
         """
-        Get all files for a knowledge base.
+        获取知识库的所有文件。
         
         Args:
-            kb_id: Knowledge base ID
+            kb_id: 知识库 ID
             
         Returns:
-            List of KnowledgeBaseFile objects
+            知识库文件对象列表
         """
         try:
             files = self.db.query(KnowledgeBaseFile).filter(
@@ -484,7 +485,7 @@ class KnowledgeService:
             ).all()
             return files
         except Exception as e:
-            logger.error(f'Error getting files for knowledge base {kb_id}: {str(e)}')
+            logger.error(f'获取知识库 {kb_id} 的文件列表失败: {str(e)}')
             return []
 
     def create_upload_record(
@@ -496,17 +497,17 @@ class KnowledgeService:
         status: str = "success"
     ) -> Optional[str]:
         """
-        Create upload record for knowledge base.
+        创建知识库上传记录。
         
         Args:
-            uploader_id: Uploader user ID
-            target_id: Knowledge base ID
-            name: Knowledge base name
-            description: Knowledge base description
-            status: Upload status (success/pending)
+            uploader_id: 上传者用户 ID
+            target_id: 知识库 ID
+            name: 知识库名称
+            description: 知识库描述
+            status: 上传状态（success/pending）
             
         Returns:
-            Upload record ID if successful, None otherwise
+            成功返回上传记录 ID，否则返回 None
         """
         try:
             import uuid
@@ -524,22 +525,22 @@ class KnowledgeService:
             self.db.add(record)
             self.db.commit()
 
-            logger.info(f'Upload record created: target_id={target_id}, status={status}')
+            logger.info(f'上传记录已创建: target_id={target_id}, status={status}')
             return record.id
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error creating upload record: {str(e)}')
+            logger.error(f'创建上传记录失败: {str(e)}')
             return None
 
     def delete_upload_records_by_target(self, target_id: str) -> bool:
         """
-        Delete upload records for a knowledge base.
+        删除知识库的上传记录。
         
         Args:
-            target_id: Knowledge base ID
+            target_id: 知识库 ID
             
         Returns:
-            True if successful, False otherwise
+            成功返回 True，否则返回 False
         """
         try:
             self.db.query(UploadRecord).filter(
@@ -548,36 +549,36 @@ class KnowledgeService:
             ).delete()
             self.db.commit()
 
-            logger.info(f'Upload records deleted: target_id={target_id}')
+            logger.info(f'上传记录已删除: target_id={target_id}')
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error deleting upload records for {target_id}: {str(e)}')
+            logger.error(f'删除上传记录失败 {target_id}: {str(e)}')
             return False
 
     def resolve_uploader_id(self, uploader_identifier: str) -> Optional[str]:
         """
-        Resolve uploader identifier to user ID.
-        Accepts either user ID or username.
+        将上传者标识解析为用户 ID。
+        支持用户 ID 或用户名。
         
         Args:
-            uploader_identifier: User ID or username
+            uploader_identifier: 用户 ID 或用户名
             
         Returns:
-            User ID if found, None otherwise
+            找到返回用户 ID，否则返回 None
         """
         try:
-            # Try to find by ID first
+            # 先按 ID 查找
             user = self.db.query(User).filter(User.id == uploader_identifier).first()
             if user:
                 return user.id
             
-            # Try to find by username
+            # 再按用户名查找
             user = self.db.query(User).filter(User.username == uploader_identifier).first()
             if user:
                 return user.id
             
             return None
         except Exception as e:
-            logger.error(f'Error resolving uploader identifier {uploader_identifier}: {str(e)}')
+            logger.error(f'解析上传者标识失败 {uploader_identifier}: {str(e)}')
             return None

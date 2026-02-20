@@ -1,5 +1,7 @@
 """
-Pydantic models for API requests and responses
+Pydantic 模型定义
+
+用于 API 请求和响应的数据验证与序列化。
 """
 
 from pydantic import BaseModel, EmailStr, Field, model_validator, ConfigDict
@@ -7,22 +9,22 @@ from typing import List, Optional, Dict, Any, Literal, Generic, TypeVar
 from datetime import datetime
 
 
-# User models
+# 用户相关模型
 class UserCreate(BaseModel):
-    """User creation request model"""
+    """用户注册请求模型"""
     username: str
     email: EmailStr
     password: str = Field(..., min_length=6, max_length=72)
 
 
 class UserUpdate(BaseModel):
-    """User update request model"""
+    """用户信息更新请求模型"""
     username: Optional[str] = None
     email: Optional[EmailStr] = None
 
 
 class UserResponse(BaseModel):
-    """User response model"""
+    """用户信息响应模型"""
     model_config = ConfigDict(from_attributes=True)
     
     id: str
@@ -38,7 +40,7 @@ class UserResponse(BaseModel):
 
 
 class CurrentUserResponse(BaseModel):
-    """Current user information response"""
+    """当前用户信息响应模型"""
     id: str
     username: str
     email: str
@@ -50,7 +52,7 @@ class CurrentUserResponse(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    """Login success response"""
+    """登录成功响应模型"""
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
@@ -59,21 +61,21 @@ class LoginResponse(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    """Token refresh response"""
+    """令牌刷新响应模型"""
     access_token: str
     token_type: str = "bearer"
     expires_in: int
 
 
 class AvatarInfo(BaseModel):
-    """Avatar information response"""
+    """头像信息响应模型"""
     avatar_url: str
     avatar_updated_at: str
 
 
-# Knowledge base models
+# 知识库相关模型
 class KnowledgeBaseCreate(BaseModel):
-    """Knowledge base creation request"""
+    """知识库创建请求模型"""
     name: str
     description: str
     copyright_owner: Optional[str] = None
@@ -82,7 +84,7 @@ class KnowledgeBaseCreate(BaseModel):
 
 
 class KnowledgeBaseUpdate(BaseModel):
-    """Knowledge base update request"""
+    """知识库更新请求模型"""
     name: Optional[str] = None
     description: Optional[str] = None
     copyright_owner: Optional[str] = None
@@ -93,14 +95,14 @@ class KnowledgeBaseUpdate(BaseModel):
 
 
 class KnowledgeBaseFileResponse(BaseModel):
-    """Knowledge base file response"""
+    """知识库文件响应模型"""
     file_id: str
     original_name: str
     file_size: int
 
 
 class KnowledgeBaseResponse(BaseModel):
-    """Knowledge base response"""
+    """知识库响应模型"""
     id: str
     name: str
     description: str
@@ -125,16 +127,16 @@ class KnowledgeBaseResponse(BaseModel):
 
 
 class KnowledgeBasePaginatedResponse(BaseModel):
-    """Knowledge base paginated response"""
+    """知识库分页响应模型"""
     items: List[KnowledgeBaseResponse]
     total: int
     page: int
     page_size: int
 
 
-# Persona card models
+# 人设卡相关模型
 class PersonaCardCreate(BaseModel):
-    """Persona card creation request"""
+    """人设卡创建请求模型"""
     name: str
     description: str
     copyright_owner: Optional[str] = None
@@ -143,7 +145,7 @@ class PersonaCardCreate(BaseModel):
 
 
 class PersonaCardUpdate(BaseModel):
-    """Persona card update request"""
+    """人设卡更新请求模型"""
     name: Optional[str] = None
     description: Optional[str] = None
     copyright_owner: Optional[str] = None
@@ -154,7 +156,7 @@ class PersonaCardUpdate(BaseModel):
 
 
 class PersonaCardResponse(BaseModel):
-    """Persona card response"""
+    """人设卡响应模型"""
     id: str
     name: str
     description: str
@@ -179,16 +181,16 @@ class PersonaCardResponse(BaseModel):
 
 
 class PersonaCardPaginatedResponse(BaseModel):
-    """Persona card paginated response"""
+    """人设卡分页响应模型"""
     items: List[PersonaCardResponse]
     total: int
     page: int
     page_size: int
 
 
-# Message models
+# 消息相关模型
 class MessageCreate(BaseModel):
-    """Message creation request"""
+    """消息创建请求模型"""
     title: str
     content: str
     summary: Optional[str] = None
@@ -207,28 +209,28 @@ class MessageCreate(BaseModel):
             broadcast_scope = values.get("broadcast_scope")
 
             if message_type == "direct":
-                # Direct message can have either recipient_id or recipient_ids
+                # 私信必须指定接收者
                 if not recipient_id and not recipient_ids:
-                    raise ValueError("Direct message must specify recipient_id or recipient_ids")
+                    raise ValueError("私信必须指定 recipient_id 或 recipient_ids")
             else:
                 if not recipient_id and not recipient_ids and broadcast_scope != "all_users":
-                    raise ValueError("Announcement must specify recipient list or broadcast_scope=all_users")
+                    raise ValueError("公告必须指定接收者列表或 broadcast_scope=all_users")
             
-            # Remove duplicates
+            # 去重
             if recipient_ids:
                 values["recipient_ids"] = list(dict.fromkeys([rid for rid in recipient_ids if rid]))
         return values
 
 
 class MessageUpdate(BaseModel):
-    """Message update request"""
+    """消息更新请求模型"""
     title: Optional[str] = None
     content: Optional[str] = None
     summary: Optional[str] = None
 
 
 class MessageResponse(BaseModel):
-    """Message response"""
+    """消息响应模型"""
     id: str
     sender_id: str
     recipient_id: str
@@ -241,15 +243,15 @@ class MessageResponse(BaseModel):
     created_at: datetime
 
 
-# Star models
+# 收藏相关模型
 class StarRecordCreate(BaseModel):
-    """Star record creation request"""
+    """收藏记录创建请求模型"""
     target_id: str
     target_type: str
 
 
 class StarResponse(BaseModel):
-    """Star response"""
+    """收藏响应模型"""
     id: str
     user_id: str
     target_id: str
@@ -257,12 +259,12 @@ class StarResponse(BaseModel):
     created_at: datetime
 
 
-# Generic response models
+# 通用响应模型
 T = TypeVar("T")
 
 
 class Pagination(BaseModel):
-    """Pagination information"""
+    """分页信息"""
     page: int
     page_size: int
     total: int
@@ -270,14 +272,14 @@ class Pagination(BaseModel):
 
 
 class BaseResponse(BaseModel, Generic[T]):
-    """Base API response"""
+    """基础 API 响应"""
     success: bool = True
     message: str = ""
     data: Optional[T] = None
 
 
 class PageResponse(BaseModel, Generic[T]):
-    """Paginated API response"""
+    """分页 API 响应"""
     success: bool = True
     message: str = ""
     data: List[T]

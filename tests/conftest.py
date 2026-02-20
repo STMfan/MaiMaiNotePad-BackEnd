@@ -11,17 +11,20 @@ from hypothesis import settings, Verbosity, HealthCheck
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Configure hypothesis profiles for property-based testing
-# CI profile: 100 iterations with verbose output for detailed test results
+# 从 .test_env 或 .test_env.template 加载测试配置
+from tests.test_config import test_config
+
+# 配置 hypothesis 配置文件用于基于属性的测试
+# CI 配置文件：100 次迭代，详细输出以获得详细的测试结果
 settings.register_profile(
     "ci",
     max_examples=100,
     verbosity=Verbosity.verbose,
-    deadline=None,  # Disable deadline for CI to avoid flaky tests
+    deadline=None,  # 禁用截止时间以避免 CI 中的不稳定测试
     suppress_health_check=[HealthCheck.too_slow]
 )
 
-# Development profile: 10 iterations for faster feedback during development
+# 开发配置文件：10 次迭代，在开发过程中获得更快的反馈
 settings.register_profile(
     "dev",
     max_examples=10,
@@ -29,19 +32,11 @@ settings.register_profile(
     deadline=None
 )
 
-# Default profile: Use CI profile to ensure minimum 100 iterations
-# Can be overridden with HYPOTHESIS_PROFILE environment variable
-settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "ci"))
+# 默认配置文件：使用 CI 配置文件以确保至少 100 次迭代
+# 可以通过 HYPOTHESIS_PROFILE 环境变量覆盖
+settings.load_profile(test_config.get("HYPOTHESIS_PROFILE", "ci"))
 
-# Set test environment variables
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
-os.environ.setdefault("JWT_SECRET_KEY", "test_secret_key_for_testing_only")
-os.environ.setdefault("MAIL_USER", "test@example.com")
-os.environ.setdefault("MAIL_PWD", "test_password")
-os.environ.setdefault("SUPERADMIN_PWD", "admin123")
-os.environ.setdefault("HIGHEST_PASSWORD", "highest123")
-
-# Import after setting environment variables
+# 设置环境变量后导入
 from app.models.database import (
     Base, User, EmailVerification, KnowledgeBase, KnowledgeBaseFile,
     PersonaCard, PersonaCardFile, Message, StarRecord, UploadRecord,
@@ -55,12 +50,12 @@ SQLALCHEMY_DATABASE_URL = os.environ["DATABASE_URL"]
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Create all tables
+# 创建所有表
 Base.metadata.create_all(bind=engine)
 
 
 def override_get_db():
-    """Override database dependency for testing"""
+    """覆盖数据库依赖用于测试"""
     try:
         db = TestingSessionLocal()
         yield db
@@ -70,13 +65,13 @@ def override_get_db():
 
 @pytest.fixture(scope="function")
 def test_db() -> Session:
-    """Create a test database session"""
-    # Use a simple session without transaction isolation for integration tests
+    """创建测试数据库会话"""
+    # 使用简单的会话，不使用事务隔离，用于集成测试
     session = TestingSessionLocal()
     
     yield session
     
-    # Clean up all data after test (in reverse order of foreign key dependencies)
+    # 测试后清理所有数据（按外键依赖的相反顺序）
     session.query(CommentReaction).delete()
     session.query(Comment).delete()
     session.query(DownloadRecord).delete()
@@ -95,17 +90,19 @@ def test_db() -> Session:
 
 @pytest.fixture(scope="function")
 def factory(test_db: Session):
-    """Create a TestDataFactory instance"""
+    """创建 TestDataFactory 实例"""
     return TestDataFactory(test_db)
 
 
 @pytest.fixture(scope="function")
 def test_user(test_db: Session):
-    """Create a test user"""
+    """创建具有唯一邮箱的测试用户"""
+    # 生成唯一邮箱以避免 UNIQUE 约束失败
+    unique_id = str(uuid.uuid4())[:8]
     user = User(
         id=str(uuid.uuid4()),
-        username="testuser",
-        email="test@example.com",
+        username=f"testuser_{unique_id}",
+        email=f"test_{unique_id}@example.com",
         hashed_password=get_password_hash("testpassword123"),
         is_active=True,
         is_admin=False,
@@ -122,11 +119,12 @@ def test_user(test_db: Session):
 
 @pytest.fixture(scope="function")
 def admin_user(test_db: Session):
-    """Create a test admin user"""
+    """创建具有唯一邮箱的测试管理员用户"""
+    unique_id = str(uuid.uuid4())[:8]
     user = User(
         id=str(uuid.uuid4()),
-        username="adminuser",
-        email="admin@example.com",
+        username=f"adminuser_{unique_id}",
+        email=f"admin_{unique_id}@example.com",
         hashed_password=get_password_hash("adminpassword123"),
         is_active=True,
         is_admin=True,
@@ -143,11 +141,12 @@ def admin_user(test_db: Session):
 
 @pytest.fixture(scope="function")
 def moderator_user(test_db: Session):
-    """Create a test moderator user"""
+    """创建具有唯一邮箱的测试审核员用户"""
+    unique_id = str(uuid.uuid4())[:8]
     user = User(
         id=str(uuid.uuid4()),
-        username="moderatoruser",
-        email="moderator@example.com",
+        username=f"moderatoruser_{unique_id}",
+        email=f"moderator_{unique_id}@example.com",
         hashed_password=get_password_hash("moderatorpassword123"),
         is_active=True,
         is_admin=False,
@@ -164,7 +163,7 @@ def moderator_user(test_db: Session):
 
 @pytest.fixture(scope="function")
 def super_admin_user(test_db: Session):
-    """Create a test super admin user"""
+    """创建测试超级管理员用户"""
     user = User(
         id=str(uuid.uuid4()),
         username="superadminuser",
@@ -183,7 +182,7 @@ def super_admin_user(test_db: Session):
     return user
 
 
-# Only import app if it exists (for integration tests)
+# 仅在应用存在时导入（用于集成测试）
 try:
     from app.main import app
     
@@ -192,154 +191,154 @@ try:
     
     @pytest.fixture(scope="function")
     def client():
-        """Create unauthenticated test client"""
+        """创建未认证的测试客户端"""
         return TestClient(app)
     
     @pytest.fixture(scope="function")
     def authenticated_client(test_user):
-        """Create authenticated test client"""
-        # Login to get token
-        response = _test_client.post(
+        """创建已认证的测试客户端"""
+        # 为此测试创建新客户端
+        client = TestClient(app)
+        
+        # 使用 test_user 的用户名登录以获取令牌
+        response = client.post(
             "/api/auth/token",
-            data={"username": "testuser", "password": "testpassword123"}
+            data={"username": test_user.username, "password": "testpassword123"}
         )
         
-        # Check if login was successful
+        # 检查登录是否成功
         if response.status_code != 200:
-            raise Exception(f"Login failed: {response.status_code} - {response.text}")
+            raise Exception(f"登录失败: {response.status_code} - {response.text}")
         
         resp_data = response.json()
         
-        # Handle both response formats (with and without "data" wrapper)
+        # 处理两种响应格式（有和没有 "data" 包装器）
         if "data" in resp_data:
             token = resp_data["data"]["access_token"]
         else:
             token = resp_data["access_token"]
         
-        # Create client with auth header
-        _test_client.headers.update({"Authorization": f"Bearer {token}"})
-        yield _test_client
-        
-        # Cleanup auth header
-        _test_client.headers.pop("Authorization", None)
+        # 设置认证头
+        client.headers.update({"Authorization": f"Bearer {token}"})
+        return client
     
     @pytest.fixture(scope="function")
     def admin_client(admin_user):
-        """Create authenticated admin test client"""
-        # Login to get token
-        response = _test_client.post(
+        """创建已认证的管理员测试客户端"""
+        # 为此测试创建新客户端
+        client = TestClient(app)
+        
+        # 使用 admin_user 的用户名登录以获取令牌
+        response = client.post(
             "/api/auth/token",
-            data={"username": "adminuser", "password": "adminpassword123"}
+            data={"username": admin_user.username, "password": "adminpassword123"}
         )
         
-        # Check if login was successful
+        # 检查登录是否成功
         if response.status_code != 200:
-            raise Exception(f"Admin login failed: {response.status_code} - {response.text}")
+            raise Exception(f"管理员登录失败: {response.status_code} - {response.text}")
         
         resp_data = response.json()
         
-        # Handle both response formats (with and without "data" wrapper)
+        # 处理两种响应格式（有和没有 "data" 包装器）
         if "data" in resp_data:
             token = resp_data["data"]["access_token"]
         else:
             token = resp_data["access_token"]
         
-        # Create client with auth header
-        _test_client.headers.update({"Authorization": f"Bearer {token}"})
-        yield _test_client
-        
-        # Cleanup auth header
-        _test_client.headers.pop("Authorization", None)
+        # 设置认证头
+        client.headers.update({"Authorization": f"Bearer {token}"})
+        return client
     
     @pytest.fixture(scope="function")
     def moderator_client(moderator_user):
-        """Create authenticated moderator test client"""
-        # Login to get token
-        response = _test_client.post(
+        """创建已认证的审核员测试客户端"""
+        # 为此测试创建新客户端
+        client = TestClient(app)
+        
+        # 使用 moderator_user 的用户名登录以获取令牌
+        response = client.post(
             "/api/auth/token",
-            data={"username": "moderatoruser", "password": "moderatorpassword123"}
+            data={"username": moderator_user.username, "password": "moderatorpassword123"}
         )
         
-        # Check if login was successful
+        # 检查登录是否成功
         if response.status_code != 200:
-            raise Exception(f"Moderator login failed: {response.status_code} - {response.text}")
+            raise Exception(f"审核员登录失败: {response.status_code} - {response.text}")
         
         resp_data = response.json()
         
-        # Handle both response formats (with and without "data" wrapper)
+        # 处理两种响应格式（有和没有 "data" 包装器）
         if "data" in resp_data:
             token = resp_data["data"]["access_token"]
         else:
             token = resp_data["access_token"]
         
-        # Create client with auth header
-        _test_client.headers.update({"Authorization": f"Bearer {token}"})
-        yield _test_client
-        
-        # Cleanup auth header
-        _test_client.headers.pop("Authorization", None)
+        # 设置认证头
+        client.headers.update({"Authorization": f"Bearer {token}"})
+        return client
     
     @pytest.fixture(scope="function")
     def super_admin_client(super_admin_user):
-        """Create authenticated super admin test client"""
-        # Login to get token
+        """创建已认证的超级管理员测试客户端"""
+        # 登录以获取令牌
         response = _test_client.post(
             "/api/auth/token",
             data={"username": "superadminuser", "password": "superadminpassword123"}
         )
         
-        # Check if login was successful
+        # 检查登录是否成功
         if response.status_code != 200:
-            raise Exception(f"Super admin login failed: {response.status_code} - {response.text}")
+            raise Exception(f"超级管理员登录失败: {response.status_code} - {response.text}")
         
         resp_data = response.json()
         
-        # Handle both response formats (with and without "data" wrapper)
+        # 处理两种响应格式（有和没有 "data" 包装器）
         if "data" in resp_data:
             token = resp_data["data"]["access_token"]
         else:
             token = resp_data["access_token"]
         
-        # Create client with auth header
+        # 创建带认证头的客户端
         _test_client.headers.update({"Authorization": f"Bearer {token}"})
         yield _test_client
         
-        # Cleanup auth header
+        # 清理认证头
         _test_client.headers.pop("Authorization", None)
 except ImportError:
-    # App not available, skip integration test fixtures
+    # 应用不可用，跳过集成测试 fixtures
     pass
 
 
-# Helper function for checking error responses
+# 用于检查错误响应的辅助函数
 def assert_error_response(response, expected_status_codes, expected_message_keywords):
     """
-    Helper function to check error responses from API.
-    Handles both FastAPI validation errors (422 with 'detail') and custom API errors (with 'error').
+    用于检查 API 错误响应的辅助函数。
+    处理 FastAPI 验证错误（422 带 'detail'）和自定义 API 错误（带 'error'）。
     
-    Args:
-        response: The response object from TestClient
-        expected_status_codes: int or list of ints for expected status codes
-        expected_message_keywords: str or list of str - keywords that should appear in error message
+    参数：
+        response: 来自 TestClient 的响应对象
+        expected_status_codes: 预期状态码的整数或整数列表
+        expected_message_keywords: 字符串或字符串列表 - 应出现在错误消息中的关键字
     """
-    # Normalize inputs to lists
+    # 将输入规范化为列表
     if isinstance(expected_status_codes, int):
         expected_status_codes = [expected_status_codes]
     if isinstance(expected_message_keywords, str):
         expected_message_keywords = [expected_message_keywords]
     
-    # Check status code
+    # 检查状态码
     assert response.status_code in expected_status_codes, \
-        f"Expected status code in {expected_status_codes}, got {response.status_code}"
+        f"预期状态码在 {expected_status_codes} 中，得到 {response.status_code}"
     
     data = response.json()
     
-    # Handle FastAPI validation errors (422)
+    # 处理 FastAPI 验证错误（422）
     if "detail" in data:
-        # FastAPI validation error format: {"detail": [...]}
+        # FastAPI 验证错误格式：{"detail": [...]}
         detail = data["detail"]
         if isinstance(detail, list):
-            # Extract all error messages
+            # 提取所有错误消息
             error_messages = []
             for error in detail:
                 if isinstance(error, dict):
@@ -349,29 +348,29 @@ def assert_error_response(response, expected_status_codes, expected_message_keyw
         else:
             combined_message = str(detail).lower()
         
-        # Check if any keyword matches
+        # 检查是否有任何关键字匹配
         keyword_found = any(
             keyword.lower() in combined_message 
             for keyword in expected_message_keywords
         )
         
         assert keyword_found, \
-            f"Expected one of {expected_message_keywords} in error message, got: {data}"
+            f"预期 {expected_message_keywords} 中的一个在错误消息中，得到：{data}"
     
-    # Handle custom API errors
+    # 处理自定义 API 错误
     elif "error" in data:
-        # Custom error format: {"success": False, "error": {"message": "..."}}
+        # 自定义错误格式：{"success": False, "error": {"message": "..."}}
         error_message = data["error"].get("message", "").lower()
         
-        # Check if any keyword matches
+        # 检查是否有任何关键字匹配
         keyword_found = any(
             keyword.lower() in error_message 
             for keyword in expected_message_keywords
         )
         
         assert keyword_found, \
-            f"Expected one of {expected_message_keywords} in error message, got: {error_message}"
+            f"预期 {expected_message_keywords} 中的一个在错误消息中，得到：{error_message}"
     
     else:
-        # Unknown error format
-        raise AssertionError(f"Unknown error response format: {data}")
+        # 未知错误格式
+        raise AssertionError(f"未知的错误响应格式：{data}")

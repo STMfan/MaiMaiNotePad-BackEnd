@@ -1,5 +1,7 @@
 """
-Email service for sending emails via SMTP
+邮件服务模块
+
+通过 SMTP 发送邮件。
 """
 
 import smtplib
@@ -8,10 +10,10 @@ from app.core.config import settings
 
 
 class EmailService:
-    """Service for sending emails via SMTP"""
+    """SMTP 邮件发送服务"""
     
     def __init__(self):
-        """Initialize email service with configuration from settings"""
+        """使用配置初始化邮件服务"""
         self.mail_host = settings.MAIL_HOST
         self.mail_user = settings.MAIL_USER
         self.mail_port = settings.MAIL_PORT
@@ -20,15 +22,15 @@ class EmailService:
     
     def send_email(self, receiver: str, subject: str, content: str) -> None:
         """
-        Send an email to the specified receiver
+        向指定收件人发送邮件
         
         Args:
-            receiver: Email address of the recipient
-            subject: Subject line of the email
-            content: Plain text content of the email
+            receiver: 收件人邮箱地址
+            subject: 邮件主题
+            content: 邮件正文（纯文本）
             
         Raises:
-            RuntimeError: If email sending fails for any reason
+            RuntimeError: 邮件发送失败时抛出
         """
         message = MIMEText(content, "plain", "utf-8")
         message["From"] = self.mail_user
@@ -37,10 +39,8 @@ class EmailService:
 
         smtp = None
         try:
-            # 创建SMTP连接，设置超时
+            # 创建 SMTP 连接，设置超时
             smtp = smtplib.SMTP_SSL(self.mail_host, self.mail_port, timeout=self.mail_timeout)
-            # 启用调试模式（可选，生产环境可以关闭）
-            # smtp.set_debuglevel(1)
 
             # 登录
             smtp.login(self.mail_user, self.mail_pwd)
@@ -69,20 +69,20 @@ class EmailService:
                         pass
 
 
-# Convenience function for backward compatibility
+# 便捷函数，保持向后兼容
 def send_email(receiver: str, subject: str, content: str) -> None:
     """
-    Send an email using the EmailService
+    使用 EmailService 发送邮件
     
-    This function provides backward compatibility with the old email_service module.
+    提供向后兼容的便捷函数。
     
     Args:
-        receiver: Email address of the recipient
-        subject: Subject line of the email
-        content: Plain text content of the email
+        receiver: 收件人邮箱地址
+        subject: 邮件主题
+        content: 邮件正文（纯文本）
         
     Raises:
-        RuntimeError: If email sending fails for any reason
+        RuntimeError: 邮件发送失败时抛出
     """
     email_service = EmailService()
     email_service.send_email(receiver, subject, content)
