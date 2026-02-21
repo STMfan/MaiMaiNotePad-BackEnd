@@ -661,6 +661,9 @@ class FileUploadService:
         if not pc:
             return None
 
+        # 获取当前人设卡的所有文件
+        current_files = sqlite_db_manager.get_files_by_persona_card_id(pc_id)
+
         # 只允许一次上传一个文件
         if len(files) != 1:
             raise ValidationError(

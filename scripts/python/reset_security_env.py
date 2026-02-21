@@ -113,7 +113,8 @@ def confirm_reset(root: Path) -> None:
 
 
 def main() -> None:
-    root = Path(__file__).resolve().parents[1]
+    # 脚本在 scripts/python/ 目录下，需要往上两层到项目根目录
+    root = Path(__file__).resolve().parents[2]
     env_path = root / ".env"
     confirm_reset(root)
     update_env_file(env_path)

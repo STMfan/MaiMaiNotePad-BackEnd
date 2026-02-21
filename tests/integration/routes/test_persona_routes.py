@@ -1069,3 +1069,51 @@ class TestPersonaCardEdgeCases:
         assert response.status_code == 200
         data = response.json()
         assert len(data["data"]) == 2
+
+
+class TestPersonaErrorPaths:
+    """测试 persona.py 的错误路径覆盖率 (Task 5.3)
+    
+    These tests cover error paths that weren't already tested in the existing test classes.
+    Many error paths are already covered by existing tests above.
+    """
+    
+    def test_get_persona_card_detail_not_found_error(self, client):
+        """测试获取不存在的人设卡详情 - 覆盖 NotFoundError 路径 (line 225)"""
+        fake_id = str(uuid.uuid4())
+        response = client.get(f"/api/persona/{fake_id}")
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "人设卡不存在" in data["error"]["message"]
+    
+    def test_star_persona_card_not_found_error(self, authenticated_client, test_user):
+        """测试收藏不存在的人设卡 - 覆盖 NotFoundError 路径 (line 430)"""
+        fake_id = str(uuid.uuid4())
+        
+        response = authenticated_client.post(f"/api/persona/{fake_id}/star")
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "人设卡不存在" in data["error"]["message"]
+    
+    def test_download_persona_card_not_found_error(self, client):
+        """测试下载不存在的人设卡 - 覆盖 NotFoundError 路径 (line 796)"""
+        fake_id = str(uuid.uuid4())
+        
+        response = client.get(f"/api/persona/{fake_id}/download")
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "人设卡不存在" in data["error"]["message"]
+    
+    def test_download_persona_card_file_not_found_persona(self, authenticated_client, test_user):
+        """测试下载不存在人设卡的文件 - 覆盖 NotFoundError 路径 (line 865)"""
+        fake_id = str(uuid.uuid4())
+        fake_file_id = str(uuid.uuid4())
+        
+        response = authenticated_client.get(f"/api/persona/{fake_id}/file/{fake_file_id}")
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "人设卡不存在" in data["error"]["message"]

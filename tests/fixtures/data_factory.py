@@ -3,6 +3,7 @@
 用于创建测试所需的各种数据对象
 """
 import uuid
+import os
 from datetime import datetime
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -13,9 +14,34 @@ from app.models.database import (
 )
 from app.core.security import get_password_hash
 
+# 密码哈希缓存，避免重复计算
+# 使用 worker-specific 字典以避免并行测试中的状态污染
+_PASSWORD_HASH_CACHE = {}
+
+def get_cached_password_hash(password: str) -> str:
+    """获取缓存的密码哈希，如果不存在则计算并缓存
+    
+    为每个 worker 创建独立的缓存以避免并行测试中的状态污染
+    """
+    worker_id = os.environ.get('PYTEST_XDIST_WORKER', 'master')
+    
+    # 为每个 worker 创建独立的缓存
+    if worker_id not in _PASSWORD_HASH_CACHE:
+        _PASSWORD_HASH_CACHE[worker_id] = {}
+    
+    worker_cache = _PASSWORD_HASH_CACHE[worker_id]
+    if password not in worker_cache:
+        worker_cache[password] = get_password_hash(password)
+    return worker_cache[password]
+
 
 class TestDataFactory:
-    """统一的测试数据创建工厂"""
+    """统一的测试数据创建工厂
+    
+    注意：这不是一个 pytest 测试类，尽管名字以 Test 开头。
+    它是一个用于创建测试数据的工厂类。
+    """
+    __test__ = False  # 告诉 pytest 不要收集这个类
     
     def __init__(self, db: Session):
         self.db = db
@@ -28,7 +54,7 @@ class TestDataFactory:
         defaults = {
             "username": f"user_{uuid.uuid4().hex[:8]}",
             "email": f"test_{uuid.uuid4().hex[:8]}@example.com",
-            "hashed_password": get_password_hash(password),
+            "hashed_password": get_cached_password_hash(password),  # 使用缓存
             "is_active": True,
             "is_admin": False,
             "is_moderator": False,

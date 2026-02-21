@@ -5,6 +5,7 @@
 """
 
 import jwt
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from passlib.context import CryptContext
@@ -15,7 +16,13 @@ from app.core.config import settings
 
 
 # 密码哈希上下文
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# 在测试环境中使用更少的 rounds 来加速测试（通过 PASSLIB_BCRYPT_ROUNDS 环境变量）
+bcrypt_rounds = int(os.getenv("PASSLIB_BCRYPT_ROUNDS", "12"))
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=bcrypt_rounds
+)
 
 
 # JWT 配置及校验

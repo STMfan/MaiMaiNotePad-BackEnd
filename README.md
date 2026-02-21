@@ -1,8 +1,23 @@
 # MaiMaiNotePad 后端服务
 
+[![Tests](https://github.com/<username>/<repo>/workflows/Tests%20and%20Coverage/badge.svg)](https://github.com/<username>/<repo>/actions)
+[![Coverage](./badges/coverage.svg)](./htmlcov/index.html)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.129.0-009688.svg)](https://fastapi.tiangolo.com)
+
 这是一个基于 FastAPI 构建的后端服务，提供知识库管理、人设卡功能、用户管理、消息系统和审核功能。
 
 对应的前端项目位于：`../MaiMaiNotePad-FrontEnd`，两者配合运行即可完成完整功能体验。
+
+## 📚 文档导航
+
+- **[📖 完整文档索引](docs/文档索引.md)** - 查看所有项目文档
+- **[🔧 API 文档](docs/API文档.md)** - REST API 接口说明
+- **[🏗️ 架构文档](docs/架构文档.md)** - 系统架构设计
+- **[🧪 测试文档](docs/测试文档.md)** - 测试策略和方法
+- **[❌ 错误码文档](docs/错误码文档.md)** - 错误码说明
+- **[🛠️ 脚本工具](scripts/脚本说明.md)** - 维护脚本说明
+- **[📝 更新日志](docs/更新日志.md)** - 版本历史
 
 ---
 
@@ -788,6 +803,59 @@ def test_create_user(db_session):
     assert user.username == "testuser"
     assert user.email == "test@example.com"
 ```
+
+### CI/CD 自动化测试
+
+项目配置了完整的 CI/CD 自动化测试流程，确保代码质量和测试覆盖率。
+
+#### GitHub Actions
+
+项目使用 GitHub Actions 进行持续集成：
+
+- **自动测试**: 每次 push 和 pull request 自动运行测试
+- **覆盖率检查**: 自动检查测试覆盖率，要求达到 100%
+- **多版本测试**: 在 Python 3.11 和 3.12 上测试
+- **性能监控**: 确保测试套件在 2 分钟内完成
+
+#### 本地 CI 测试
+
+在提交代码前，可以在本地运行 CI 测试：
+
+**Linux/macOS:**
+```bash
+./scripts/run_ci_tests.sh
+```
+
+**Windows:**
+```cmd
+scripts\run_ci_tests.bat
+```
+
+这些脚本会：
+- 检查 Python 版本和依赖
+- 创建必需的目录
+- 配置测试环境变量
+- 运行完整的测试套件和覆盖率分析
+- 检查测试性能
+- 生成覆盖率报告和徽章
+
+#### 覆盖率报告
+
+测试完成后，可以查看详细的覆盖率报告：
+
+```bash
+# 在浏览器中打开 HTML 报告
+open htmlcov/index.html  # macOS
+xdg-open htmlcov/index.html  # Linux
+start htmlcov/index.html  # Windows
+```
+
+#### 更多信息
+
+详细的 CI/CD 配置和使用说明，请参考：
+- [CI 配置文档](docs/testing/CI_CONFIGURATION.md)
+- [覆盖率配置](docs/testing/COVERAGE_CONFIGURATION.md)
+- [并行测试](docs/testing/PARALLEL_TESTING.md)
 
 ### 数据库迁移
 

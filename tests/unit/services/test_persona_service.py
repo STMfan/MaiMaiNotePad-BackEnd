@@ -1037,3 +1037,492 @@ class TestReviewWorkflow:
 
 
 
+
+
+class TestPersonaServiceExceptionHandling:
+    """测试 persona_service 异常处理和错误路径
+    
+    任务 4.4.1: 测试 persona_service 异常处理
+    - 测试数据库异常
+    - 测试验证失败
+    - 测试权限检查失败
+    - 验证错误日志
+    - 验证数据库回滚
+    - 测试边界情况（None 值、空结果）
+    """
+    
+    def test_get_all_persona_cards_database_exception(self):
+        """测试 get_all_persona_cards 数据库异常处理"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        db.query = Mock(side_effect=Exception("Database connection error"))
+        
+        result = service.get_all_persona_cards()
+        
+        assert result == []
+    
+    def test_get_public_persona_cards_database_exception(self):
+        """测试 get_public_persona_cards 数据库异常处理"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        db.query = Mock(side_effect=Exception("Database error"))
+        
+        pcs, total = service.get_public_persona_cards()
+        
+        assert pcs == []
+        assert total == 0
+    
+    def test_get_user_persona_cards_database_exception(self):
+        """测试 get_user_persona_cards 数据库异常处理"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        db.query = Mock(side_effect=Exception("Database error"))
+        
+        pcs, total = service.get_user_persona_cards("user-123")
+        
+        assert pcs == []
+        assert total == 0
+    
+    def test_save_persona_card_update_not_found(self):
+        """测试 save_persona_card 更新不存在的人设卡"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        pc_data = {
+            "id": "nonexistent-id",
+            "name": "Test PC"
+        }
+        
+        service.get_persona_card_by_id = Mock(return_value=None)
+        
+        result = service.save_persona_card(pc_data)
+        
+        assert result is None
+    
+    def test_update_persona_card_database_exception(self):
+        """测试 update_persona_card 数据库异常处理"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        mock_pc = Mock(spec=PersonaCard)
+        mock_pc.id = "pc-123"
+        mock_pc.uploader_id = "user-123"
+        mock_pc.is_public = False
+        mock_pc.is_pending = False
+        
+        service.get_persona_card_by_id = Mock(return_value=mock_pc)
+        db.commit = Mock(side_effect=Exception("Database error"))
+        db.rollback = Mock()
+        
+        success, message, pc = service.update_persona_card(
+            "pc-123", {"content": "New content"}, "user-123"
+        )
+        
+        assert success is False
+        assert "失败" in message
+        assert pc is None
+        db.rollback.assert_called_once()
+    
+    def test_update_persona_card_non_admin_change_public_status(self):
+        """测试非管理员尝试修改公开状态"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        mock_pc = Mock(spec=PersonaCard)
+        mock_pc.id = "pc-123"
+        mock_pc.uploader_id = "user-123"
+        mock_pc.is_public = False
+        mock_pc.is_pending = False
+        
+        service.get_persona_card_by_id = Mock(return_value=mock_pc)
+        
+        update_data = {"is_public": True}
+        success, message, pc = service.update_persona_card(
+            "pc-123", update_data, "user-123"
+        )
+        
+        assert success is False
+        assert "管理员" in message
+        assert pc is None
+    
+    def test_is_starred_database_exception(self):
+        """测试 is_starred 数据库异常处理"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        db.query = Mock(side_effect=Exception("Database error"))
+        
+        result = service.is_starred("user-123", "pc-123")
+        
+        assert result is False
+    
+    def test_add_star_database_exception(self):
+        """测试 add_star 数据库异常处理"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        service.is_starred = Mock(return_value=False)
+        db.add = Mock()
+        db.commit = Mock(side_effect=Exception("Database error"))
+        db.rollback = Mock()
+        
+        result = service.add_star("user-123", "pc-123")
+        
+        assert result is False
+        db.rollback.assert_called_once()
+    
+    def test_remove_star_database_exception(self):
+        """测试 remove_star 数据库异常处理"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        mock_star = Mock(spec=StarRecord)
+        
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.first = Mock(return_value=mock_star)
+        mock_query.filter = Mock(return_value=mock_filter)
+        db.query = Mock(return_value=mock_query)
+        
+        db.delete = Mock()
+        db.commit = Mock(side_effect=Exception("Database error"))
+        db.rollback = Mock()
+        
+        result = service.remove_star("user-123", "pc-123")
+        
+        assert result is False
+        db.rollback.assert_called_once()
+    
+    def test_increment_downloads_database_exception(self):
+        """测试 increment_downloads 数据库异常处理"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        mock_pc = Mock(spec=PersonaCard)
+        mock_pc.downloads = 10
+        
+        service.get_persona_card_by_id = Mock(return_value=mock_pc)
+        db.commit = Mock(side_effect=Exception("Database error"))
+        db.rollback = Mock()
+        
+        result = service.increment_downloads("pc-123")
+        
+        assert result is False
+        db.rollback.assert_called_once()
+    
+    def test_get_files_by_persona_card_id_database_exception(self):
+        """测试 get_files_by_persona_card_id 数据库异常处理"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        db.query = Mock(side_effect=Exception("Database error"))
+        
+        result = service.get_files_by_persona_card_id("pc-123")
+        
+        assert result == []
+    
+    def test_get_public_persona_cards_with_invalid_sort_field(self):
+        """测试 get_public_persona_cards 使用无效排序字段"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        expected_pcs = [Mock(spec=PersonaCard)]
+        
+        mock_query = Mock()
+        mock_filter = Mock(return_value=mock_query)
+        mock_query.filter = mock_filter
+        mock_query.count = Mock(return_value=1)
+        mock_query.order_by = Mock(return_value=mock_query)
+        mock_query.offset = Mock(return_value=mock_query)
+        mock_query.limit = Mock(return_value=mock_query)
+        mock_query.all = Mock(return_value=expected_pcs)
+        db.query = Mock(return_value=mock_query)
+        
+        # 使用无效的排序字段，应该回退到默认的 created_at
+        pcs, total = service.get_public_persona_cards(sort_by="invalid_field")
+        
+        assert len(pcs) == 1
+        assert total == 1
+    
+    def test_get_user_persona_cards_with_none_tags(self):
+        """测试 get_user_persona_cards 处理 None 标签"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        mock_pc = Mock(spec=PersonaCard)
+        mock_pc.name = "Test PC"
+        mock_pc.tags = None
+        mock_pc.is_pending = False
+        mock_pc.is_public = True
+        mock_pc.created_at = datetime.now()
+        
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.all = Mock(return_value=[mock_pc])
+        mock_query.filter = Mock(return_value=mock_filter)
+        db.query = Mock(return_value=mock_query)
+        
+        # 使用标签过滤，但人设卡没有标签
+        pcs, total = service.get_user_persona_cards("user-123", tag="test")
+        
+        assert len(pcs) == 0
+        assert total == 0
+    
+    def test_get_user_persona_cards_with_list_tags(self):
+        """测试 get_user_persona_cards 处理列表类型的标签"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        mock_pc = Mock(spec=PersonaCard)
+        mock_pc.name = "Test PC"
+        mock_pc.tags = ["tag1", "tag2", "tag3"]
+        mock_pc.is_pending = False
+        mock_pc.is_public = True
+        mock_pc.created_at = datetime.now()
+        
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.all = Mock(return_value=[mock_pc])
+        mock_query.filter = Mock(return_value=mock_filter)
+        db.query = Mock(return_value=mock_query)
+        
+        pcs, total = service.get_user_persona_cards("user-123", tag="tag2")
+        
+        assert len(pcs) == 1
+        assert total == 1
+    
+    def test_get_user_persona_cards_with_invalid_sort_field(self):
+        """测试 get_user_persona_cards 使用无效排序字段"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        mock_pc = Mock(spec=PersonaCard)
+        mock_pc.name = "Test PC"
+        mock_pc.tags = ""
+        mock_pc.is_pending = False
+        mock_pc.is_public = True
+        mock_pc.created_at = datetime.now()
+        
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.all = Mock(return_value=[mock_pc])
+        mock_query.filter = Mock(return_value=mock_filter)
+        db.query = Mock(return_value=mock_query)
+        
+        # 使用无效的排序字段，应该回退到默认的 created_at
+        pcs, total = service.get_user_persona_cards("user-123", sort_by="invalid_field")
+        
+        assert len(pcs) == 1
+        assert total == 1
+    
+    def test_update_persona_card_removes_copyright_owner(self):
+        """测试 update_persona_card 移除 copyright_owner 字段"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        mock_pc = Mock(spec=PersonaCard)
+        mock_pc.id = "pc-123"
+        mock_pc.uploader_id = "user-123"
+        mock_pc.is_public = False
+        mock_pc.is_pending = False
+        mock_pc.copyright_owner = "Original Owner"
+        
+        service.get_persona_card_by_id = Mock(return_value=mock_pc)
+        db.commit = Mock()
+        db.refresh = Mock()
+        
+        # 尝试更新 copyright_owner，应该被移除
+        update_data = {"copyright_owner": "New Owner", "content": "New content"}
+        success, message, pc = service.update_persona_card(
+            "pc-123", update_data, "user-123"
+        )
+        
+        assert success is True
+        # copyright_owner 不应该被更新
+        assert mock_pc.copyright_owner == "Original Owner"
+    
+    def test_update_persona_card_removes_name(self):
+        """测试 update_persona_card 移除 name 字段"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        mock_pc = Mock(spec=PersonaCard)
+        mock_pc.id = "pc-123"
+        mock_pc.uploader_id = "user-123"
+        mock_pc.is_public = False
+        mock_pc.is_pending = False
+        mock_pc.name = "Original Name"
+        
+        service.get_persona_card_by_id = Mock(return_value=mock_pc)
+        db.commit = Mock()
+        db.refresh = Mock()
+        
+        # 尝试更新 name，应该被移除
+        update_data = {"name": "New Name", "content": "New content"}
+        success, message, pc = service.update_persona_card(
+            "pc-123", update_data, "user-123"
+        )
+        
+        assert success is True
+        # name 不应该被更新
+        assert mock_pc.name == "Original Name"
+    
+    def test_update_persona_card_only_content_no_timestamp_update(self):
+        """测试 update_persona_card 仅更新 content 时不更新时间戳"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        original_time = datetime(2024, 1, 1, 12, 0, 0)
+        mock_pc = Mock(spec=PersonaCard)
+        mock_pc.id = "pc-123"
+        mock_pc.uploader_id = "user-123"
+        mock_pc.is_public = False
+        mock_pc.is_pending = False
+        mock_pc.updated_at = original_time
+        
+        service.get_persona_card_by_id = Mock(return_value=mock_pc)
+        db.commit = Mock()
+        db.refresh = Mock()
+        
+        # 仅更新 content
+        update_data = {"content": "New content"}
+        success, message, pc = service.update_persona_card(
+            "pc-123", update_data, "user-123"
+        )
+        
+        assert success is True
+        # updated_at 不应该被更新
+        assert mock_pc.updated_at == original_time
+    
+    def test_update_persona_card_non_content_updates_timestamp(self):
+        """测试 update_persona_card 更新非 content 字段时更新时间戳"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        original_time = datetime(2024, 1, 1, 12, 0, 0)
+        mock_pc = Mock(spec=PersonaCard)
+        mock_pc.id = "pc-123"
+        mock_pc.uploader_id = "user-123"
+        mock_pc.is_public = False
+        mock_pc.is_pending = False
+        mock_pc.updated_at = original_time
+        
+        service.get_persona_card_by_id = Mock(return_value=mock_pc)
+        db.commit = Mock()
+        db.refresh = Mock()
+        
+        # 更新非 content 字段
+        update_data = {"description": "New description"}
+        
+        with patch('app.services.persona_service.datetime') as mock_datetime:
+            new_time = datetime(2024, 1, 2, 12, 0, 0)
+            mock_datetime.now.return_value = new_time
+            
+            success, message, pc = service.update_persona_card(
+                "pc-123", update_data, "user-123"
+            )
+        
+        assert success is True
+        # updated_at 应该被更新
+        assert mock_pc.updated_at == new_time
+    
+    def test_add_star_with_none_star_count(self):
+        """测试 add_star 处理 None star_count"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        mock_pc = Mock(spec=PersonaCard)
+        mock_pc.star_count = None
+        
+        service.is_starred = Mock(return_value=False)
+        service.get_persona_card_by_id = Mock(return_value=mock_pc)
+        db.add = Mock()
+        db.commit = Mock()
+        
+        result = service.add_star("user-123", "pc-123")
+        
+        assert result is True
+        assert mock_pc.star_count == 1
+    
+    def test_add_star_persona_card_not_found(self):
+        """测试 add_star 人设卡不存在"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        service.is_starred = Mock(return_value=False)
+        service.get_persona_card_by_id = Mock(return_value=None)
+        db.add = Mock()
+        db.commit = Mock()
+        
+        result = service.add_star("user-123", "pc-123")
+        
+        # 即使人设卡不存在，也应该返回 True（因为 StarRecord 已创建）
+        assert result is True
+        db.commit.assert_called_once()
+    
+    def test_remove_star_with_zero_star_count(self):
+        """测试 remove_star 处理 star_count 为 0 的情况"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        mock_star = Mock(spec=StarRecord)
+        mock_pc = Mock(spec=PersonaCard)
+        mock_pc.star_count = 0
+        
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.first = Mock(return_value=mock_star)
+        mock_query.filter = Mock(return_value=mock_filter)
+        db.query = Mock(return_value=mock_query)
+        
+        service.get_persona_card_by_id = Mock(return_value=mock_pc)
+        db.delete = Mock()
+        db.commit = Mock()
+        
+        result = service.remove_star("user-123", "pc-123")
+        
+        assert result is True
+        # star_count 不应该变成负数
+        assert mock_pc.star_count == 0
+    
+    def test_remove_star_persona_card_not_found(self):
+        """测试 remove_star 人设卡不存在"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        mock_star = Mock(spec=StarRecord)
+        
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.first = Mock(return_value=mock_star)
+        mock_query.filter = Mock(return_value=mock_filter)
+        db.query = Mock(return_value=mock_query)
+        
+        service.get_persona_card_by_id = Mock(return_value=None)
+        db.delete = Mock()
+        db.commit = Mock()
+        
+        result = service.remove_star("user-123", "pc-123")
+        
+        # 即使人设卡不存在，也应该返回 True（因为 StarRecord 已删除）
+        assert result is True
+        db.commit.assert_called_once()
+    
+    def test_increment_downloads_with_none_downloads(self):
+        """测试 increment_downloads 处理 None downloads"""
+        db = Mock(spec=Session)
+        service = PersonaService(db)
+        
+        mock_pc = Mock(spec=PersonaCard)
+        mock_pc.downloads = None
+        
+        service.get_persona_card_by_id = Mock(return_value=mock_pc)
+        db.commit = Mock()
+        
+        result = service.increment_downloads("pc-123")
+        
+        assert result is True
+        assert mock_pc.downloads == 1

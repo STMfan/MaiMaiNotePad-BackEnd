@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import verify_token
+from app.core.messages import get_message
 from app.services.user_service import UserService
 
 
@@ -49,7 +50,7 @@ async def get_current_user(
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="无效的认证凭证",
+            detail=get_message("invalid_credentials"),
             headers={"WWW-Authenticate": "Bearer"},
         )
     
@@ -58,7 +59,7 @@ async def get_current_user(
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="无效的认证凭证",
+            detail=get_message("invalid_credentials"),
             headers={"WWW-Authenticate": "Bearer"},
         )
     
@@ -69,7 +70,7 @@ async def get_current_user(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户不存在",
+            detail=get_message("user_not_found"),
             headers={"WWW-Authenticate": "Bearer"},
         )
     
@@ -79,7 +80,7 @@ async def get_current_user(
     if token_pwd_ver < user_pwd_ver:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="密码已修改，令牌已失效，请重新登录",
+            detail=get_message("password_changed"),
             headers={"WWW-Authenticate": "Bearer"},
         )
     
@@ -123,7 +124,7 @@ async def get_admin_user(
     if not current_user.get("is_admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="权限不足"
+            detail=get_message("insufficient_permissions")
         )
     return current_user
 
@@ -146,7 +147,7 @@ async def get_moderator_user(
     if not current_user.get("is_moderator"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="权限不足"
+            detail=get_message("insufficient_permissions")
         )
     return current_user
 

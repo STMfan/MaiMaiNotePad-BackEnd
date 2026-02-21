@@ -11,7 +11,12 @@ from typing import Dict, Optional
 
 
 class TestConfig:
-    """测试配置管理器"""
+    """测试配置管理器
+    
+    注意：这不是一个 pytest 测试类，尽管名字以 Test 开头。
+    它是一个用于管理测试配置的工具类。
+    """
+    __test__ = False  # 告诉 pytest 不要收集这个类
     
     def __init__(self):
         self.config: Dict[str, str] = {}
@@ -19,7 +24,8 @@ class TestConfig:
     
     def _load_config(self):
         """从 .test_env 或 .test_env.template 加载配置"""
-        test_dir = Path(__file__).parent
+        # fixtures 目录的父目录是 tests 目录
+        test_dir = Path(__file__).parent.parent
         test_env_path = test_dir / ".test_env"
         template_path = test_dir / ".test_env.template"
         
@@ -52,13 +58,8 @@ class TestConfig:
         self.config = {
             'DATABASE_URL': 'sqlite:///./test.db',
             'JWT_SECRET_KEY': 'test_secret_key_for_testing_only',
-            'MAIL_USER': 'test@example.com',
-            'MAIL_PWD': 'test_password',
-            'MAIL_SERVER': 'smtp.example.com',
-            'MAIL_PORT': '587',
-            'SUPERADMIN_PWD': 'admin123',
-            'HIGHEST_PASSWORD': 'highest123',
-            'HYPOTHESIS_PROFILE': 'ci',
+            'PASSLIB_BCRYPT_ROUNDS': '4',
+            'HYPOTHESIS_PROFILE': 'dev',
             'TEST_PARALLEL': 'true'
         }
     
@@ -77,8 +78,6 @@ class TestConfig:
         required_keys = [
             'DATABASE_URL',
             'JWT_SECRET_KEY',
-            'SUPERADMIN_PWD',
-            'HIGHEST_PASSWORD'
         ]
         
         missing_keys = [key for key in required_keys if key not in self.config]

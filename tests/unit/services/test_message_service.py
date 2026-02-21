@@ -554,6 +554,304 @@ class TestBroadcastMessages:
         assert count == 0
 
 
+class TestExceptionHandling:
+    """Test exception handling in message_service"""
+    
+    def test_get_message_by_id_database_exception(self):
+        """Test database exception in get_message_by_id"""
+        from sqlalchemy.exc import SQLAlchemyError
+        
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        # Mock database exception
+        mock_query = Mock()
+        mock_query.filter.side_effect = SQLAlchemyError("Database error")
+        db.query = Mock(return_value=mock_query)
+        
+        # Should raise exception (no exception handling in this method)
+        with pytest.raises(SQLAlchemyError):
+            service.get_message_by_id("msg-123")
+    
+    def test_get_user_messages_database_exception(self):
+        """Test database exception in get_user_messages"""
+        from sqlalchemy.exc import SQLAlchemyError
+        
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        # Mock database exception
+        mock_query = Mock()
+        mock_query.filter.side_effect = SQLAlchemyError("Database error")
+        db.query = Mock(return_value=mock_query)
+        
+        # Should raise exception
+        with pytest.raises(SQLAlchemyError):
+            service.get_user_messages("user-123")
+    
+    def test_create_messages_database_exception_on_commit(self):
+        """Test database exception during commit in create_messages"""
+        from sqlalchemy.exc import SQLAlchemyError
+        
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        db.add = Mock()
+        db.commit = Mock(side_effect=SQLAlchemyError("Commit failed"))
+        db.refresh = Mock()
+        
+        # Should raise exception when commit fails
+        with pytest.raises(SQLAlchemyError):
+            service.create_messages(
+                sender_id="sender-123",
+                recipient_ids={"recipient-456"},
+                title="Test",
+                content="Content"
+            )
+    
+    def test_create_messages_database_exception_on_refresh(self):
+        """Test database exception during refresh in create_messages"""
+        from sqlalchemy.exc import SQLAlchemyError
+        
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        db.add = Mock()
+        db.commit = Mock()
+        db.refresh = Mock(side_effect=SQLAlchemyError("Refresh failed"))
+        
+        # Should raise exception when refresh fails
+        with pytest.raises(SQLAlchemyError):
+            service.create_messages(
+                sender_id="sender-123",
+                recipient_ids={"recipient-456"},
+                title="Test",
+                content="Content"
+            )
+    
+    def test_mark_message_read_database_exception(self):
+        """Test database exception in mark_message_read"""
+        from sqlalchemy.exc import SQLAlchemyError
+        
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        message = Mock(spec=Message)
+        message.recipient_id = "user-456"
+        
+        service.get_message_by_id = Mock(return_value=message)
+        db.commit = Mock(side_effect=SQLAlchemyError("Commit failed"))
+        
+        # Should raise exception
+        with pytest.raises(SQLAlchemyError):
+            service.mark_message_read("msg-123", "user-456")
+    
+    def test_delete_message_database_exception(self):
+        """Test database exception in delete_message"""
+        from sqlalchemy.exc import SQLAlchemyError
+        
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        message = Mock(spec=Message)
+        message.recipient_id = "user-456"
+        
+        service.get_message_by_id = Mock(return_value=message)
+        db.delete = Mock()
+        db.commit = Mock(side_effect=SQLAlchemyError("Delete failed"))
+        
+        # Should raise exception
+        with pytest.raises(SQLAlchemyError):
+            service.delete_message("msg-123", "user-456")
+    
+    def test_update_message_database_exception(self):
+        """Test database exception in update_message"""
+        from sqlalchemy.exc import SQLAlchemyError
+        
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        message = Mock(spec=Message)
+        message.recipient_id = "user-456"
+        
+        service.get_message_by_id = Mock(return_value=message)
+        db.commit = Mock(side_effect=SQLAlchemyError("Update failed"))
+        
+        # Should raise exception
+        with pytest.raises(SQLAlchemyError):
+            service.update_message("msg-123", "user-456", title="New Title")
+    
+    def test_delete_broadcast_messages_database_exception(self):
+        """Test database exception in delete_broadcast_messages"""
+        from sqlalchemy.exc import SQLAlchemyError
+        from datetime import datetime
+        
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        original_message = Mock(spec=Message)
+        original_message.sender_id = "admin-456"
+        original_message.title = "Broadcast"
+        original_message.message_type = "announcement"
+        original_message.broadcast_scope = "all_users"
+        original_message.created_at = datetime(2024, 1, 1, 12, 0, 0)
+        
+        service.get_message_by_id = Mock(return_value=original_message)
+        
+        # Mock query to return messages
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.all = Mock(return_value=[original_message])
+        mock_query.filter = Mock(return_value=mock_filter)
+        db.query = Mock(return_value=mock_query)
+        
+        db.delete = Mock()
+        db.commit = Mock(side_effect=SQLAlchemyError("Delete failed"))
+        
+        # Should raise exception
+        with pytest.raises(SQLAlchemyError):
+            service.delete_broadcast_messages("msg-123", "admin-456")
+    
+    def test_update_broadcast_messages_database_exception(self):
+        """Test database exception in update_broadcast_messages"""
+        from sqlalchemy.exc import SQLAlchemyError
+        from datetime import datetime
+        
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        original_message = Mock(spec=Message)
+        original_message.sender_id = "admin-456"
+        original_message.title = "Old Title"
+        original_message.message_type = "announcement"
+        original_message.broadcast_scope = "all_users"
+        original_message.created_at = datetime(2024, 1, 1, 12, 0, 0)
+        
+        service.get_message_by_id = Mock(return_value=original_message)
+        
+        # Mock query to return messages
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.all = Mock(return_value=[original_message])
+        mock_query.filter = Mock(return_value=mock_filter)
+        db.query = Mock(return_value=mock_query)
+        
+        db.commit = Mock(side_effect=SQLAlchemyError("Update failed"))
+        
+        # Should raise exception
+        with pytest.raises(SQLAlchemyError):
+            service.update_broadcast_messages("msg-123", "admin-456", title="New Title")
+
+
+class TestValidationFailures:
+    """Test validation failures and edge cases"""
+    
+    def test_create_messages_empty_recipient_ids(self):
+        """Test creating messages with empty recipient list"""
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        db.add = Mock()
+        db.commit = Mock()
+        db.refresh = Mock()
+        
+        messages = service.create_messages(
+            sender_id="sender-123",
+            recipient_ids=set(),  # Empty set
+            title="Test",
+            content="Content"
+        )
+        
+        # Should return empty list
+        assert messages == []
+        # add should not be called for empty list
+        assert not db.add.called
+        # commit is still called even with empty list (current implementation)
+        assert db.commit.called
+    
+    def test_create_messages_with_empty_content(self):
+        """Test creating messages with empty content"""
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        db.add = Mock()
+        db.commit = Mock()
+        db.refresh = Mock()
+        
+        messages = service.create_messages(
+            sender_id="sender-123",
+            recipient_ids={"recipient-456"},
+            title="Test",
+            content=""  # Empty content
+        )
+        
+        # Should still create message with empty content
+        assert len(messages) == 1
+        assert messages[0].content == ""
+    
+    def test_generate_summary_empty_content(self):
+        """Test generating summary from empty content"""
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        summary = service.generate_summary("")
+        
+        assert summary == ""
+    
+    def test_generate_summary_only_html_tags(self):
+        """Test generating summary from content with only HTML tags"""
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        content = "<p></p><div></div>"
+        summary = service.generate_summary(content)
+        
+        # After removing HTML tags and whitespace, should be empty
+        assert summary == ""
+    
+    def test_update_message_with_empty_summary(self):
+        """Test updating message with empty summary (should be allowed)"""
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        message = Mock(spec=Message)
+        message.recipient_id = "user-456"
+        message.summary = "Old summary"
+        
+        service.get_message_by_id = Mock(return_value=message)
+        db.commit = Mock()
+        
+        result = service.update_message(
+            "msg-123",
+            "user-456",
+            summary=""  # Empty string should be allowed
+        )
+        
+        assert result is True
+        assert message.summary == ""
+    
+    def test_update_message_no_fields_to_update(self):
+        """Test updating message with no fields specified"""
+        db = Mock(spec=Session)
+        service = MessageService(db)
+        
+        message = Mock(spec=Message)
+        message.recipient_id = "user-456"
+        message.title = "Original Title"
+        message.content = "Original Content"
+        
+        service.get_message_by_id = Mock(return_value=message)
+        db.commit = Mock()
+        
+        result = service.update_message("msg-123", "user-456")
+        
+        # Should still return True and commit
+        assert result is True
+        assert message.title == "Original Title"
+        assert message.content == "Original Content"
+        assert db.commit.called
+
+
 class TestMessageRetrieval:
     """Test message retrieval logic"""
     

@@ -83,6 +83,22 @@ class MessageWebSocketManager:
             f"WebSocket disconnected: user_id={key}, remaining={len(self.connections.get(key, []))}"
         )
 
+    def get_active_connections_count(self) -> int:
+        """
+        获取当前活动连接总数
+
+        返回所有用户的活动 WebSocket 连接总数。
+
+        Returns:
+            int: 活动连接总数
+
+        Example:
+            >>> count = manager.get_active_connections_count()
+            >>> print(f"Active connections: {count}")
+        """
+        return sum(len(conns) for conns in self.connections.values())
+
+
     async def send_message_update(self, user_id: str) -> None:
         """
         向指定用户发送消息更新通知

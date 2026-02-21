@@ -486,7 +486,7 @@ async def update_knowledge_base(
             raise AuthorizationError("是你的知识库吗你就改")
 
         # 更新知识库信息
-        update_dict = update_data.dict(exclude_unset=True)
+        update_dict = update_data.model_dump(exclude_unset=True)
         if not update_dict:
             raise ValidationError("没有提供要更新的字段")
 

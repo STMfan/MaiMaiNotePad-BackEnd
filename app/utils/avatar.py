@@ -15,7 +15,11 @@ import hashlib
 AVATAR_MAX_SIZE = 2 * 1024 * 1024  # 2MB
 AVATAR_MAX_DIMENSION = 1024  # 1024x1024 像素
 AVATAR_ALLOWED_FORMATS = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
-AVATAR_UPLOAD_DIR = "uploads/avatars"
+
+# 动态获取上传目录，支持测试环境
+_BASE_UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
+AVATAR_UPLOAD_DIR = os.path.join(_BASE_UPLOAD_DIR, "avatars")
+
 AVATAR_THUMBNAIL_SIZE = 128  # 缩略图尺寸
 
 

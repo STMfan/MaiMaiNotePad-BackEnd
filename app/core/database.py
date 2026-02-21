@@ -43,7 +43,15 @@ def get_db() -> Generator[Session, None, None]:
     try:
         yield db
     finally:
-        db.close()
+        try:
+            # 检查会话是否处于事务中，如果是则回滚
+            if db.in_transaction():
+                db.rollback()
+        except Exception:
+            # 忽略回滚错误，确保会话总是被关闭
+            pass
+        finally:
+            db.close()
 
 
 @contextmanager
@@ -62,4 +70,12 @@ def get_db_context():
     try:
         yield db
     finally:
-        db.close()
+        try:
+            # 检查会话是否处于事务中，如果是则回滚
+            if db.in_transaction():
+                db.rollback()
+        except Exception:
+            # 忽略回滚错误，确保会话总是被关闭
+            pass
+        finally:
+            db.close()

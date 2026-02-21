@@ -15,6 +15,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 from datetime import datetime
 from app.core.logging import app_logger, log_exception
+from app.core.messages import get_message
 
 
 DEFAULT_ERROR_CODE_BY_STATUS: Dict[int, str] = {
@@ -373,7 +374,9 @@ class ValidationError(APIError):
 class AuthenticationError(APIError):
     """认证错误"""
     
-    def __init__(self, message: str = "认证失败"):
+    def __init__(self, message: str = None):
+        if message is None:
+            message = get_message("authentication_failed")
         super().__init__(
             message=message,
             status_code=401,
@@ -384,7 +387,9 @@ class AuthenticationError(APIError):
 class AuthorizationError(APIError):
     """授权错误"""
     
-    def __init__(self, message: str = "拒绝访问"):
+    def __init__(self, message: str = None):
+        if message is None:
+            message = get_message("access_denied")
         super().__init__(
             message=message,
             status_code=403,
@@ -395,7 +400,9 @@ class AuthorizationError(APIError):
 class NotFoundError(APIError):
     """资源未找到错误"""
     
-    def __init__(self, message: str = "资源不存在"):
+    def __init__(self, message: str = None):
+        if message is None:
+            message = get_message("resource_not_found")
         super().__init__(
             message=message,
             status_code=404,
@@ -406,7 +413,9 @@ class NotFoundError(APIError):
 class ConflictError(APIError):
     """资源冲突错误"""
     
-    def __init__(self, message: str = "资源冲突"):
+    def __init__(self, message: str = None):
+        if message is None:
+            message = get_message("resource_conflict")
         super().__init__(
             message=message,
             status_code=409,
@@ -417,7 +426,9 @@ class ConflictError(APIError):
 class RateLimitError(APIError):
     """请求频率限制错误"""
     
-    def __init__(self, message: str = "请求过于频繁"):
+    def __init__(self, message: str = None):
+        if message is None:
+            message = get_message("rate_limit_exceeded")
         super().__init__(
             message=message,
             status_code=429,

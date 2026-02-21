@@ -2,8 +2,8 @@
 """
 自动生成错误码文档脚本
 
-从 app/error_messages.json 自动生成 docs/README_ERROR_CODES.md
-使用方法: python scripts/generate_error_codes_doc.py
+从 app/error_messages.json 自动生成 docs/错误码文档.md
+使用方法: python scripts/python/generate_error_codes_doc.py
 """
 
 import json
@@ -136,11 +136,11 @@ def main():
     """主函数"""
     # 获取项目根目录
     script_dir = Path(__file__).parent
-    project_root = script_dir.parent
+    project_root = script_dir.parent.parent  # scripts/python -> scripts -> project_root
     
     # 定义文件路径
     json_path = project_root / "app" / "error_messages.json"
-    doc_path = project_root / "docs" / "README_ERROR_CODES.md"
+    doc_path = project_root / "docs" / "错误码文档.md"
     
     # 检查输入文件是否存在
     if not json_path.exists():

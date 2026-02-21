@@ -694,3 +694,398 @@ class TestGetFilePath:
         
         result = service.get_persona_card_file_path(pc.id, "nonexistent_id")
         assert result is None
+
+
+class TestExceptionHandling:
+    """测试 file_service 异常处理"""
+    
+    def test_save_file_permission_denied(self, test_db: Session):
+        """测试文件保存权限被拒绝"""
+        service = FileService(test_db)
+        
+        # 使用只读目录模拟权限错误
+        with patch('builtins.open', side_effect=PermissionError("Permission denied")):
+            with pytest.raises(FileDatabaseError, match="文件保存失败"):
+                service._save_file(b"content", "test.txt", "/tmp")
+    
+    def test_save_file_disk_full(self, test_db: Session):
+        """测试磁盘空间不足"""
+        service = FileService(test_db)
+        
+        # 模拟磁盘空间不足
+        with patch('builtins.open', side_effect=OSError("No space left on device")):
+            with pytest.raises(FileDatabaseError, match="文件保存失败"):
+                service._save_file(b"content", "test.txt", "/tmp")
+    
+    def test_upload_knowledge_base_db_exception(self, test_db: Session, factory):
+        """测试知识库上传时数据库异常"""
+        service = FileService(test_db)
+        user = factory.create_user()
+        
+        files = [("test.txt", b"content")]
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch.object(service, 'knowledge_dir', temp_dir):
+                # Mock db.flush to raise exception
+                with patch.object(test_db, 'flush', side_effect=Exception("DB Error")):
+                    with pytest.raises(FileDatabaseError, match="知识库保存失败"):
+                        service.upload_knowledge_base(
+                            files=files,
+                            name="Test",
+                            description="Test",
+                            uploader_id=user.id
+                        )
+    
+    def test_upload_persona_card_db_exception(self, test_db: Session, factory):
+        """测试人设卡上传时数据库异常"""
+        service = FileService(test_db)
+        user = factory.create_user()
+        
+        toml_content = b'version = "1.0.0"'
+        files = [("bot_config.toml", toml_content)]
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch.object(service, 'persona_dir', temp_dir):
+                # Mock db.flush to raise exception
+                with patch.object(test_db, 'flush', side_effect=Exception("DB Error")):
+                    with pytest.raises(FileDatabaseError, match="人设卡保存失败"):
+                        service.upload_persona_card(
+                            files=files,
+                            name="Test",
+                            description="Test",
+                            uploader_id=user.id,
+                            copyright_owner="Test"
+                        )
+    
+    def test_add_files_kb_not_found(self, test_db: Session):
+        """测试向不存在的知识库添加文件"""
+        service = FileService(test_db)
+        
+        files = [("test.txt", b"content")]
+        
+        with pytest.raises(FileValidationError, match="知识库不存在"):
+            service.add_files_to_knowledge_base("nonexistent_id", files, "user_id")
+    
+    def test_add_files_kb_dir_not_exist(self, test_db: Session, factory):
+        """测试知识库目录不存在"""
+        service = FileService(test_db)
+        kb = factory.create_knowledge_base()
+        
+        # 设置不存在的目录（不要commit，避免数据库状态问题）
+        kb.base_path = "/nonexistent/path"
+        
+        files = [("test.txt", b"content")]
+        
+        with pytest.raises(FileDatabaseError, match="知识库目录不存在"):
+            service.add_files_to_knowledge_base(kb.id, files, "user_id")
+    
+    def test_add_files_db_exception(self, test_db: Session, factory):
+        """测试添加文件时数据库异常"""
+        service = FileService(test_db)
+        kb = factory.create_knowledge_base()
+        user = factory.create_user()
+        
+        os.makedirs(kb.base_path, exist_ok=True)
+        
+        try:
+            files = [("test.txt", b"content")]
+            
+            # Mock db.commit to raise exception
+            with patch.object(test_db, 'commit', side_effect=Exception("DB Error")):
+                with pytest.raises(FileDatabaseError, match="添加文件失败"):
+                    service.add_files_to_knowledge_base(kb.id, files, user.id)
+        finally:
+            if os.path.exists(kb.base_path):
+                shutil.rmtree(kb.base_path)
+    
+    def test_delete_file_kb_not_found(self, test_db: Session):
+        """测试从不存在的知识库删除文件"""
+        service = FileService(test_db)
+        
+        with pytest.raises(FileValidationError, match="知识库不存在"):
+            service.delete_file_from_knowledge_base("nonexistent_id", "file_id", "user_id")
+    
+    def test_delete_file_kb_dir_not_exist(self, test_db: Session, factory):
+        """测试删除文件时知识库目录不存在"""
+        service = FileService(test_db)
+        kb = factory.create_knowledge_base()
+        user = factory.create_user()
+        kb_file = factory.create_knowledge_base_file(knowledge_base=kb)
+        
+        # 设置不存在的目录
+        kb.base_path = "/nonexistent/path"
+        test_db.commit()
+        
+        with pytest.raises(FileDatabaseError, match="知识库目录不存在"):
+            service.delete_file_from_knowledge_base(kb.id, kb_file.id, user.id)
+    
+    def test_delete_file_db_exception(self, test_db: Session, factory):
+        """测试删除文件时数据库异常"""
+        service = FileService(test_db)
+        kb = factory.create_knowledge_base()
+        
+        os.makedirs(kb.base_path, exist_ok=True)
+        kb_file = factory.create_knowledge_base_file(knowledge_base=kb)
+        
+        # 创建物理文件
+        file_path = os.path.join(kb.base_path, kb_file.file_path)
+        with open(file_path, "w") as f:
+            f.write("test")
+        
+        try:
+            # Mock os.remove to raise exception
+            with patch('os.remove', side_effect=Exception("Cannot delete file")):
+                with pytest.raises(FileDatabaseError, match="删除文件失败"):
+                    service.delete_file_from_knowledge_base(kb.id, kb_file.id, "user_id")
+        finally:
+            if os.path.exists(kb.base_path):
+                shutil.rmtree(kb.base_path)
+    
+    def test_delete_knowledge_base_dir_error(self, test_db: Session, factory):
+        """测试删除知识库目录失败"""
+        service = FileService(test_db)
+        kb = factory.create_knowledge_base()
+        user = factory.create_user()
+        
+        # 创建目录
+        os.makedirs(kb.base_path, exist_ok=True)
+        
+        # Mock shutil.rmtree to raise exception
+        with patch('shutil.rmtree', side_effect=Exception("Cannot delete")):
+            result = service.delete_knowledge_base(kb.id, user.id)
+            assert result is False
+    
+    def test_create_kb_zip_not_found(self, test_db: Session):
+        """测试创建不存在的知识库ZIP"""
+        service = FileService(test_db)
+        
+        with pytest.raises(FileValidationError, match="知识库不存在"):
+            service.create_knowledge_base_zip("nonexistent_id")
+    
+    def test_create_pc_zip_not_found(self, test_db: Session):
+        """测试创建不存在的人设卡ZIP"""
+        service = FileService(test_db)
+        
+        with pytest.raises(FileValidationError, match="人设卡不存在"):
+            service.create_persona_card_zip("nonexistent_id")
+    
+    def test_create_kb_zip_error(self, test_db: Session, factory):
+        """测试创建知识库ZIP时发生错误"""
+        service = FileService(test_db)
+        kb = factory.create_knowledge_base()
+        kb_file = factory.create_knowledge_base_file(knowledge_base=kb)
+        
+        os.makedirs(kb.base_path, exist_ok=True)
+        
+        file_path = os.path.join(kb.base_path, kb_file.file_path)
+        with open(file_path, "w") as f:
+            f.write("test")
+        
+        try:
+            # Mock zipfile.ZipFile to raise exception
+            with patch('zipfile.ZipFile', side_effect=Exception("Zip error")):
+                with pytest.raises(FileDatabaseError, match="创建压缩包失败"):
+                    service.create_knowledge_base_zip(kb.id)
+        finally:
+            if os.path.exists(kb.base_path):
+                shutil.rmtree(kb.base_path)
+    
+    def test_create_pc_zip_error(self, test_db: Session, factory):
+        """测试创建人设卡ZIP时发生错误"""
+        service = FileService(test_db)
+        pc = factory.create_persona_card()
+        
+        os.makedirs(pc.base_path, exist_ok=True)
+        pc_file = factory.create_persona_card_file(persona_card=pc)
+        
+        file_path = os.path.join(pc.base_path, pc_file.file_path)
+        with open(file_path, "w") as f:
+            f.write("test")
+        
+        try:
+            # Mock zipfile.ZipFile to raise exception
+            with patch('zipfile.ZipFile', side_effect=Exception("Zip error")):
+                with pytest.raises(FileDatabaseError, match="创建压缩包失败"):
+                    service.create_persona_card_zip(pc.id)
+        finally:
+            if os.path.exists(pc.base_path):
+                shutil.rmtree(pc.base_path)
+    
+    def test_get_kb_file_path_kb_not_found(self, test_db: Session):
+        """测试获取不存在知识库的文件路径"""
+        service = FileService(test_db)
+        
+        result = service.get_knowledge_base_file_path("nonexistent_id", "file_id")
+        assert result is None
+    
+    def test_get_pc_file_path_pc_not_found(self, test_db: Session):
+        """测试获取不存在人设卡的文件路径"""
+        service = FileService(test_db)
+        
+        result = service.get_persona_card_file_path("nonexistent_id", "file_id")
+        assert result is None
+
+
+class TestEdgeCases:
+    """测试边界情况"""
+    
+    def test_validate_file_type_empty_filename(self, test_db: Session):
+        """测试空文件名验证"""
+        service = FileService(test_db)
+        
+        assert not service._validate_file_type("", [".txt"])
+        assert not service._validate_file_type(None, [".txt"])
+    
+    def test_validate_file_size_zero(self, test_db: Session):
+        """测试零字节文件"""
+        service = FileService(test_db)
+        
+        assert service._validate_file_size(0)
+    
+    def test_validate_file_size_negative(self, test_db: Session):
+        """测试负数文件大小"""
+        service = FileService(test_db)
+        
+        # 负数应该通过验证（虽然不现实，但代码允许）
+        assert service._validate_file_size(-1)
+    
+    def test_extract_version_with_list(self, test_db: Session):
+        """测试从包含列表的数据中提取版本"""
+        service = FileService(test_db)
+        
+        data = {
+            "items": [
+                {"version": "1.0.0"},
+                {"version": "2.0.0"}
+            ]
+        }
+        # 深度搜索会找到列表中的版本（顺序可能不确定）
+        version = service._extract_version_from_toml(data)
+        assert version in ["1.0.0", "2.0.0"]
+    
+    def test_extract_version_circular_reference(self, test_db: Session):
+        """测试循环引用数据"""
+        service = FileService(test_db)
+        
+        data = {"name": "test"}
+        data["self"] = data  # 循环引用
+        
+        # 不应该崩溃，应该返回None
+        version = service._extract_version_from_toml(data)
+        assert version is None
+    
+    def test_upload_kb_with_none_values(self, test_db: Session, factory):
+        """测试使用None值上传知识库"""
+        service = FileService(test_db)
+        user = factory.create_user()
+        
+        files = [("test.txt", b"content")]
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch.object(service, 'knowledge_dir', temp_dir):
+                kb = service.upload_knowledge_base(
+                    files=files,
+                    name="Test",
+                    description="Test",
+                    uploader_id=user.id,
+                    copyright_owner=None,
+                    content=None,
+                    tags=None
+                )
+                
+                assert kb.copyright_owner is None
+                assert kb.content is None
+                assert kb.tags is None
+    
+    def test_upload_pc_with_none_values(self, test_db: Session, factory):
+        """测试使用None值上传人设卡"""
+        service = FileService(test_db)
+        user = factory.create_user()
+        
+        toml_content = b'version = "1.0.0"'
+        files = [("bot_config.toml", toml_content)]
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch.object(service, 'persona_dir', temp_dir):
+                pc = service.upload_persona_card(
+                    files=files,
+                    name="Test",
+                    description="Test",
+                    uploader_id=user.id,
+                    copyright_owner="Test",
+                    content=None,
+                    tags=None
+                )
+                
+                assert pc.content is None
+                assert pc.tags is None
+    
+    def test_persona_card_file_size_exceeded(self, test_db: Session, factory):
+        """测试人设卡文件大小超限"""
+        service = FileService(test_db)
+        user = factory.create_user()
+        
+        # 创建超大文件
+        large_content = b"x" * (service.MAX_FILE_SIZE + 1)
+        files = [("bot_config.toml", large_content)]
+        
+        with pytest.raises(FileValidationError, match="文件过大"):
+            service.upload_persona_card(
+                files=files,
+                name="Test",
+                description="Test",
+                uploader_id=user.id,
+                copyright_owner="Test"
+            )
+    
+    def test_persona_card_wrong_file_type(self, test_db: Session, factory):
+        """测试人设卡错误文件类型"""
+        service = FileService(test_db)
+        user = factory.create_user()
+        
+        # 文件名正确但类型错误
+        files = [("bot_config.toml", b"content")]  # 内容不是有效的TOML
+        
+        # 这会先通过文件名检查，然后在TOML解析时失败
+        with pytest.raises(FileValidationError, match="TOML 语法错误"):
+            service.upload_persona_card(
+                files=files,
+                name="Test",
+                description="Test",
+                uploader_id=user.id,
+                copyright_owner="Test"
+            )
+    
+    def test_add_files_invalid_file_type(self, test_db: Session, factory):
+        """测试添加无效文件类型到知识库"""
+        service = FileService(test_db)
+        kb = factory.create_knowledge_base()
+        user = factory.create_user()
+        
+        os.makedirs(kb.base_path, exist_ok=True)
+        
+        try:
+            files = [("test.exe", b"invalid")]
+            
+            with pytest.raises(FileValidationError, match="不支持的文件类型"):
+                service.add_files_to_knowledge_base(kb.id, files, user.id)
+        finally:
+            if os.path.exists(kb.base_path):
+                shutil.rmtree(kb.base_path)
+    
+    def test_add_files_file_too_large(self, test_db: Session, factory):
+        """测试添加过大文件到知识库"""
+        service = FileService(test_db)
+        kb = factory.create_knowledge_base()
+        
+        os.makedirs(kb.base_path, exist_ok=True)
+        
+        try:
+            large_content = b"x" * (service.MAX_FILE_SIZE + 1)
+            files = [("test.txt", large_content)]
+            
+            with pytest.raises(FileValidationError, match="文件过大"):
+                service.add_files_to_knowledge_base(kb.id, files, "user_id")
+        finally:
+            if os.path.exists(kb.base_path):
+                shutil.rmtree(kb.base_path)

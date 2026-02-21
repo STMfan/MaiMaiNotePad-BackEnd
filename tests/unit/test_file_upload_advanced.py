@@ -155,6 +155,122 @@ class TestKnowledgeBaseUpload:
         assert "文件过大" in exc_info.value.detail
     
     @pytest.mark.asyncio
+    async def test_upload_knowledge_base_file_content_too_large(self):
+        """测试上传文件内容过大（覆盖第218-220行）
+        
+        验证：
+        - 当文件的实际内容大小超过限制时抛出 HTTPException
+        - 即使 file.size 属性为 None 或较小，也会检查实际内容大小
+        - 错误消息包含"文件内容过大"
+        
+        这个测试覆盖了 upload_knowledge_base 方法中调用 _validate_file_content 
+        并在验证失败时抛出异常的代码路径（第218-220行）
+        """
+        # Create a mock file with small .size but large actual content
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "test.txt"
+        mock_file.size = None  # Size attribute is None (can't determine size from metadata)
+        
+        # Mock the read() to return content larger than MAX_FILE_SIZE
+        large_content = b"x" * (self.service.MAX_FILE_SIZE + 1)
+        mock_file.read = AsyncMock(return_value=large_content)
+        mock_file.seek = AsyncMock()
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test",
+                uploader_id="user123"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "文件内容过大" in exc_info.value.detail
+        assert "test.txt" in exc_info.value.detail
+        # Verify that file.read() was called to check actual content
+        mock_file.read.assert_called()
+        # Verify that file.seek(0) was called to reset file pointer
+        mock_file.seek.assert_called_with(0)
+    
+    @pytest.mark.asyncio
+    async def test_upload_knowledge_base_file_content_at_limit(self):
+        """测试上传文件内容正好在大小限制边界
+        
+        验证：
+        - 文件内容大小正好等于 MAX_FILE_SIZE 时应该通过验证
+        - 这是边界值测试，确保边界条件正确处理
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "test.txt"
+        mock_file.size = None
+        
+        # Content exactly at the limit
+        content_at_limit = b"x" * self.service.MAX_FILE_SIZE
+        mock_file.read = AsyncMock(return_value=content_at_limit)
+        mock_file.seek = AsyncMock()
+        
+        # Mock database and file operations to allow the test to proceed
+        with patch('app.file_upload.sqlite_db_manager') as mock_db:
+            mock_kb = Mock()
+            mock_kb.id = "kb123"
+            mock_db.save_knowledge_base.return_value = mock_kb
+            mock_db.save_knowledge_base_file.return_value = Mock(id="file123")
+            
+            with patch('os.makedirs'):
+                with patch.object(self.service, '_save_uploaded_file_with_size', new_callable=AsyncMock) as mock_save:
+                    mock_save.return_value = ("/path/to/test.txt", self.service.MAX_FILE_SIZE)
+                    
+                    # This should NOT raise an exception
+                    result = await self.service.upload_knowledge_base(
+                        files=[mock_file],
+                        name="Test KB",
+                        description="Test",
+                        uploader_id="user123"
+                    )
+                    
+                    assert result == mock_kb
+                    # Verify content validation was performed
+                    mock_file.read.assert_called()
+                    mock_file.seek.assert_called_with(0)
+    
+    @pytest.mark.asyncio
+    async def test_upload_knowledge_base_file_content_just_under_limit(self):
+        """测试上传文件内容略小于大小限制
+        
+        验证：
+        - 文件内容大小略小于 MAX_FILE_SIZE 时应该通过验证
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "test.txt"
+        mock_file.size = None
+        
+        # Content just under the limit
+        content_under_limit = b"x" * (self.service.MAX_FILE_SIZE - 1)
+        mock_file.read = AsyncMock(return_value=content_under_limit)
+        mock_file.seek = AsyncMock()
+        
+        # Mock database and file operations
+        with patch('app.file_upload.sqlite_db_manager') as mock_db:
+            mock_kb = Mock()
+            mock_kb.id = "kb123"
+            mock_db.save_knowledge_base.return_value = mock_kb
+            mock_db.save_knowledge_base_file.return_value = Mock(id="file123")
+            
+            with patch('os.makedirs'):
+                with patch.object(self.service, '_save_uploaded_file_with_size', new_callable=AsyncMock) as mock_save:
+                    mock_save.return_value = ("/path/to/test.txt", self.service.MAX_FILE_SIZE - 1)
+                    
+                    # This should NOT raise an exception
+                    result = await self.service.upload_knowledge_base(
+                        files=[mock_file],
+                        name="Test KB",
+                        description="Test",
+                        uploader_id="user123"
+                    )
+                    
+                    assert result == mock_kb
+    
+    @pytest.mark.asyncio
     @patch('app.file_upload.sqlite_db_manager')
     async def test_add_files_to_knowledge_base_success(self, mock_db):
         """测试成功向知识库添加文件
@@ -363,6 +479,79 @@ class TestKnowledgeBaseUpload:
         
         assert exc_info.value.status_code == 404
         assert "文件不存在" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    @patch('os.path.exists')
+    @patch('os.remove')
+    async def test_delete_files_from_knowledge_base_remove_failure(self, mock_remove, mock_exists, mock_db):
+        """测试删除文件时 os.remove 失败
+        
+        验证：
+        - 当 os.remove 抛出异常时，应该抛出 HTTPException 500
+        - 错误消息应该包含文件名和错误详情
+        """
+        # Mock database
+        mock_kb = Mock()
+        mock_kb.id = "kb123"
+        mock_kb.base_path = "/path/to/kb"
+        mock_db.get_knowledge_base_by_id.return_value = mock_kb
+        
+        mock_file = Mock()
+        mock_file.id = "file123"
+        mock_file.knowledge_base_id = "kb123"
+        mock_file.file_path = "test.txt"
+        mock_file.original_name = "test.txt"
+        mock_db.get_knowledge_base_file_by_id.return_value = mock_file
+        
+        mock_exists.return_value = True
+        # Simulate permission error when trying to delete file
+        mock_remove.side_effect = PermissionError("Permission denied")
+        
+        # Execute and verify
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.delete_files_from_knowledge_base(
+                kb_id="kb123",
+                file_id="file123",
+                user_id="user123"
+            )
+        
+        assert exc_info.value.status_code == 500
+        assert "删除文件失败" in exc_info.value.detail
+        assert "test.txt" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    @patch('os.path.exists')
+    async def test_delete_files_from_knowledge_base_kb_dir_not_exist(self, mock_exists, mock_db):
+        """测试删除文件时知识库目录不存在
+        
+        验证：
+        - 知识库目录不存在时抛出 HTTPException 500
+        """
+        mock_kb = Mock()
+        mock_kb.id = "kb123"
+        mock_kb.base_path = "/path/to/kb"
+        mock_db.get_knowledge_base_by_id.return_value = mock_kb
+        
+        mock_file = Mock()
+        mock_file.id = "file123"
+        mock_file.knowledge_base_id = "kb123"
+        mock_file.file_path = "test.txt"
+        mock_db.get_knowledge_base_file_by_id.return_value = mock_file
+        
+        # Directory doesn't exist
+        mock_exists.return_value = False
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.delete_files_from_knowledge_base(
+                kb_id="kb123",
+                file_id="file123",
+                user_id="user123"
+            )
+        
+        assert exc_info.value.status_code == 500
+        assert "知识库目录不存在" in exc_info.value.detail
 
 
 class TestPersonaCardUpload:
@@ -552,18 +741,16 @@ class TestPersonaCardUpload:
         - 验证文件名和类型
         - 解析 TOML 版本号
         - 保存新文件并删除旧文件
-        
-        注意：此测试因实际代码中的 bug（current_files 未定义）而被跳过
         """
-        pytest.skip("Skipping due to bug in actual code: 'current_files' is not defined in add_files_to_persona_card method")
-        
         # Mock database
         mock_pc = Mock()
         mock_pc.id = "pc123"
         mock_pc.base_path = "/path/to/pc"
         mock_pc.version = "1.0.0"
         mock_pc.updated_at = datetime.now()
+        mock_pc.to_dict.return_value = {"id": "pc123", "version": "2.0.0"}
         mock_db.get_persona_card_by_id.return_value = mock_pc
+        mock_db.get_files_by_persona_card_id.return_value = []  # 没有旧文件
         mock_db.save_persona_card_file.return_value = Mock(id="file123")
         mock_db.save_persona_card.return_value = mock_pc
         
@@ -689,6 +876,75 @@ class TestPersonaCardUpload:
         
         result = await self.service.delete_files_from_persona_card(
             pc_id="nonexistent",
+            file_id="file123",
+            user_id="user123"
+        )
+        
+        assert result is False
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    @patch('os.path.exists')
+    @patch('os.remove')
+    async def test_delete_files_from_persona_card_remove_failure(self, mock_remove, mock_exists, mock_db):
+        """测试删除人设卡文件时 os.remove 失败
+        
+        验证：
+        - 当 os.remove 抛出异常时，应该抛出 HTTPException 500
+        - 错误消息应该包含文件名和错误详情
+        """
+        # Mock database
+        mock_pc = Mock()
+        mock_pc.id = "pc123"
+        mock_pc.base_path = "/path/to/pc"
+        mock_db.get_persona_card_by_id.return_value = mock_pc
+        
+        mock_file = Mock()
+        mock_file.id = "file123"
+        mock_file.file_path = "bot_config.toml"
+        mock_file.original_name = "bot_config.toml"
+        mock_db.get_persona_card_file_by_id.return_value = mock_file
+        
+        mock_exists.return_value = True
+        # Simulate file locked error
+        mock_remove.side_effect = OSError("File is locked by another process")
+        
+        # Execute and verify
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.delete_files_from_persona_card(
+                pc_id="pc123",
+                file_id="file123",
+                user_id="user123"
+            )
+        
+        assert exc_info.value.status_code == 500
+        assert "删除文件失败" in exc_info.value.detail
+        assert "bot_config.toml" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    @patch('os.path.exists')
+    async def test_delete_files_from_persona_card_dir_not_exist(self, mock_exists, mock_db):
+        """测试删除文件时人设卡目录不存在
+        
+        验证：
+        - 人设卡目录不存在时返回 False
+        """
+        mock_pc = Mock()
+        mock_pc.id = "pc123"
+        mock_pc.base_path = "/path/to/pc"
+        mock_db.get_persona_card_by_id.return_value = mock_pc
+        
+        mock_file = Mock()
+        mock_file.id = "file123"
+        mock_file.file_path = "bot_config.toml"
+        mock_db.get_persona_card_file_by_id.return_value = mock_file
+        
+        # Directory doesn't exist
+        mock_exists.return_value = False
+        
+        result = await self.service.delete_files_from_persona_card(
+            pc_id="pc123",
             file_id="file123",
             user_id="user123"
         )

@@ -57,6 +57,63 @@ class TestAdminStats:
         assert response.status_code == 401
 
 
+    def test_get_admin_stats_exception_handling(self, admin_client, test_db, monkeypatch):
+        """测试获取统计数据时异常处理（覆盖91-95行）"""
+        from sqlalchemy.exc import SQLAlchemyError
+        from sqlalchemy.orm import Query
+
+        # Mock Query.scalar to raise an exception
+        original_scalar = Query.scalar
+        def mock_scalar_error(self):
+            raise Exception("Database error")
+
+        monkeypatch.setattr(Query, "scalar", mock_scalar_error)
+
+        try:
+            response = admin_client.get("/api/admin/stats")
+
+            # 验证返回500错误
+            assert response.status_code == 500
+            data = response.json()
+            assert "detail" in data
+            assert "获取统计数据失败" in data["detail"]
+        finally:
+            # 恢复原始方法
+            monkeypatch.setattr(Query, "scalar", original_scalar)
+
+
+    def test_get_admin_stats_http_exception_passthrough(self, admin_client, test_db, monkeypatch):
+        """测试获取统计数据时HTTPException直接传递（覆盖92行）"""
+        from fastapi import HTTPException, status
+        from sqlalchemy.orm import Query
+
+        # Mock Query.scalar to raise an HTTPException
+        def mock_scalar_http_error(self):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Service temporarily unavailable"
+            )
+
+        monkeypatch.setattr(Query, "scalar", mock_scalar_http_error)
+
+        response = admin_client.get("/api/admin/stats")
+
+        # 验证HTTPException被直接传递
+        assert response.status_code == 503
+        data = response.json()
+        assert "detail" in data
+        assert "Service temporarily unavailable" in data["detail"]
+
+
+
+
+
+
+
+
+
+
+
 class TestRecentUsers:
     """测试最近用户列表功能"""
     
@@ -116,6 +173,45 @@ class TestRecentUsers:
         response = authenticated_client.get("/api/admin/recent-users")
         
         assert_error_response(response, 403, "管理员权限")
+    
+    def test_get_recent_users_invalid_page_size_too_small(self, admin_client, factory):
+        """测试page_size小于1时自动调整为10（覆盖122行）"""
+        factory.create_user(username="test_user_1")
+        
+        # page_size < 1 应该被调整为10
+        response = admin_client.get("/api/admin/recent-users?page_size=0&page=1")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        # 验证返回的page_size被调整为10
+        assert data["pagination"]["page_size"] == 10
+    
+    def test_get_recent_users_invalid_page_size_too_large(self, admin_client, factory):
+        """测试page_size大于100时自动调整为10（覆盖122行）"""
+        factory.create_user(username="test_user_2")
+        
+        # page_size > 100 应该被调整为10
+        response = admin_client.get("/api/admin/recent-users?page_size=150&page=1")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        # 验证返回的page_size被调整为10
+        assert data["pagination"]["page_size"] == 10
+    
+    def test_get_recent_users_invalid_page_number(self, admin_client, factory):
+        """测试page小于1时自动调整为1（覆盖124行）"""
+        factory.create_user(username="test_user_3")
+        
+        # page < 1 应该被调整为1
+        response = admin_client.get("/api/admin/recent-users?page_size=10&page=0")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        # 验证返回的page被调整为1
+        assert data["pagination"]["page"] == 1
 
 
 class TestUserManagement:
@@ -619,6 +715,87 @@ class TestUserCreation:
         
         assert_error_response(response, 403, "管理员权限")
 
+
+
+class TestDatabaseOperationFailures:
+    """测试数据库操作失败场景（任务5.1.4）"""
+    
+    def test_get_recent_users_db_failure(self, admin_client, test_db, monkeypatch):
+        """测试获取最近用户时数据库查询失败"""
+        from sqlalchemy.exc import SQLAlchemyError
+        from sqlalchemy.orm import Query
+        
+        # Mock Query.order_by to raise an exception (happens after authentication)
+        original_order_by = Query.order_by
+        def mock_order_by_error(self, *args):
+            raise SQLAlchemyError("Database connection lost")
+        
+        monkeypatch.setattr(Query, "order_by", mock_order_by_error)
+        
+        try:
+            response = admin_client.get("/api/admin/recent-users")
+            
+            # 验证返回500错误
+            assert response.status_code == 500
+            data = response.json()
+            assert "detail" in data or "error" in data
+            if "detail" in data:
+                assert "获取最近用户失败" in data["detail"]
+        finally:
+            monkeypatch.setattr(Query, "order_by", original_order_by)
+    
+    def test_get_all_users_db_failure(self, admin_client, test_db, monkeypatch):
+        """测试获取所有用户时数据库查询失败"""
+        from sqlalchemy.exc import SQLAlchemyError
+        from sqlalchemy.orm import Query
+        
+        # Mock Query.count to raise an exception
+        original_count = Query.count
+        def mock_count_error(self):
+            raise SQLAlchemyError("Database query timeout")
+        
+        monkeypatch.setattr(Query, "count", mock_count_error)
+        
+        try:
+            response = admin_client.get("/api/admin/users")
+            
+            # 验证返回500错误
+            assert response.status_code == 500
+            data = response.json()
+            assert "detail" in data or "error" in data
+            if "detail" in data:
+                assert "获取用户列表失败" in data["detail"]
+        finally:
+            monkeypatch.setattr(Query, "count", original_count)
+    
+    def test_create_user_service_failure(self, admin_client):
+        """测试创建用户时UserService返回None（数据库失败）"""
+        from unittest.mock import patch
+        
+        # Patch UserService.create_user to return None (simulating database failure)
+        with patch('app.api.routes.admin.UserService') as MockUserService:
+            mock_service = MockUserService.return_value
+            mock_service.get_user_by_username.return_value = None
+            mock_service.get_user_by_email.return_value = None
+            mock_service.create_user.return_value = None  # Simulate database failure
+            
+            response = admin_client.post(
+                "/api/admin/users",
+                json={
+                    "username": "new_user_fail",
+                    "email": "newfail@example.com",
+                    "password": "Password123",
+                    "role": "user"
+                }
+            )
+            
+            # 验证返回500错误
+            assert response.status_code == 500
+            data = response.json()
+            # The error response format uses "error" key, not "detail"
+            assert "error" in data
+            assert data["error"]["type"] == "DATABASE_ERROR"
+            assert "创建用户失败" in data["error"]["message"]
 
 
 class TestAdminEdgeCases:
@@ -1503,3 +1680,451 @@ class TestAdminUserDisableEnable:
         for user in users:
             test_db.refresh(user)
             assert user.is_active is False
+
+
+
+class TestAdminParameterValidation:
+    """测试管理员路由参数验证失败场景 - Task 5.1.3"""
+    
+    def test_create_user_empty_username(self, admin_client):
+        """测试创建用户时用户名为空"""
+        response = admin_client.post(
+            "/api/admin/users",
+            json={
+                "username": "",
+                "email": "test@example.com",
+                "password": "Password123",
+                "role": "user"
+            }
+        )
+        
+        assert_error_response(response, [400, 422], ["用户名", "不能为空"])
+    
+    def test_create_user_whitespace_username(self, admin_client):
+        """测试创建用户时用户名只有空格"""
+        response = admin_client.post(
+            "/api/admin/users",
+            json={
+                "username": "   ",
+                "email": "test@example.com",
+                "password": "Password123",
+                "role": "user"
+            }
+        )
+        
+        assert_error_response(response, [400, 422], ["用户名", "不能为空"])
+    
+    def test_create_user_empty_email(self, admin_client):
+        """测试创建用户时邮箱为空"""
+        response = admin_client.post(
+            "/api/admin/users",
+            json={
+                "username": "testuser",
+                "email": "",
+                "password": "Password123",
+                "role": "user"
+            }
+        )
+        
+        assert_error_response(response, [400, 422], ["邮箱", "不能为空"])
+    
+    def test_create_user_whitespace_email(self, admin_client):
+        """测试创建用户时邮箱只有空格"""
+        response = admin_client.post(
+            "/api/admin/users",
+            json={
+                "username": "testuser",
+                "email": "   ",
+                "password": "Password123",
+                "role": "user"
+            }
+        )
+        
+        assert_error_response(response, [400, 422], ["邮箱", "不能为空"])
+    
+    def test_create_user_empty_password(self, admin_client):
+        """测试创建用户时密码为空"""
+        response = admin_client.post(
+            "/api/admin/users",
+            json={
+                "username": "testuser",
+                "email": "test@example.com",
+                "password": "",
+                "role": "user"
+            }
+        )
+        
+        assert_error_response(response, [400, 422], ["密码", "不能为空"])
+    
+    def test_create_user_password_too_short(self, admin_client):
+        """测试创建用户时密码少于8位"""
+        response = admin_client.post(
+            "/api/admin/users",
+            json={
+                "username": "testuser",
+                "email": "test@example.com",
+                "password": "Pass1",
+                "role": "user"
+            }
+        )
+        
+        assert_error_response(response, [400, 422], ["密码", "8位"])
+    
+    def test_create_user_password_no_letters(self, admin_client):
+        """测试创建用户时密码不包含字母"""
+        response = admin_client.post(
+            "/api/admin/users",
+            json={
+                "username": "testuser",
+                "email": "test@example.com",
+                "password": "12345678",
+                "role": "user"
+            }
+        )
+        
+        assert_error_response(response, [400, 422], ["密码", "字母"])
+    
+    def test_create_user_password_no_digits(self, admin_client):
+        """测试创建用户时密码不包含数字"""
+        response = admin_client.post(
+            "/api/admin/users",
+            json={
+                "username": "testuser",
+                "email": "test@example.com",
+                "password": "PasswordOnly",
+                "role": "user"
+            }
+        )
+        
+        assert_error_response(response, [400, 422], ["密码", "数字"])
+    
+    def test_create_user_missing_username(self, admin_client):
+        """测试创建用户时缺少username字段"""
+        response = admin_client.post(
+            "/api/admin/users",
+            json={
+                "email": "test@example.com",
+                "password": "Password123",
+                "role": "user"
+            }
+        )
+        
+        assert_error_response(response, [400, 422], ["用户名", "不能为空"])
+    
+    def test_create_user_missing_email(self, admin_client):
+        """测试创建用户时缺少email字段"""
+        response = admin_client.post(
+            "/api/admin/users",
+            json={
+                "username": "testuser",
+                "password": "Password123",
+                "role": "user"
+            }
+        )
+        
+        assert_error_response(response, [400, 422], ["邮箱", "不能为空"])
+    
+    def test_create_user_missing_password(self, admin_client):
+        """测试创建用户时缺少password字段"""
+        response = admin_client.post(
+            "/api/admin/users",
+            json={
+                "username": "testuser",
+                "email": "test@example.com",
+                "role": "user"
+            }
+        )
+        
+        assert_error_response(response, [400, 422], ["密码", "不能为空"])
+    
+    def test_update_role_missing_role_field(self, admin_client, factory):
+        """测试更新角色时缺少role字段"""
+        user = factory.create_user()
+        
+        response = admin_client.put(
+            f"/api/admin/users/{user.id}/role",
+            json={}
+        )
+        
+        # 应该返回错误，因为role字段是必需的
+        assert response.status_code in [400, 422]
+    
+    def test_update_role_null_role(self, admin_client, factory):
+        """测试更新角色时role为null"""
+        user = factory.create_user()
+        
+        response = admin_client.put(
+            f"/api/admin/users/{user.id}/role",
+            json={"role": None}
+        )
+        
+        assert_error_response(response, [400, 422], "角色")
+    
+    def test_update_role_empty_string(self, admin_client, factory):
+        """测试更新角色时role为空字符串"""
+        user = factory.create_user()
+        
+        response = admin_client.put(
+            f"/api/admin/users/{user.id}/role",
+            json={"role": ""}
+        )
+        
+        assert_error_response(response, [400, 422], "角色")
+    
+    def test_mute_user_missing_duration(self, admin_client, factory):
+        """测试禁言用户时缺少duration字段"""
+        user = factory.create_user()
+        
+        response = admin_client.post(
+            f"/api/admin/users/{user.id}/mute",
+            json={"reason": "Test"}
+        )
+        
+        # 应该使用默认值或返回错误
+        # 根据代码，duration有默认值"7d"，所以应该成功
+        assert response.status_code == 200
+    
+    def test_mute_user_empty_duration(self, admin_client, factory):
+        """测试禁言用户时duration为空字符串"""
+        user = factory.create_user()
+        
+        response = admin_client.post(
+            f"/api/admin/users/{user.id}/mute",
+            json={"duration": "", "reason": "Test"}
+        )
+        
+        assert_error_response(response, [400, 422], "时长")
+    
+    def test_mute_user_null_duration(self, admin_client, factory):
+        """测试禁言用户时duration为null"""
+        user = factory.create_user()
+        
+        response = admin_client.post(
+            f"/api/admin/users/{user.id}/mute",
+            json={"duration": None, "reason": "Test"}
+        )
+        
+        # 可能使用默认值或返回错误
+        assert response.status_code in [200, 400, 422]
+    
+    def test_mute_user_numeric_duration(self, admin_client, factory):
+        """测试禁言用户时duration为数字而非字符串"""
+        user = factory.create_user()
+        
+        response = admin_client.post(
+            f"/api/admin/users/{user.id}/mute",
+            json={"duration": 7, "reason": "Test"}
+        )
+        
+        # 应该返回错误，因为duration应该是字符串
+        assert_error_response(response, [400, 422], "时长")
+    
+    def test_ban_user_missing_duration(self, admin_client, factory):
+        """测试封禁用户时缺少duration字段"""
+        user = factory.create_user()
+        
+        response = admin_client.post(
+            f"/api/admin/users/{user.id}/ban",
+            json={"reason": "Test"}
+        )
+        
+        # 应该使用默认值"permanent"或返回错误
+        assert response.status_code == 200
+    
+    def test_ban_user_empty_duration(self, admin_client, factory):
+        """测试封禁用户时duration为空字符串"""
+        user = factory.create_user()
+        
+        response = admin_client.post(
+            f"/api/admin/users/{user.id}/ban",
+            json={"duration": "", "reason": "Test"}
+        )
+        
+        assert_error_response(response, [400, 422], "时长")
+    
+    def test_ban_user_null_duration(self, admin_client, factory):
+        """测试封禁用户时duration为null"""
+        user = factory.create_user()
+        
+        response = admin_client.post(
+            f"/api/admin/users/{user.id}/ban",
+            json={"duration": None, "reason": "Test"}
+        )
+        
+        # 可能使用默认值或返回错误
+        assert response.status_code in [200, 400, 422]
+    
+    def test_ban_user_invalid_duration_format(self, admin_client, factory):
+        """测试封禁用户时duration格式无效"""
+        user = factory.create_user()
+        
+        response = admin_client.post(
+            f"/api/admin/users/{user.id}/ban",
+            json={"duration": "5hours", "reason": "Test"}
+        )
+        
+        assert_error_response(response, [400, 422], "时长")
+    
+    def test_get_all_users_invalid_page_size_negative(self, admin_client):
+        """测试获取用户列表时page_size为负数"""
+        response = admin_client.get("/api/admin/users?page_size=-10&page=1")
+        
+        # 应该自动调整为默认值20
+        assert response.status_code == 200
+        data = response.json()
+        assert data["pagination"]["page_size"] == 20
+    
+    def test_get_all_users_invalid_page_negative(self, admin_client):
+        """测试获取用户列表时page为负数"""
+        response = admin_client.get("/api/admin/users?page_size=10&page=-1")
+        
+        # 应该自动调整为1
+        assert response.status_code == 200
+        data = response.json()
+        assert data["pagination"]["page"] == 1
+    
+    def test_get_all_users_invalid_page_zero(self, admin_client):
+        """测试获取用户列表时page为0"""
+        response = admin_client.get("/api/admin/users?page_size=10&page=0")
+        
+        # 应该自动调整为1
+        assert response.status_code == 200
+        data = response.json()
+        assert data["pagination"]["page"] == 1
+    
+    def test_get_all_users_page_size_exceeds_limit(self, admin_client):
+        """测试获取用户列表时page_size超过100"""
+        response = admin_client.get("/api/admin/users?page_size=200&page=1")
+        
+        # 应该自动调整为20
+        assert response.status_code == 200
+        data = response.json()
+        assert data["pagination"]["page_size"] == 20
+    
+    def test_get_recent_users_invalid_page_size_zero(self, admin_client):
+        """测试获取最近用户时page_size为0"""
+        response = admin_client.get("/api/admin/recent-users?page_size=0&page=1")
+        
+        # 应该自动调整为10
+        assert response.status_code == 200
+        data = response.json()
+        assert data["pagination"]["page_size"] == 10
+    
+    def test_get_recent_users_invalid_page_zero(self, admin_client):
+        """测试获取最近用户时page为0"""
+        response = admin_client.get("/api/admin/recent-users?page_size=10&page=0")
+        
+        # 应该自动调整为1
+        assert response.status_code == 200
+        data = response.json()
+        assert data["pagination"]["page"] == 1
+    
+    def test_create_user_with_extra_fields(self, admin_client):
+        """测试创建用户时包含额外字段"""
+        response = admin_client.post(
+            "/api/admin/users",
+            json={
+                "username": "testuser",
+                "email": "test@example.com",
+                "password": "Password123",
+                "role": "user",
+                "extra_field": "should_be_ignored"
+            }
+        )
+        
+        # 应该成功，额外字段被忽略
+        assert response.status_code == 200
+    
+    def test_update_role_with_extra_fields(self, admin_client, factory):
+        """测试更新角色时包含额外字段"""
+        user = factory.create_user()
+        
+        response = admin_client.put(
+            f"/api/admin/users/{user.id}/role",
+            json={
+                "role": "moderator",
+                "extra_field": "should_be_ignored"
+            }
+        )
+        
+        # 应该成功，额外字段被忽略
+        assert response.status_code == 200
+    
+    def test_mute_user_with_empty_reason(self, admin_client, factory, test_db):
+        """测试禁言用户时reason为空字符串"""
+        user = factory.create_user()
+        
+        response = admin_client.post(
+            f"/api/admin/users/{user.id}/mute",
+            json={"duration": "7d", "reason": ""}
+        )
+        
+        # 应该成功，空reason被处理为None
+        assert response.status_code == 200
+        test_db.refresh(user)
+        assert user.is_muted is True
+    
+    def test_ban_user_with_empty_reason(self, admin_client, factory, test_db):
+        """测试封禁用户时reason为空字符串"""
+        user = factory.create_user()
+        
+        response = admin_client.post(
+            f"/api/admin/users/{user.id}/ban",
+            json={"duration": "7d", "reason": ""}
+        )
+        
+        # 应该成功，空reason被处理为None
+        assert response.status_code == 200
+        test_db.refresh(user)
+        assert user.locked_until is not None
+    
+    def test_create_user_case_insensitive_role(self, admin_client):
+        """测试创建用户时role大小写不匹配"""
+        response = admin_client.post(
+            "/api/admin/users",
+            json={
+                "username": "testuser",
+                "email": "test@example.com",
+                "password": "Password123",
+                "role": "USER"
+            }
+        )
+        
+        # 应该返回错误，因为role必须是小写
+        assert_error_response(response, [400, 422], "角色")
+    
+    def test_update_role_case_insensitive(self, admin_client, factory):
+        """测试更新角色时role大小写不匹配"""
+        user = factory.create_user()
+        
+        response = admin_client.put(
+            f"/api/admin/users/{user.id}/role",
+            json={"role": "MODERATOR"}
+        )
+        
+        # 应该返回错误，因为role必须是小写
+        assert_error_response(response, [400, 422], "角色")
+    
+    def test_mute_user_case_insensitive_duration(self, admin_client, factory):
+        """测试禁言用户时duration大小写不匹配"""
+        user = factory.create_user()
+        
+        response = admin_client.post(
+            f"/api/admin/users/{user.id}/mute",
+            json={"duration": "7D", "reason": "Test"}
+        )
+        
+        # 应该返回错误，因为duration必须是小写
+        assert_error_response(response, [400, 422], "时长")
+    
+    def test_ban_user_case_insensitive_duration(self, admin_client, factory):
+        """测试封禁用户时duration大小写不匹配"""
+        user = factory.create_user()
+        
+        response = admin_client.post(
+            f"/api/admin/users/{user.id}/ban",
+            json={"duration": "PERMANENT", "reason": "Test"}
+        )
+        
+        # 应该返回错误，因为duration必须是小写
+        assert_error_response(response, [400, 422], "时长")

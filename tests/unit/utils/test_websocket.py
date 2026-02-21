@@ -10,6 +10,9 @@ from fastapi import WebSocket
 
 from app.utils.websocket import MessageWebSocketManager, message_ws_manager
 
+# Mark all tests in this file as serial to avoid WebSocket state conflicts
+pytestmark = pytest.mark.serial
+
 
 class TestMessageWebSocketManager:
     """Tests for MessageWebSocketManager class"""
@@ -128,6 +131,7 @@ class TestMessageWebSocketManager:
         from app.core.security import get_password_hash
         import uuid
         from datetime import datetime
+        from contextlib import contextmanager
         
         # Create test users
         sender = User(
@@ -176,6 +180,11 @@ class TestMessageWebSocketManager:
         # Setup manager with connection
         manager.connections[recipient.id] = [mock_websocket]
         
+        # Mock get_db_context to return the test database session
+        @contextmanager
+        def mock_get_db_context():
+            yield test_db
+        
         # Mock the to_dict method on Message instances
         def mock_to_dict(self):
             return {
@@ -187,7 +196,8 @@ class TestMessageWebSocketManager:
                 "created_at": self.created_at.isoformat() if self.created_at else None
             }
         
-        with patch.object(Message, 'to_dict', mock_to_dict, create=True):
+        with patch('app.utils.websocket.get_db_context', mock_get_db_context), \
+             patch.object(Message, 'to_dict', mock_to_dict, create=True):
             await manager.send_message_update(recipient.id)
         
         # Verify WebSocket was called

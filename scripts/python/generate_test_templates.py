@@ -2,6 +2,20 @@
 """
 测试模板生成器
 自动为未覆盖的代码生成测试模板
+
+使用方法:
+    1. 先生成覆盖率报告:
+       pytest --cov=app --cov-report=json --cov-report=term-missing
+    
+    2. 运行此脚本:
+       python scripts/python/generate_test_templates.py
+    
+    3. 手动完善生成的测试模板
+
+注意:
+    - 生成的测试只是模板，需要添加具体的测试逻辑
+    - 不会覆盖已存在的测试文件
+    - 只为覆盖率低于 50% 的文件生成模板
 """
 
 import os
@@ -13,19 +27,29 @@ from typing import List, Dict, Set
 
 def analyze_coverage(coverage_file: str = "coverage.json") -> Dict:
     """分析覆盖率文件，找出未覆盖的代码"""
-    with open(coverage_file, 'r') as f:
-        coverage_data = json.load(f)
+    if not os.path.exists(coverage_file):
+        print(f"❌ 错误: 找不到覆盖率文件 '{coverage_file}'")
+        print("\n请先运行以下命令生成覆盖率报告:")
+        print("  pytest --cov=app --cov-report=json --cov-report=term-missing")
+        return {}
+    
+    try:
+        with open(coverage_file, 'r') as f:
+            coverage_data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"❌ 错误: 无法解析覆盖率文件: {e}")
+        return {}
     
     uncovered = {}
-    for file_path, file_data in coverage_data['files'].items():
+    for file_path, file_data in coverage_data.get('files', {}).items():
         if file_path.startswith('app/'):
             missing_lines = file_data.get('missing_lines', [])
-            percent = file_data['summary']['percent_covered']
+            percent = file_data.get('summary', {}).get('percent_covered', 100)
             if percent < 100 and missing_lines:
                 uncovered[file_path] = {
                     'percent': percent,
                     'missing_lines': missing_lines,
-                    'total_statements': file_data['summary']['num_statements']
+                    'total_statements': file_data.get('summary', {}).get('num_statements', 0)
                 }
     
     return uncovered
@@ -96,19 +120,38 @@ class Test{test_class_name}:
 
 def main():
     """主函数"""
-    print("分析覆盖率数据...")
+    print("=" * 60)
+    print("测试模板生成器")
+    print("=" * 60)
+    print()
+    
+    print("📊 分析覆盖率数据...")
     uncovered = analyze_coverage()
+    
+    if not uncovered:
+        print("\n✨ 太棒了！所有文件的覆盖率都是 100%，或者没有找到覆盖率数据。")
+        return
     
     print(f"\n发现 {len(uncovered)} 个文件需要提升覆盖率:\n")
     
     # 按覆盖率排序
     sorted_files = sorted(uncovered.items(), key=lambda x: x[1]['percent'])
     
-    for file_path, data in sorted_files[:10]:  # 只显示前10个
-        print(f"  {file_path}: {data['percent']:.1f}% "
+    # 显示前10个覆盖率最低的文件
+    for file_path, data in sorted_files[:10]:
+        print(f"  📄 {file_path}: {data['percent']:.1f}% "
               f"({len(data['missing_lines'])} 行未覆盖)")
     
-    print("\n生成测试模板...")
+    if len(sorted_files) > 10:
+        print(f"\n  ... 还有 {len(sorted_files) - 10} 个文件未显示")
+    
+    print("\n" + "=" * 60)
+    print("🔨 生成测试模板...")
+    print("=" * 60)
+    print()
+    
+    generated_count = 0
+    skipped_count = 0
     
     # 为覆盖率最低的文件生成模板
     for file_path, data in sorted_files[:5]:
@@ -126,14 +169,33 @@ def main():
                     with open(test_file_path, 'w') as f:
                         f.write(template)
                     print(f"  ✓ 生成: {test_file_path}")
+                    generated_count += 1
                 else:
                     print(f"  ⊗ 跳过: {test_file_path} (已存在)")
+                    skipped_count += 1
     
-    print("\n完成！")
-    print("\n提示:")
-    print("  1. 生成的测试模板需要手动完善")
-    print("  2. 添加具体的测试逻辑和断言")
-    print("  3. 运行测试: pytest tests/test_*_generated.py")
+    print()
+    print("=" * 60)
+    print("完成！")
+    print("=" * 60)
+    print()
+    
+    if generated_count > 0:
+        print(f"✨ 成功生成 {generated_count} 个测试模板")
+        print()
+        print("📝 下一步:")
+        print("  1. 查看生成的测试文件: tests/test_*_generated.py")
+        print("  2. 添加具体的测试逻辑和断言")
+        print("  3. 运行测试: pytest tests/test_*_generated.py")
+        print("  4. 重新生成覆盖率报告查看改进")
+    elif skipped_count > 0:
+        print(f"⊗ 跳过了 {skipped_count} 个已存在的测试文件")
+        print("  如需重新生成，请先删除对应的 *_generated.py 文件")
+    else:
+        print("ℹ️  没有生成新的测试模板")
+        print("  原因: 所有文件的覆盖率都高于 50%")
+        print("  提示: 可以手动为覆盖率较低的文件编写测试")
+    print()
 
 
 if __name__ == "__main__":

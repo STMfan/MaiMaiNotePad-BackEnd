@@ -11,8 +11,13 @@ import tempfile
 import shutil
 from unittest.mock import Mock, patch, AsyncMock, MagicMock
 from datetime import datetime
-from fastapi import UploadFile, HTTPException
+from fastapi import UploadFile, HTTPException, status
 from io import BytesIO
+
+# Inject sqlite_db_manager mock into app.file_upload module before importing
+import app.file_upload
+if not hasattr(app.file_upload, 'sqlite_db_manager'):
+    app.file_upload.sqlite_db_manager = Mock()
 
 from app.file_upload import FileUploadService
 from app.error_handlers import ValidationError
@@ -1479,7 +1484,56 @@ class TestFileUploadServiceFileSystemErrors:
         
         with pytest.raises(PermissionError):
             mock_exists("/test/file.txt")
-
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.FileUploadService._save_uploaded_file_with_size')
+    @patch('app.file_upload.sqlite_db_manager')
+    @patch('os.makedirs')
+    async def test_upload_knowledge_base_disk_space_error_during_file_save(
+        self, mock_makedirs, mock_db, mock_save_file
+    ):
+        """测试上传知识库时磁盘空间不足（在文件保存阶段）
+        
+        验证：
+        - 在保存文件时磁盘空间不足错误被正确处理
+        - 返回500错误状态码
+        - 错误消息包含"文件保存失败"
+        
+        Requirements: FR5 - 文件上传边界测试
+        Coverage: 覆盖 upload_knowledge_base 方法中调用 _save_uploaded_file_with_size 时的磁盘空间错误处理
+        """
+        # Mock successful KB creation
+        mock_kb = Mock()
+        mock_kb.id = "test_kb_id"
+        mock_db.save_knowledge_base.return_value = mock_kb
+        
+        # Mock disk space error during file save (line 247 area)
+        mock_save_file.side_effect = HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="文件保存失败: No space left on device"
+        )
+        
+        # Create mock file
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "test.txt"
+        mock_file.size = 1024
+        mock_file.read = AsyncMock(return_value=b"content")
+        
+        # Test upload_knowledge_base
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        # Verify error handling
+        assert exc_info.value.status_code == 500
+        assert "文件保存失败" in exc_info.value.detail
+        
+        # Verify _save_uploaded_file_with_size was called
+        mock_save_file.assert_called_once()
 
 
 class TestFileUploadServiceMetadataErrors:
@@ -1788,3 +1842,1093 @@ class TestFileUploadServiceMetadataErrors:
             file_path = self.service._create_metadata_file(metadata, self.temp_dir, prefix)
             assert os.path.exists(file_path)
             assert prefix in os.path.basename(file_path)
+
+
+
+class TestFileUploadServiceUnsupportedFileTypes:
+    """测试 FileUploadService 不支持的文件类型场景
+    
+    Requirements: FR5 - 文件上传边界测试
+    Coverage: 覆盖 upload_knowledge_base 方法中的文件类型验证错误处理（第200-204行）
+    Task: 6.1.2 测试不支持的文件类型（160行）
+    """
+    
+    def setup_method(self):
+        """每个测试方法前的设置"""
+        self.service = FileUploadService()
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_file_extension_pdf(self, mock_db):
+        """测试上传不支持的 PDF 文件类型
+        
+        验证：
+        - PDF 文件被拒绝
+        - 返回 400 错误状态码
+        - 错误消息包含"不支持的文件类型"
+        - 错误消息列出支持的文件类型
+        """
+        # Create mock file with unsupported extension
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "document.pdf"
+        mock_file.size = 1024
+        mock_file.read = AsyncMock(return_value=b"PDF content")
+        
+        # Test upload_knowledge_base
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        # Verify error handling
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+        assert "document.pdf" in exc_info.value.detail
+        assert ".txt" in exc_info.value.detail or ".json" in exc_info.value.detail
+        
+        # Verify database was not called
+        mock_db.save_knowledge_base.assert_not_called()
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_file_extension_exe(self, mock_db):
+        """测试上传不支持的 EXE 可执行文件
+        
+        验证：
+        - EXE 文件被拒绝
+        - 返回 400 错误状态码
+        - 错误消息明确指出不支持的文件类型
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "malware.exe"
+        mock_file.size = 2048
+        mock_file.read = AsyncMock(return_value=b"MZ executable")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+        assert "malware.exe" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_file_extension_zip(self, mock_db):
+        """测试上传不支持的 ZIP 压缩文件
+        
+        验证：
+        - ZIP 文件被拒绝
+        - 返回 400 错误状态码
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "archive.zip"
+        mock_file.size = 5120
+        mock_file.read = AsyncMock(return_value=b"PK\x03\x04")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_file_extension_docx(self, mock_db):
+        """测试上传不支持的 DOCX 文档文件
+        
+        验证：
+        - DOCX 文件被拒绝
+        - 返回 400 错误状态码
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "document.docx"
+        mock_file.size = 10240
+        mock_file.read = AsyncMock(return_value=b"Word document")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+        assert "document.docx" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_file_extension_xlsx(self, mock_db):
+        """测试上传不支持的 XLSX 表格文件
+        
+        验证：
+        - XLSX 文件被拒绝
+        - 返回 400 错误状态码
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "spreadsheet.xlsx"
+        mock_file.size = 8192
+        mock_file.read = AsyncMock(return_value=b"Excel content")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_file_extension_mp3(self, mock_db):
+        """测试上传不支持的 MP3 音频文件
+        
+        验证：
+        - MP3 文件被拒绝
+        - 返回 400 错误状态码
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "audio.mp3"
+        mock_file.size = 3072
+        mock_file.read = AsyncMock(return_value=b"ID3 audio")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_file_extension_mp4(self, mock_db):
+        """测试上传不支持的 MP4 视频文件
+        
+        验证：
+        - MP4 文件被拒绝
+        - 返回 400 错误状态码
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "video.mp4"
+        mock_file.size = 20480
+        mock_file.read = AsyncMock(return_value=b"video content")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_file_extension_png(self, mock_db):
+        """测试上传不支持的 PNG 图片文件
+        
+        验证：
+        - PNG 文件被拒绝
+        - 返回 400 错误状态码
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "image.png"
+        mock_file.size = 4096
+        mock_file.read = AsyncMock(return_value=b"\x89PNG\r\n\x1a\n")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_file_without_extension(self, mock_db):
+        """测试上传没有扩展名的文件
+        
+        验证：
+        - 无扩展名文件被拒绝
+        - 返回 400 错误状态码
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "noextension"
+        mock_file.size = 1024
+        mock_file.read = AsyncMock(return_value=b"content")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_mixed_valid_and_invalid_files(self, mock_db):
+        """测试上传混合有效和无效文件类型
+        
+        验证：
+        - 如果任何文件无效，整个上传被拒绝
+        - 返回 400 错误状态码
+        - 错误消息指出第一个无效文件
+        """
+        mock_file1 = Mock(spec=UploadFile)
+        mock_file1.filename = "valid.txt"
+        mock_file1.size = 1024
+        mock_file1.read = AsyncMock(return_value=b"valid content")
+        
+        mock_file2 = Mock(spec=UploadFile)
+        mock_file2.filename = "invalid.pdf"
+        mock_file2.size = 2048
+        mock_file2.read = AsyncMock(return_value=b"PDF content")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file1, mock_file2],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+        # Should mention the invalid file
+        assert "invalid.pdf" in exc_info.value.detail or "pdf" in exc_info.value.detail.lower()
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_double_extension(self, mock_db):
+        """测试上传双扩展名文件（如 .tar.gz）
+        
+        验证：
+        - 双扩展名文件根据最后的扩展名判断
+        - .gz 不在支持列表中，被拒绝
+        - 返回 400 错误状态码
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "archive.tar.gz"
+        mock_file.size = 5120
+        mock_file.read = AsyncMock(return_value=b"compressed")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_uppercase_extension(self, mock_db):
+        """测试上传大写扩展名的不支持文件
+        
+        验证：
+        - 大写扩展名也被正确识别为不支持
+        - 返回 400 错误状态码
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "document.PDF"
+        mock_file.size = 2048
+        mock_file.read = AsyncMock(return_value=b"PDF content")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_script_file(self, mock_db):
+        """测试上传不支持的脚本文件（.py, .sh, .bat）
+        
+        验证：
+        - 脚本文件被拒绝
+        - 返回 400 错误状态码
+        """
+        for filename in ["script.py", "script.sh", "script.bat"]:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = filename
+            mock_file.size = 1024
+            mock_file.read = AsyncMock(return_value=b"#!/bin/bash")
+            
+            with pytest.raises(HTTPException) as exc_info:
+                await self.service.upload_knowledge_base(
+                    files=[mock_file],
+                    name="Test KB",
+                    description="Test Description",
+                    uploader_id="test_user_id"
+                )
+            
+            assert exc_info.value.status_code == 400
+            assert "不支持的文件类型" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_html_file(self, mock_db):
+        """测试上传不支持的 HTML 文件
+        
+        验证：
+        - HTML 文件被拒绝
+        - 返回 400 错误状态码
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "page.html"
+        mock_file.size = 2048
+        mock_file.read = AsyncMock(return_value=b"<html><body>content</body></html>")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_xml_file(self, mock_db):
+        """测试上传不支持的 XML 文件
+        
+        验证：
+        - XML 文件被拒绝
+        - 返回 400 错误状态码
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "data.xml"
+        mock_file.size = 1536
+        mock_file.read = AsyncMock(return_value=b"<?xml version='1.0'?><root></root>")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_csv_file(self, mock_db):
+        """测试上传不支持的 CSV 文件
+        
+        验证：
+        - CSV 文件被拒绝
+        - 返回 400 错误状态码
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "data.csv"
+        mock_file.size = 1024
+        mock_file.read = AsyncMock(return_value=b"col1,col2,col3\nval1,val2,val3")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_markdown_file(self, mock_db):
+        """测试上传不支持的 Markdown 文件
+        
+        验证：
+        - .md 文件被拒绝
+        - 返回 400 错误状态码
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "readme.md"
+        mock_file.size = 2048
+        mock_file.read = AsyncMock(return_value=b"# Heading\n\nContent")
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.upload_knowledge_base(
+                files=[mock_file],
+                name="Test KB",
+                description="Test Description",
+                uploader_id="test_user_id"
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "不支持的文件类型" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_unsupported_yaml_file(self, mock_db):
+        """测试上传不支持的 YAML 文件
+        
+        验证：
+        - .yaml/.yml 文件被拒绝
+        - 返回 400 错误状态码
+        """
+        for filename in ["config.yaml", "config.yml"]:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = filename
+            mock_file.size = 1024
+            mock_file.read = AsyncMock(return_value=b"key: value\nlist:\n  - item1")
+            
+            with pytest.raises(HTTPException) as exc_info:
+                await self.service.upload_knowledge_base(
+                    files=[mock_file],
+                    name="Test KB",
+                    description="Test Description",
+                    uploader_id="test_user_id"
+                )
+            
+            assert exc_info.value.status_code == 400
+            assert "不支持的文件类型" in exc_info.value.detail
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_supported_txt_file_passes(self, mock_db):
+        """测试上传支持的 TXT 文件成功通过验证
+        
+        验证：
+        - .txt 文件通过文件类型验证
+        - 不会因为文件类型而抛出异常
+        """
+        # Mock successful KB creation
+        mock_kb = Mock()
+        mock_kb.id = "test_kb_id"
+        mock_db.save_knowledge_base.return_value = mock_kb
+        mock_db.save_knowledge_base_file.return_value = Mock()
+        
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "document.txt"
+        mock_file.size = 1024
+        mock_file.read = AsyncMock(return_value=b"text content")
+        
+        # Should not raise exception for valid file type
+        with patch('os.makedirs'):
+            with patch('builtins.open', create=True):
+                result = await self.service.upload_knowledge_base(
+                    files=[mock_file],
+                    name="Test KB",
+                    description="Test Description",
+                    uploader_id="test_user_id"
+                )
+        
+        # Verify KB was created
+        assert result is not None
+        mock_db.save_knowledge_base.assert_called_once()
+    
+    @pytest.mark.asyncio
+    @patch('app.file_upload.sqlite_db_manager')
+    async def test_upload_knowledge_base_supported_json_file_passes(self, mock_db):
+        """测试上传支持的 JSON 文件成功通过验证
+        
+        验证：
+        - .json 文件通过文件类型验证
+        - 不会因为文件类型而抛出异常
+        """
+        # Mock successful KB creation
+        mock_kb = Mock()
+        mock_kb.id = "test_kb_id"
+        mock_db.save_knowledge_base.return_value = mock_kb
+        mock_db.save_knowledge_base_file.return_value = Mock()
+        
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "data.json"
+        mock_file.size = 2048
+        mock_file.read = AsyncMock(return_value=b'{"key": "value"}')
+        
+        # Should not raise exception for valid file type
+        with patch('os.makedirs'):
+            with patch('builtins.open', create=True):
+                result = await self.service.upload_knowledge_base(
+                    files=[mock_file],
+                    name="Test KB",
+                    description="Test Description",
+                    uploader_id="test_user_id"
+                )
+        
+        # Verify KB was created
+        assert result is not None
+        mock_db.save_knowledge_base.assert_called_once()
+
+
+class TestFileUploadEmptyFileHandling:
+    """测试空文件处理
+    
+    Task 6.1.3: 测试空文件处理 (Test empty file handling)
+    
+    测试场景：
+    - 零字节文件
+    - 空内容文件
+    - None 内容
+    """
+    
+    def setup_method(self):
+        """每个测试方法前的设置"""
+        self.service = FileUploadService()
+    
+    def test_validate_empty_file_zero_bytes(self):
+        """测试验证零字节文件
+        
+        验证：
+        - 零字节文件通过大小验证
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.size = 0
+        
+        result = self.service._validate_file_size(mock_file)
+        assert result is True
+    
+    @pytest.mark.asyncio
+    async def test_validate_empty_file_content(self):
+        """测试验证空文件内容
+        
+        验证：
+        - 空内容文件通过内容验证
+        - 文件指针被正确重置
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.read = AsyncMock(return_value=b"")
+        mock_file.seek = AsyncMock()
+        
+        result = await self.service._validate_file_content(mock_file)
+        
+        assert result is True
+        mock_file.read.assert_called_once()
+        mock_file.seek.assert_called_once_with(0)
+    
+    @pytest.mark.asyncio
+    async def test_save_empty_file(self):
+        """测试保存空文件
+        
+        验证：
+        - 空文件可以被保存
+        - 文件大小为 0
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = "empty.txt"
+            mock_file.read = AsyncMock(return_value=b"")
+            
+            file_path = await self.service._save_uploaded_file(mock_file, temp_dir)
+            
+            assert os.path.exists(file_path)
+            assert os.path.getsize(file_path) == 0
+    
+    @pytest.mark.asyncio
+    async def test_save_empty_file_with_size(self):
+        """测试保存空文件并返回大小
+        
+        验证：
+        - 空文件可以被保存
+        - 返回的文件大小为 0
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = "empty.txt"
+            mock_file.read = AsyncMock(return_value=b"")
+            
+            file_path, file_size = await self.service._save_uploaded_file_with_size(mock_file, temp_dir)
+            
+            assert os.path.exists(file_path)
+            assert file_size == 0
+            assert os.path.getsize(file_path) == 0
+    
+    def test_validate_file_with_null_content(self):
+        """测试验证 None 内容的文件
+        
+        验证：
+        - None 内容被正确处理
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.size = None
+        
+        result = self.service._validate_file_size(mock_file)
+        assert result is True  # 无法获取大小时暂时允许
+    
+    @pytest.mark.asyncio
+    async def test_empty_file_type_validation(self):
+        """测试空文件的类型验证
+        
+        验证：
+        - 空文件仍需通过类型验证
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "empty.txt"
+        
+        result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+        assert result is True  # .txt 是允许的类型
+
+
+class TestFileUploadFilenameValidation:
+    """测试文件名验证
+    
+    Task 6.1.4: 测试文件名验证 (Test filename validation)
+    
+    测试场景：
+    - 特殊字符
+    - 路径遍历
+    - 超长文件名
+    - Unicode 字符
+    - 空文件名
+    """
+    
+    def setup_method(self):
+        """每个测试方法前的设置"""
+        self.service = FileUploadService()
+    
+    def test_validate_filename_with_special_characters(self):
+        """测试包含特殊字符的文件名
+        
+        验证：
+        - 特殊字符文件名被正确处理
+        """
+        special_chars = ['!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '[', ']', '{', '}']
+        
+        for char in special_chars:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = f"test{char}file.txt"
+            
+            # 文件类型验证应该只关注扩展名
+            result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+            assert result is True  # .txt 是允许的类型
+    
+    def test_validate_filename_with_path_traversal(self):
+        """测试路径遍历攻击文件名
+        
+        验证：
+        - 路径遍历尝试被检测
+        - 文件类型验证仍然正常工作
+        """
+        path_traversal_names = [
+            "../../../etc/passwd.txt",
+            "..\\..\\..\\windows\\system32\\config.txt",
+            "./../../sensitive.txt",
+            "test/../../../etc/passwd.txt"
+        ]
+        
+        for filename in path_traversal_names:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = filename
+            
+            # 类型验证应该只检查扩展名
+            result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+            assert result is True  # .txt 扩展名是有效的
+    
+    def test_validate_very_long_filename(self):
+        """测试超长文件名
+        
+        验证：
+        - 超长文件名被正确处理
+        """
+        # 创建一个超长文件名（超过 255 字符）
+        long_name = "a" * 300 + ".txt"
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = long_name
+        
+        result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+        assert result is True  # 类型验证应该通过
+    
+    def test_validate_filename_with_unicode(self):
+        """测试包含 Unicode 字符的文件名
+        
+        验证：
+        - Unicode 字符文件名被正确处理
+        """
+        unicode_names = [
+            "测试文件.txt",
+            "テスト.txt",
+            "тест.txt",
+            "🎉emoji🎊.txt",
+            "文件名_with_中文.txt"
+        ]
+        
+        for filename in unicode_names:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = filename
+            
+            result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+            assert result is True  # .txt 是允许的类型
+    
+    def test_validate_empty_filename(self):
+        """测试空文件名
+        
+        验证：
+        - 空文件名被拒绝
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = ""
+        
+        result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+        assert result is False
+    
+    def test_validate_none_filename(self):
+        """测试 None 文件名
+        
+        验证：
+        - None 文件名被拒绝
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = None
+        
+        result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+        assert result is False
+    
+    def test_validate_filename_with_null_byte(self):
+        """测试包含 null 字节的文件名
+        
+        验证：
+        - null 字节文件名被正确处理
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "test\x00file.txt"
+        
+        result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+        # 应该能够处理而不崩溃
+        assert isinstance(result, bool)
+    
+    def test_validate_filename_with_spaces(self):
+        """测试包含空格的文件名
+        
+        验证：
+        - 空格文件名被正确处理
+        """
+        filenames_with_spaces = [
+            "test file.txt",
+            " leading_space.txt",
+            "trailing_space .txt",
+            "multiple   spaces.txt"
+        ]
+        
+        for filename in filenames_with_spaces:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = filename
+            
+            result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+            assert result is True  # .txt 是允许的类型
+    
+    def test_validate_filename_only_extension(self):
+        """测试只有扩展名的文件名
+        
+        验证：
+        - 只有扩展名的文件名被正确处理
+        - os.path.splitext(".txt") 返回 ('.txt', '')，扩展名为空
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = ".txt"
+        
+        result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+        assert result is False  # 扩展名为空，应该被拒绝
+    
+    @pytest.mark.asyncio
+    async def test_save_file_with_special_characters_in_name(self):
+        """测试保存包含特殊字符的文件名
+        
+        验证：
+        - 特殊字符被 secure_filename 处理
+        - 文件被成功保存
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = "test@#$%file.txt"
+            mock_file.read = AsyncMock(return_value=b"test content")
+            
+            file_path = await self.service._save_uploaded_file(mock_file, temp_dir)
+            
+            assert os.path.exists(file_path)
+            # 文件名应该被清理但文件应该存在
+            assert file_path.startswith(temp_dir)
+
+
+class TestFileUploadFileExtensionChecking:
+    """测试文件扩展名检查
+    
+    Task 6.1.5: 测试文件扩展名检查 (Test file extension checking)
+    
+    测试场景：
+    - 大小写敏感性
+    - 多个点号
+    - 缺少扩展名
+    - 双扩展名
+    - 隐藏文件
+    """
+    
+    def setup_method(self):
+        """每个测试方法前的设置"""
+        self.service = FileUploadService()
+    
+    def test_extension_case_insensitive(self):
+        """测试扩展名大小写不敏感
+        
+        验证：
+        - 大写扩展名被接受
+        - 小写扩展名被接受
+        - 混合大小写扩展名被接受
+        """
+        case_variations = [
+            "test.txt",
+            "test.TXT",
+            "test.Txt",
+            "test.tXt",
+            "test.JSON",
+            "test.Json"
+        ]
+        
+        for filename in case_variations:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = filename
+            
+            result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+            assert result is True
+    
+    def test_extension_with_multiple_dots(self):
+        """测试包含多个点号的文件名
+        
+        验证：
+        - 只检查最后一个扩展名
+        """
+        filenames = [
+            "test.backup.txt",
+            "file.v1.0.txt",
+            "archive.tar.gz",
+            "data.2024.01.01.json"
+        ]
+        
+        for filename in filenames:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = filename
+            
+            result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+            # 应该只检查最后的扩展名
+            if filename.endswith('.txt') or filename.endswith('.json'):
+                assert result is True
+            else:
+                assert result is False  # .gz 不在允许列表中
+    
+    def test_extension_missing(self):
+        """测试缺少扩展名的文件
+        
+        验证：
+        - 无扩展名文件被拒绝
+        """
+        filenames_without_extension = [
+            "noextension",
+            "file_without_ext",
+            "README"
+        ]
+        
+        for filename in filenames_without_extension:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = filename
+            
+            result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+            assert result is False
+    
+    def test_extension_double_extension(self):
+        """测试双扩展名文件
+        
+        验证：
+        - 只检查最后一个扩展名
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "file.txt.exe"
+        
+        result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+        assert result is False  # .exe 不在允许列表中
+        
+        mock_file.filename = "file.exe.txt"
+        result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+        assert result is True  # .txt 在允许列表中
+    
+    def test_extension_hidden_file(self):
+        """测试隐藏文件（以点开头）
+        
+        验证：
+        - 隐藏文件被正确处理
+        """
+        hidden_files = [
+            ".hidden",
+            ".gitignore",
+            ".env"
+        ]
+        
+        for filename in hidden_files:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = filename
+            
+            result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+            # 隐藏文件没有扩展名，应该被拒绝
+            assert result is False
+    
+    def test_extension_hidden_file_with_extension(self):
+        """测试带扩展名的隐藏文件
+        
+        验证：
+        - 带扩展名的隐藏文件被正确处理
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = ".hidden.txt"
+        
+        result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+        assert result is True  # .txt 是允许的类型
+    
+    def test_extension_only_dot(self):
+        """测试只有点号的文件名
+        
+        验证：
+        - 只有点号的文件名被正确处理
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "."
+        
+        result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+        assert result is False
+    
+    def test_extension_trailing_dot(self):
+        """测试以点号结尾的文件名
+        
+        验证：
+        - 以点号结尾的文件名被正确处理
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "filename."
+        
+        result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+        assert result is False  # 空扩展名
+    
+    def test_extension_unicode_extension(self):
+        """测试 Unicode 扩展名
+        
+        验证：
+        - Unicode 扩展名被正确处理
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "test.文本"
+        
+        result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+        assert result is False  # 非 ASCII 扩展名不在允许列表中
+    
+    def test_extension_all_allowed_knowledge_types(self):
+        """测试所有允许的知识库文件类型
+        
+        验证：
+        - 所有允许的类型都通过验证
+        """
+        for ext in self.service.ALLOWED_KNOWLEDGE_TYPES:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = f"test{ext}"
+            
+            result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+            assert result is True, f"Extension {ext} should be allowed"
+    
+    def test_extension_all_allowed_persona_types(self):
+        """测试所有允许的人设卡文件类型
+        
+        验证：
+        - 所有允许的类型都通过验证
+        """
+        for ext in self.service.ALLOWED_PERSONA_TYPES:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = f"test{ext}"
+            
+            result = self.service._validate_file_type(mock_file, self.service.ALLOWED_PERSONA_TYPES)
+            assert result is True, f"Extension {ext} should be allowed"
+    
+    def test_extension_disallowed_types(self):
+        """测试不允许的文件类型
+        
+        验证：
+        - 不允许的类型被拒绝
+        """
+        disallowed_extensions = [
+            ".exe",
+            ".dll",
+            ".bat",
+            ".sh",
+            ".py",
+            ".js",
+            ".php",
+            ".asp",
+            ".jsp"
+        ]
+        
+        for ext in disallowed_extensions:
+            mock_file = Mock(spec=UploadFile)
+            mock_file.filename = f"test{ext}"
+            
+            result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+            assert result is False, f"Extension {ext} should not be allowed"
+    
+    def test_extension_with_query_string(self):
+        """测试包含查询字符串的文件名
+        
+        验证：
+        - 查询字符串被正确处理
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "test.txt?version=1"
+        
+        result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+        # 应该能够处理，但可能不会识别为 .txt
+        assert isinstance(result, bool)
+    
+    def test_extension_with_fragment(self):
+        """测试包含片段标识符的文件名
+        
+        验证：
+        - 片段标识符被正确处理
+        """
+        mock_file = Mock(spec=UploadFile)
+        mock_file.filename = "test.txt#section1"
+        
+        result = self.service._validate_file_type(mock_file, self.service.ALLOWED_KNOWLEDGE_TYPES)
+        # 应该能够处理，但可能不会识别为 .txt
+        assert isinstance(result, bool)

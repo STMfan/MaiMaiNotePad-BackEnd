@@ -28,19 +28,16 @@ def setup_middlewares(app: FastAPI) -> None:
     """
     try:
         # 1. 初始化速率限制器
-        app_logger.info("正在初始化速率限制器...")
         limiter = Limiter(key_func=get_remote_address, storage_uri="memory://")
         app.state.limiter = limiter
         app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-        app_logger.info("速率限制器初始化完成")
+        app_logger.debug("速率限制器已初始化")
 
         # 2. 添加速率限制中间件
-        app_logger.info("正在添加速率限制中间件...")
         app.add_middleware(SlowAPIMiddleware)
-        app_logger.info("速率限制中间件添加完成")
+        app_logger.debug("速率限制中间件已添加")
 
         # 3. 添加 CORS 中间件
-        app_logger.info("正在配置 CORS 中间件...")
         app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],  # 生产环境应配置具体域名
@@ -49,9 +46,9 @@ def setup_middlewares(app: FastAPI) -> None:
             allow_headers=["*"],
             expose_headers=["Content-Disposition"],
         )
-        app_logger.info("CORS 中间件配置完成")
+        app_logger.debug("CORS 中间件已配置")
 
-        app_logger.info("所有中间件配置成功")
+        app_logger.info("中间件配置完成")
         
     except Exception as e:
         app_logger.error(f"中间件配置失败: {str(e)}")

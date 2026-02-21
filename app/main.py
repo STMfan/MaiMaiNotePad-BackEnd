@@ -22,13 +22,16 @@ from app.api.websocket import message_websocket_endpoint
 from app.error_handlers import setup_exception_handlers
 
 # 加载环境变量
-app_logger.info("加载环境变量")
 load_dotenv()
+app_logger.debug("环境变量已加载")
 
 # 确保必要的目录存在
 os.makedirs('data', exist_ok=True)
 os.makedirs('logs', exist_ok=True)
-os.makedirs('uploads', exist_ok=True)
+
+# 动态获取上传目录，支持测试环境
+upload_dir = os.getenv('UPLOAD_DIR', 'uploads')
+os.makedirs(upload_dir, exist_ok=True)
 
 
 @asynccontextmanager
@@ -39,16 +42,12 @@ async def lifespan(app: FastAPI):
     启动时执行初始化操作，关闭时执行清理操作
     """
     # 启动时执行
-    app_logger.info("应用启动中...")
-    app_logger.info(f"应用名称: {settings.APP_NAME}")
-    app_logger.info(f"应用版本: {settings.APP_VERSION}")
-    app_logger.info(f"数据库: {settings.DATABASE_URL}")
-    app_logger.info("应用启动完成")
+    app_logger.info(f"应用启动: {settings.APP_NAME} v{settings.APP_VERSION}")
+    app_logger.debug(f"数据库: {settings.DATABASE_URL}")
     
     yield
     
     # 关闭时执行
-    app_logger.info("应用关闭中...")
     app_logger.info("应用已关闭")
 
 
@@ -106,7 +105,7 @@ except ImportError:
         
         return FileResponse(str(full_path))
     
-    app_logger.info("静态文件路由设置完成（内联实现）")
+    app_logger.debug("静态文件路由已设置")
 
 
 @app.get("/")
@@ -138,8 +137,7 @@ if __name__ == '__main__':
     """直接运行此文件时的入口点"""
     exit_code = 0
     try:
-        app_logger.info('服务器启动')
-        app_logger.info(f'🌐 访问地址: http://{settings.HOST}:{settings.PORT}')
+        app_logger.info(f'服务器启动: http://{settings.HOST}:{settings.PORT}')
         uvicorn.run(
             app,
             host=settings.HOST,
@@ -147,7 +145,7 @@ if __name__ == '__main__':
             log_level="critical"
         )
     except Exception as e:
-        app_logger.error(f"主程序发生异常: {str(e)}")
+        app_logger.error(f"主程序异常: {str(e)}")
         app_logger.error(traceback.format_exc())
         exit_code = 1
     finally:

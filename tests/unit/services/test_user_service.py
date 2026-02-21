@@ -11,6 +11,7 @@ import os
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch, MagicMock
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.services.user_service import UserService
 from app.models.database import User
@@ -54,16 +55,29 @@ class TestUserRetrieval:
         
         assert user is None
     
-    def test_get_user_by_id_database_error(self):
-        """测试数据库错误时获取用户"""
+    def test_get_user_by_id_database_error(self, caplog):
+        """测试数据库错误时获取用户
+        
+        验证:
+        - 捕获SQLAlchemyError异常
+        - 返回None而不是抛出异常
+        - 错误被正确记录到日志
+        """
         db = Mock(spec=Session)
         service = UserService(db)
         
-        db.query = Mock(side_effect=Exception("Database error"))
+        # 注入SQLAlchemyError
+        db.query = Mock(side_effect=SQLAlchemyError("Database connection failed"))
         
+        # 调用方法
         user = service.get_user_by_id("user-123")
         
+        # 验证返回None
         assert user is None
+        
+        # 验证错误被记录
+        assert "Error getting user by ID" in caplog.text
+        assert "user-123" in caplog.text
     
     def test_get_user_by_username_success(self):
         """测试通过用户名成功获取用户"""
@@ -97,6 +111,31 @@ class TestUserRetrieval:
         user = service.get_user_by_username("nonexistent")
         
         assert user is None
+
+    def test_get_user_by_username_database_error(self, caplog):
+        """测试数据库错误时通过用户名获取用户
+
+        验证:
+        - 捕获SQLAlchemyError异常
+        - 返回None而不是抛出异常
+        - 错误被正确记录到日志
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+
+        # 注入SQLAlchemyError
+        db.query = Mock(side_effect=SQLAlchemyError("Database connection failed"))
+
+        # 调用方法
+        user = service.get_user_by_username("testuser")
+
+        # 验证返回None
+        assert user is None
+
+        # 验证错误被记录
+        assert "Error getting user by username" in caplog.text
+        assert "testuser" in caplog.text
+
 
     def test_get_user_by_email_success(self):
         """测试通过邮箱成功获取用户"""
@@ -135,6 +174,30 @@ class TestUserRetrieval:
         
         assert user == expected_user
     
+    def test_get_user_by_email_database_error(self, caplog):
+        """测试数据库错误时通过邮箱获取用户
+
+        验证:
+        - 捕获SQLAlchemyError异常
+        - 返回None而不是抛出异常
+        - 错误被正确记录到日志
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+
+        # 注入SQLAlchemyError
+        db.query = Mock(side_effect=SQLAlchemyError("Database connection failed"))
+
+        # 调用方法
+        user = service.get_user_by_email("test@example.com")
+
+        # 验证返回None
+        assert user is None
+
+        # 验证错误被记录
+        assert "Error getting user by email" in caplog.text
+        assert "test@example.com" in caplog.text
+    
     def test_get_all_users_success(self):
         """测试成功获取所有用户"""
         db = Mock(spec=Session)
@@ -163,6 +226,29 @@ class TestUserRetrieval:
         users = service.get_all_users()
         
         assert users == []
+
+    def test_get_all_users_database_error(self, caplog):
+        """测试数据库错误时获取所有用户
+        
+        验证:
+        - 捕获SQLAlchemyError异常
+        - 返回空列表而不是抛出异常
+        - 错误被正确记录到日志
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        # 注入SQLAlchemyError
+        db.query = Mock(side_effect=SQLAlchemyError("Database connection failed"))
+        
+        # 调用方法
+        users = service.get_all_users()
+        
+        # 验证返回空列表
+        assert users == []
+        
+        # 验证错误被记录
+        assert "Error getting all users" in caplog.text
 
 
 class TestUserCreation:
@@ -200,8 +286,13 @@ class TestUserCreation:
         assert db.add.called
         assert db.commit.called
 
-    def test_create_user_duplicate_username(self):
-        """测试创建重复用户名失败"""
+    def test_create_user_duplicate_username(self, caplog):
+        """测试创建重复用户名失败
+        
+        验证:
+        - 当用户名已存在时返回None
+        - 记录警告日志
+        """
         db = Mock(spec=Session)
         service = UserService(db)
         
@@ -216,10 +307,19 @@ class TestUserCreation:
             password="password123"
         )
         
+        # 验证返回None
         assert user is None
+        
+        # 验证警告被记录
+        assert "Username existinguser already exists" in caplog.text
     
-    def test_create_user_duplicate_email(self):
-        """测试创建重复邮箱失败"""
+    def test_create_user_duplicate_email(self, caplog):
+        """测试创建重复邮箱失败
+        
+        验证:
+        - 当邮箱已存在时返回None
+        - 记录警告日志
+        """
         db = Mock(spec=Session)
         service = UserService(db)
         
@@ -235,7 +335,11 @@ class TestUserCreation:
             password="password123"
         )
         
+        # 验证返回None
         assert user is None
+        
+        # 验证警告被记录
+        assert "Email existing@example.com already exists" in caplog.text
     
     @patch('app.services.user_service.get_password_hash')
     @patch('app.services.user_service.uuid.uuid4')
@@ -288,6 +392,81 @@ class TestUserCreation:
         
         # Verify password was truncated to 72 bytes before hashing
         mock_hash.assert_called_once_with(long_password[:72])
+
+    @patch('app.services.user_service.verify_password')
+    @patch('app.services.user_service.get_password_hash')
+    @patch('app.services.user_service.uuid.uuid4')
+    def test_create_user_long_password_verification(self, mock_uuid, mock_hash, mock_verify):
+        """测试超长密码（>72字节）的创建和验证
+        
+        验证:
+        - 用户可以使用超过72字节的密码成功创建
+        - 密码被截断到72字节
+        - 使用前72字节可以成功验证
+        - 超过72字节的部分不影响验证
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.2 - 测试超长密码截断（72字节）
+        
+        bcrypt限制: bcrypt只使用密码的前72字节进行哈希
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        mock_uuid.return_value = Mock(hex="test-uuid-123")
+        
+        # 创建超过72字节的密码
+        long_password = "a" * 100  # 100字节密码
+        truncated_password = long_password[:72]  # 前72字节
+        
+        # Mock密码哈希
+        mock_hash.return_value = "hashed_password_72bytes"
+        
+        service.get_user_by_username = Mock(return_value=None)
+        service.get_user_by_email = Mock(return_value=None)
+        
+        db.add = Mock()
+        db.commit = Mock()
+        db.refresh = Mock()
+        
+        # 步骤1: 创建用户
+        user = service.create_user(
+            username="testuser",
+            email="test@example.com",
+            password=long_password
+        )
+        
+        # 验证用户创建成功
+        assert user is not None
+        assert user.username == "testuser"
+        assert user.email == "test@example.com"
+        
+        # 验证密码被截断到72字节后才进行哈希
+        mock_hash.assert_called_once_with(truncated_password)
+        
+        # 步骤2: 验证密码验证逻辑
+        # 模拟用户已存在
+        user.hashed_password = "hashed_password_72bytes"
+        service.get_user_by_username = Mock(return_value=user)
+        service.reset_failed_login = Mock()
+        service.increment_failed_login = Mock()
+        
+        # 测试使用前72字节可以验证成功
+        mock_verify.return_value = True
+        result = service.verify_credentials("testuser", truncated_password)
+        assert result == user
+        
+        # 测试使用完整的100字节密码也应该成功（因为只使用前72字节）
+        mock_verify.return_value = True
+        result = service.verify_credentials("testuser", long_password)
+        assert result == user
+        
+        # 测试超过72字节的部分不影响验证
+        # 即使后面的字符不同，只要前72字节相同就应该验证成功
+        different_suffix_password = truncated_password + "b" * 28  # 前72字节相同，后28字节不同
+        mock_verify.return_value = True
+        result = service.verify_credentials("testuser", different_suffix_password)
+        assert result == user
 
 
 class TestUserUpdate:
@@ -369,8 +548,40 @@ class TestUserUpdate:
         
         service.get_user_by_id = Mock(return_value=super_admin)
         
+        # 验证尝试修改超级管理员用户名时抛出 ValueError
         with pytest.raises(ValueError, match="不能修改超级管理员用户名"):
             service.update_user("admin-123", username="newsuperadmin")
+        
+        # 验证用户名保持不变（未被修改）
+        assert super_admin.username == "superadmin"
+        
+        # 验证数据库回滚被调用
+        db.rollback.assert_called_once()
+    
+    def test_update_super_admin_other_fields_allowed(self):
+        """测试超级管理员可以修改其他字段（如邮箱）"""
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        super_admin = Mock(spec=User)
+        super_admin.id = "admin-123"
+        super_admin.username = "superadmin"
+        super_admin.email = "old@example.com"
+        super_admin.is_super_admin = True
+        
+        service.get_user_by_id = Mock(return_value=super_admin)
+        service.get_user_by_email = Mock(return_value=None)
+        
+        # 更新邮箱应该成功
+        updated_user = service.update_user("admin-123", email="new@example.com")
+        
+        # 验证邮箱被更新
+        assert super_admin.email == "new@example.com"
+        assert updated_user == super_admin
+        
+        # 验证数据库提交被调用
+        db.commit.assert_called_once()
+        db.refresh.assert_called_once_with(super_admin)
 
     def test_update_user_not_found(self):
         """测试更新不存在的用户"""
@@ -566,6 +777,126 @@ class TestRoleManagement:
     
     @patch('app.services.user_service.verify_password')
     @patch('app.services.user_service.get_password_hash')
+    def test_promote_to_admin_user_not_exists(self, mock_hash, mock_verify):
+        """测试提升不存在的用户为管理员失败"""
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        service.get_user_by_id = Mock(return_value=None)
+        mock_hash.return_value = "highest_hash"
+        mock_verify.return_value = True
+        
+        with patch.dict(os.environ, {'HIGHEST_PASSWORD': 'correct_password'}):
+            result = service.promote_to_admin("nonexistent-user", "correct_password")
+        
+        assert result is False
+        assert not db.commit.called
+    
+    @patch('app.services.user_service.verify_password')
+    @patch('app.services.user_service.get_password_hash')
+    def test_promote_to_admin_already_admin(self, mock_hash, mock_verify):
+        """测试提升已经是管理员的用户"""
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.username = "testuser"
+        user.is_admin = True  # 已经是管理员
+        
+        service.get_user_by_id = Mock(return_value=user)
+        mock_hash.return_value = "highest_hash"
+        mock_verify.return_value = True
+        
+        db.commit = Mock()
+        
+        with patch.dict(os.environ, {'HIGHEST_PASSWORD': 'correct_password'}):
+            result = service.promote_to_admin("user-123", "correct_password")
+        
+        # 即使已经是管理员，操作也应该成功
+        assert result is True
+        assert user.is_admin is True
+        assert db.commit.called
+    
+    @patch('app.services.user_service.verify_password')
+    @patch('app.services.user_service.get_password_hash')
+    def test_promote_to_admin_database_error(self, mock_hash, mock_verify):
+        """测试数据库错误时提升管理员失败并回滚"""
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.username = "testuser"
+        user.is_admin = False
+        
+        service.get_user_by_id = Mock(return_value=user)
+        mock_hash.return_value = "highest_hash"
+        mock_verify.return_value = True
+        
+        # 模拟数据库提交失败
+        db.commit = Mock(side_effect=SQLAlchemyError("Database error"))
+        db.rollback = Mock()
+        
+        with patch.dict(os.environ, {'HIGHEST_PASSWORD': 'correct_password'}):
+            result = service.promote_to_admin("user-123", "correct_password")
+        
+        assert result is False
+        assert db.rollback.called
+    
+    @patch('app.services.user_service.verify_password')
+    @patch('app.services.user_service.get_password_hash')
+    def test_promote_to_admin_logs_error_on_wrong_password(self, mock_hash, mock_verify, caplog):
+        """测试错误密码时记录错误日志"""
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.is_admin = False
+        
+        service.get_user_by_id = Mock(return_value=user)
+        mock_hash.return_value = "highest_hash"
+        mock_verify.return_value = False
+        
+        with patch.dict(os.environ, {'HIGHEST_PASSWORD': 'correct_password'}):
+            result = service.promote_to_admin("user-123", "wrong_password")
+        
+        assert result is False
+        # 验证错误日志被记录
+        assert any("highest password verification failed" in record.message.lower() 
+                   for record in caplog.records)
+    
+    @patch('app.services.user_service.verify_password')
+    @patch('app.services.user_service.get_password_hash')
+    def test_promote_to_admin_logs_error_on_exception(self, mock_hash, mock_verify, caplog):
+        """测试异常时记录错误日志"""
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.username = "testuser"
+        user.is_admin = False
+        
+        service.get_user_by_id = Mock(return_value=user)
+        mock_hash.return_value = "highest_hash"
+        mock_verify.return_value = True
+        
+        # 模拟数据库提交失败
+        db.commit = Mock(side_effect=SQLAlchemyError("Database error"))
+        db.rollback = Mock()
+        
+        with patch.dict(os.environ, {'HIGHEST_PASSWORD': 'correct_password'}):
+            result = service.promote_to_admin("user-123", "correct_password")
+        
+        assert result is False
+        # 验证错误日志被记录
+        assert any("Error promoting user" in record.message 
+                   for record in caplog.records)
+    
+    @patch('app.services.user_service.verify_password')
+    @patch('app.services.user_service.get_password_hash')
     def test_promote_to_moderator_success(self, mock_hash, mock_verify):
         """测试使用正确密码提升用户为审核员"""
         db = Mock(spec=Session)
@@ -588,6 +919,199 @@ class TestRoleManagement:
         assert result is True
         assert user.is_moderator is True
         assert db.commit.called
+    
+    @patch('app.services.user_service.verify_password')
+    @patch('app.services.user_service.get_password_hash')
+    def test_promote_to_moderator_wrong_password(self, mock_hash, mock_verify):
+        """测试使用错误密码提升审核员失败
+        
+        验证:
+        - 当密码验证失败时返回False
+        - 用户的is_moderator状态保持不变
+        - 错误被记录到日志
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.3.2 - 测试promote_to_moderator权限验证失败
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.is_moderator = False
+        
+        service.get_user_by_id = Mock(return_value=user)
+        mock_hash.return_value = "highest_hash"
+        mock_verify.return_value = False
+        
+        result = service.promote_to_moderator("user-123", "wrong_password")
+        
+        assert result is False
+        assert user.is_moderator is False
+    
+    @patch('app.services.user_service.verify_password')
+    @patch('app.services.user_service.get_password_hash')
+    def test_promote_to_moderator_user_not_exists(self, mock_hash, mock_verify):
+        """测试提升不存在的用户为审核员失败
+        
+        验证:
+        - 当用户不存在时返回False
+        - 数据库commit不被调用
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.3.2 - 测试promote_to_moderator权限验证失败
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        service.get_user_by_id = Mock(return_value=None)
+        mock_hash.return_value = "highest_hash"
+        mock_verify.return_value = True
+        
+        with patch.dict(os.environ, {'HIGHEST_PASSWORD': 'correct_password'}):
+            result = service.promote_to_moderator("nonexistent-user", "correct_password")
+        
+        assert result is False
+        assert not db.commit.called
+    
+    @patch('app.services.user_service.verify_password')
+    @patch('app.services.user_service.get_password_hash')
+    def test_promote_to_moderator_already_moderator(self, mock_hash, mock_verify):
+        """测试提升已经是审核员的用户
+        
+        验证:
+        - 即使用户已经是审核员，操作也应该成功
+        - 用户的is_moderator状态保持为True
+        - 数据库commit被调用
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.3.2 - 测试promote_to_moderator权限验证失败
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.username = "testuser"
+        user.is_moderator = True  # 已经是审核员
+        
+        service.get_user_by_id = Mock(return_value=user)
+        mock_hash.return_value = "highest_hash"
+        mock_verify.return_value = True
+        
+        db.commit = Mock()
+        
+        with patch.dict(os.environ, {'HIGHEST_PASSWORD': 'correct_password'}):
+            result = service.promote_to_moderator("user-123", "correct_password")
+        
+        # 即使已经是审核员，操作也应该成功
+        assert result is True
+        assert user.is_moderator is True
+        assert db.commit.called
+    
+    @patch('app.services.user_service.verify_password')
+    @patch('app.services.user_service.get_password_hash')
+    def test_promote_to_moderator_database_error(self, mock_hash, mock_verify):
+        """测试数据库错误时提升审核员失败并回滚
+        
+        验证:
+        - 当数据库提交失败时返回False
+        - 数据库回滚被调用
+        - 错误被记录到日志
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.3.2 - 测试promote_to_moderator权限验证失败
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.username = "testuser"
+        user.is_moderator = False
+        
+        service.get_user_by_id = Mock(return_value=user)
+        mock_hash.return_value = "highest_hash"
+        mock_verify.return_value = True
+        
+        # 模拟数据库提交失败
+        db.commit = Mock(side_effect=SQLAlchemyError("Database error"))
+        db.rollback = Mock()
+        
+        with patch.dict(os.environ, {'HIGHEST_PASSWORD': 'correct_password'}):
+            result = service.promote_to_moderator("user-123", "correct_password")
+        
+        assert result is False
+        assert db.rollback.called
+    
+    @patch('app.services.user_service.verify_password')
+    @patch('app.services.user_service.get_password_hash')
+    def test_promote_to_moderator_logs_error_on_wrong_password(self, mock_hash, mock_verify, caplog):
+        """测试错误密码时记录错误日志
+        
+        验证:
+        - 当密码验证失败时，错误被记录到日志
+        - 日志包含用户ID和失败原因
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.3.2 - 测试promote_to_moderator权限验证失败
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.is_moderator = False
+        
+        service.get_user_by_id = Mock(return_value=user)
+        mock_hash.return_value = "highest_hash"
+        mock_verify.return_value = False
+        
+        with patch.dict(os.environ, {'HIGHEST_PASSWORD': 'correct_password'}):
+            result = service.promote_to_moderator("user-123", "wrong_password")
+        
+        assert result is False
+        # 验证错误日志被记录
+        assert any("highest password verification failed" in record.message.lower() 
+                   for record in caplog.records)
+    
+    @patch('app.services.user_service.verify_password')
+    @patch('app.services.user_service.get_password_hash')
+    def test_promote_to_moderator_logs_error_on_exception(self, mock_hash, mock_verify, caplog):
+        """测试异常时记录错误日志
+        
+        验证:
+        - 当发生异常时，错误被记录到日志
+        - 日志包含用户ID和错误详情
+        - 数据库回滚被调用
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.3.2 - 测试promote_to_moderator权限验证失败
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.username = "testuser"
+        user.is_moderator = False
+        
+        service.get_user_by_id = Mock(return_value=user)
+        mock_hash.return_value = "highest_hash"
+        mock_verify.return_value = True
+        
+        # 模拟数据库提交失败
+        db.commit = Mock(side_effect=SQLAlchemyError("Database error"))
+        db.rollback = Mock()
+        
+        with patch.dict(os.environ, {'HIGHEST_PASSWORD': 'correct_password'}):
+            result = service.promote_to_moderator("user-123", "correct_password")
+        
+        assert result is False
+        # 验证错误日志被记录
+        assert any("Error promoting user" in record.message 
+                   and "to moderator" in record.message
+                   for record in caplog.records)
 
 
 class TestCredentialVerification:
@@ -650,6 +1174,238 @@ class TestCredentialVerification:
         # Verify dummy hash was used (timing attack protection)
         assert mock_verify.called
         mock_sleep.assert_called_once_with(0.1)
+
+
+    @patch('time.sleep')
+    @patch('app.services.user_service.verify_password')
+    def test_verify_credentials_timing_attack_protection(self, mock_verify, mock_sleep):
+        """测试密码验证的计时攻击防护
+
+        验证:
+        - 无论用户是否存在，都执行密码验证（使用虚拟哈希）
+        - 验证失败后添加固定延迟（0.1秒）
+        - 防止通过响应时间判断用户是否存在
+
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.4 - 测试密码验证失败（计时攻击防护）
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+
+        # 场景1: 用户不存在
+        service.get_user_by_username = Mock(return_value=None)
+
+        result = service.verify_credentials("nonexistent", "password")
+
+        # 验证返回 None
+        assert result is None
+
+        # 验证虚拟哈希被使用（防止计时攻击）
+        assert mock_verify.called
+        dummy_hash = "$2b$12$dummy.hash.for.timing.attack.prevention.abcdefghijklmnopqrstuv"
+        mock_verify.assert_called_with("password", dummy_hash)
+
+        # 验证添加了延迟
+        mock_sleep.assert_called_once_with(0.1)
+
+        # 重置 mock
+        mock_verify.reset_mock()
+        mock_sleep.reset_mock()
+
+        # 场景2: 用户存在但密码错误
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.username = "testuser"
+        user.hashed_password = "real_hash"
+
+        service.get_user_by_username = Mock(return_value=user)
+        service.increment_failed_login = Mock()
+        mock_verify.return_value = False
+
+        result = service.verify_credentials("testuser", "wrong_password")
+
+        # 验证返回 None
+        assert result is None
+
+        # 验证使用真实哈希
+        mock_verify.assert_called_with("wrong_password", "real_hash")
+
+        # 验证添加了延迟
+        mock_sleep.assert_called_once_with(0.1)
+
+        # 验证失败次数递增
+        service.increment_failed_login.assert_called_once_with(user.id)
+
+    @patch('time.sleep')
+    @patch('app.services.user_service.verify_password')
+    def test_verify_credentials_increments_failed_login_on_wrong_password(self, mock_verify, mock_sleep):
+        """测试密码错误时递增失败登录次数
+
+        验证:
+        - 密码验证失败时调用 increment_failed_login
+        - 传递正确的用户 ID
+        - 返回 None 表示验证失败
+
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.4 - 测试密码验证失败（失败次数递增）
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.username = "testuser"
+        user.hashed_password = "hashed_password"
+
+        service.get_user_by_username = Mock(return_value=user)
+        service.increment_failed_login = Mock()
+        mock_verify.return_value = False
+
+        # 调用验证凭证
+        result = service.verify_credentials("testuser", "wrong_password")
+
+        # 验证返回 None
+        assert result is None
+
+        # 验证失败次数递增被调用
+        service.increment_failed_login.assert_called_once_with("user-123")
+
+        # 验证添加了延迟
+        mock_sleep.assert_called_once_with(0.1)
+
+    @patch('time.sleep')
+    @patch('app.services.user_service.verify_password')
+    def test_verify_credentials_does_not_increment_on_user_not_found(self, mock_verify, mock_sleep):
+        """测试用户不存在时不递增失败登录次数
+
+        验证:
+        - 用户不存在时不调用 increment_failed_login
+        - 使用虚拟哈希进行验证（计时攻击防护）
+        - 返回 None
+
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.4 - 测试密码验证失败（用户不存在场景）
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+
+        service.get_user_by_username = Mock(return_value=None)
+        service.increment_failed_login = Mock()
+
+        # 调用验证凭证
+        result = service.verify_credentials("nonexistent", "password")
+
+        # 验证返回 None
+        assert result is None
+
+        # 验证不调用 increment_failed_login（用户不存在）
+        service.increment_failed_login.assert_not_called()
+
+        # 验证虚拟哈希被使用
+        assert mock_verify.called
+
+        # 验证添加了延迟
+        mock_sleep.assert_called_once_with(0.1)
+
+    @patch('app.services.user_service.verify_password')
+    def test_verify_credentials_resets_failed_login_on_success(self, mock_verify):
+        """测试密码验证成功时重置失败登录次数
+
+        验证:
+        - 密码验证成功时调用 reset_failed_login
+        - 传递正确的用户 ID
+        - 返回用户对象
+
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.4 - 测试密码验证失败（成功场景对比）
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.username = "testuser"
+        user.hashed_password = "hashed_password"
+
+        service.get_user_by_username = Mock(return_value=user)
+        service.reset_failed_login = Mock()
+        mock_verify.return_value = True
+
+        # 调用验证凭证
+        result = service.verify_credentials("testuser", "correct_password")
+
+        # 验证返回用户对象
+        assert result == user
+
+        # 验证失败次数被重置
+        service.reset_failed_login.assert_called_once_with("user-123")
+
+    @patch('time.sleep')
+    @patch('app.services.user_service.verify_password')
+    def test_verify_credentials_handles_exception_gracefully(self, mock_verify, mock_sleep, caplog):
+        """测试密码验证过程中的异常处理
+
+        验证:
+        - 捕获验证过程中的异常
+        - 返回 None 而不是抛出异常
+        - 错误被记录到日志
+
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.4 - 测试密码验证失败（异常处理）
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+
+        # 模拟 get_user_by_username 抛出异常
+        service.get_user_by_username = Mock(side_effect=Exception("Database error"))
+
+        # 调用验证凭证
+        result = service.verify_credentials("testuser", "password")
+
+        # 验证返回 None
+        assert result is None
+
+        # 验证错误被记录
+        assert "Error verifying user credentials" in caplog.text
+
+    @patch('time.sleep')
+    @patch('app.services.user_service.verify_password')
+    def test_verify_credentials_multiple_failed_attempts(self, mock_verify, mock_sleep):
+        """测试多次密码验证失败
+
+        验证:
+        - 每次失败都递增失败次数
+        - 每次失败都添加延迟
+        - 每次都返回 None
+
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.4 - 测试密码验证失败（多次失败）
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.username = "testuser"
+        user.hashed_password = "hashed_password"
+
+        service.get_user_by_username = Mock(return_value=user)
+        service.increment_failed_login = Mock()
+        mock_verify.return_value = False
+
+        # 模拟 3 次失败尝试
+        for i in range(3):
+            result = service.verify_credentials("testuser", f"wrong_password_{i}")
+
+            # 验证每次都返回 None
+            assert result is None
+
+        # 验证 increment_failed_login 被调用 3 次
+        assert service.increment_failed_login.call_count == 3
+
+        # 验证每次都添加了延迟
+        assert mock_sleep.call_count == 3
+
 
 
 class TestAccountLocking:
@@ -781,6 +1537,235 @@ class TestAccountLocking:
         
         # Should not commit if already zero
         assert not db.commit.called
+    
+    def test_check_account_lock_user_not_found(self):
+        """测试检查不存在用户的账户锁定状态
+        
+        验证:
+        - 用户不存在时返回 False（安全默认值）
+        - 不抛出异常
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.5 - 测试账户锁定机制（边界情况）
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        service.get_user_by_id = Mock(return_value=None)
+        
+        result = service.check_account_lock("nonexistent-id")
+        
+        assert result is False
+    
+    def test_check_account_lock_database_error(self, caplog):
+        """测试数据库错误时检查账户锁定状态
+        
+        验证:
+        - 捕获异常并返回 False（安全默认值）
+        - 错误被正确记录到日志
+        - 不抛出异常
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.5 - 测试账户锁定机制（异常处理）
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        # 注入数据库异常
+        service.get_user_by_id = Mock(side_effect=Exception("Database error"))
+        
+        result = service.check_account_lock("user-123")
+        
+        # 验证返回 False（安全默认值）
+        assert result is False
+        
+        # 验证错误被记录
+        assert "Error checking account lock" in caplog.text
+        assert "user-123" in caplog.text
+    
+    def test_increment_failed_login_user_not_found(self):
+        """测试递增不存在用户的失败登录次数
+        
+        验证:
+        - 用户不存在时不执行任何操作
+        - 不抛出异常
+        - 不提交数据库
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.5 - 测试账户锁定机制（边界情况）
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        service.get_user_by_id = Mock(return_value=None)
+        db.commit = Mock()
+        
+        # 调用方法（不应抛出异常）
+        service.increment_failed_login("nonexistent-id")
+        
+        # 验证不提交数据库
+        assert not db.commit.called
+    
+    def test_increment_failed_login_database_error(self, caplog):
+        """测试数据库错误时递增失败登录次数
+        
+        验证:
+        - 捕获异常并回滚事务
+        - 错误被正确记录到日志
+        - 不抛出异常
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.5 - 测试账户锁定机制（异常处理）
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.failed_login_attempts = 2
+        
+        service.get_user_by_id = Mock(return_value=user)
+        
+        # 注入数据库提交异常
+        db.commit = Mock(side_effect=SQLAlchemyError("Database commit failed"))
+        db.rollback = Mock()
+        
+        # 调用方法（不应抛出异常）
+        service.increment_failed_login("user-123")
+        
+        # 验证回滚被调用
+        db.rollback.assert_called_once()
+        
+        # 验证错误被记录
+        assert "Error incrementing failed login" in caplog.text
+        assert "user-123" in caplog.text
+    
+    def test_increment_failed_login_from_zero(self):
+        """测试从零开始递增失败登录次数
+        
+        验证:
+        - failed_login_attempts 为 None 时正确初始化为 1
+        - last_failed_login 被设置为当前时间
+        - 数据库提交被调用
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.5 - 测试账户锁定机制（边界情况）
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.username = "testuser"
+        user.failed_login_attempts = None  # 初始值为 None
+        user.last_failed_login = None
+        user.locked_until = None
+        
+        service.get_user_by_id = Mock(return_value=user)
+        db.commit = Mock()
+        
+        service.increment_failed_login("user-123")
+        
+        # 验证从 None 正确初始化为 1
+        assert user.failed_login_attempts == 1
+        assert user.last_failed_login is not None
+        assert db.commit.called
+    
+    def test_increment_failed_login_locks_at_exactly_5(self, caplog):
+        """测试恰好第 5 次失败时锁定账户
+        
+        验证:
+        - 第 5 次失败时设置 locked_until
+        - locked_until 设置为当前时间 + 30 分钟
+        - 记录警告日志
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.5 - 测试账户锁定机制（锁定阈值）
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.username = "testuser"
+        user.failed_login_attempts = 4
+        user.locked_until = None
+        
+        service.get_user_by_id = Mock(return_value=user)
+        db.commit = Mock()
+        
+        before_time = datetime.now()
+        service.increment_failed_login("user-123")
+        after_time = datetime.now()
+        
+        # 验证失败次数为 5
+        assert user.failed_login_attempts == 5
+        
+        # 验证账户被锁定
+        assert user.locked_until is not None
+        
+        # 验证锁定时间约为 30 分钟后
+        expected_lock_time = before_time + timedelta(minutes=30)
+        assert user.locked_until >= expected_lock_time
+        assert user.locked_until <= after_time + timedelta(minutes=30, seconds=1)
+        
+        # 验证警告日志
+        assert "Account locked" in caplog.text
+        assert "testuser" in caplog.text
+        assert "attempts=5" in caplog.text
+    
+    def test_reset_failed_login_user_not_found(self):
+        """测试重置不存在用户的失败登录次数
+        
+        验证:
+        - 用户不存在时不执行任何操作
+        - 不抛出异常
+        - 不提交数据库
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.5 - 测试账户锁定机制（边界情况）
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        service.get_user_by_id = Mock(return_value=None)
+        db.commit = Mock()
+        
+        # 调用方法（不应抛出异常）
+        service.reset_failed_login("nonexistent-id")
+        
+        # 验证不提交数据库
+        assert not db.commit.called
+    
+    def test_reset_failed_login_database_error(self, caplog):
+        """测试数据库错误时重置失败登录次数
+        
+        验证:
+        - 捕获异常并回滚事务
+        - 不抛出异常（静默失败）
+        
+        需求: FR3 - 服务层异常处理测试
+        任务: 4.2.5 - 测试账户锁定机制（异常处理）
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+        
+        user = Mock(spec=User)
+        user.id = "user-123"
+        user.failed_login_attempts = 3
+        user.locked_until = datetime.now() + timedelta(minutes=30)
+        
+        service.get_user_by_id = Mock(return_value=user)
+        
+        # 注入数据库提交异常
+        db.commit = Mock(side_effect=SQLAlchemyError("Database commit failed"))
+        db.rollback = Mock()
+        
+        # 调用方法（不应抛出异常）
+        service.reset_failed_login("user-123")
+        
+        # 验证回滚被调用
+        db.rollback.assert_called_once()
 
 
 class TestSuperAdminManagement:
@@ -1040,4 +2025,155 @@ class TestResourceRetrieval:
         assert total_size == 0
 
 
+
+
+
+class TestBoundaryValueHandling:
+    """测试边界值和空值参数处理
+
+    验证 user_service 方法正确处理 None/null 参数和空字符串，
+    返回 None 或空列表而不抛出异常。
+
+    需求: FR3 - 服务层异常处理测试
+    任务: 4.2.1 - 测试空值参数处理
+    """
+
+    def test_get_user_by_id_with_none(self):
+        """测试 get_user_by_id 使用 None 参数
+
+        验证:
+        - 接受 None 作为参数
+        - 返回 None 而不抛出异常
+        - 优雅处理边界情况
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.first = Mock(return_value=None)
+        mock_query.filter = Mock(return_value=mock_filter)
+        db.query = Mock(return_value=mock_query)
+
+        # 调用方法使用 None 参数
+        result = service.get_user_by_id(None)
+
+        # 验证返回 None
+        assert result is None
+
+    def test_get_user_by_username_with_none(self):
+        """测试 get_user_by_username 使用 None 参数
+
+        验证:
+        - 接受 None 作为参数
+        - 返回 None 而不抛出异常
+        - 优雅处理边界情况
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.first = Mock(return_value=None)
+        mock_query.filter = Mock(return_value=mock_filter)
+        db.query = Mock(return_value=mock_query)
+
+        # 调用方法使用 None 参数
+        result = service.get_user_by_username(None)
+
+        # 验证返回 None
+        assert result is None
+
+    def test_get_user_by_email_with_none(self):
+        """测试 get_user_by_email 使用 None 参数
+
+        验证:
+        - 接受 None 作为参数
+        - 返回 None 而不抛出异常
+        - 优雅处理边界情况
+        - email.lower() 在 None 上不会失败
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.first = Mock(return_value=None)
+        mock_query.filter = Mock(return_value=mock_filter)
+        db.query = Mock(return_value=mock_query)
+
+        # 调用方法使用 None 参数
+        result = service.get_user_by_email(None)
+
+        # 验证返回 None
+        assert result is None
+
+    def test_get_user_by_username_with_empty_string(self):
+        """测试 get_user_by_username 使用空字符串
+
+        验证:
+        - 接受空字符串作为参数
+        - 返回 None（空字符串不是有效用户名）
+        - 优雅处理边界情况
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.first = Mock(return_value=None)
+        mock_query.filter = Mock(return_value=mock_filter)
+        db.query = Mock(return_value=mock_query)
+
+        # 调用方法使用空字符串
+        result = service.get_user_by_username("")
+
+        # 验证返回 None
+        assert result is None
+
+    def test_get_user_by_email_with_empty_string(self):
+        """测试 get_user_by_email 使用空字符串
+
+        验证:
+        - 接受空字符串作为参数
+        - 返回 None（空字符串不是有效邮箱）
+        - 优雅处理边界情况
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.first = Mock(return_value=None)
+        mock_query.filter = Mock(return_value=mock_filter)
+        db.query = Mock(return_value=mock_query)
+
+        # 调用方法使用空字符串
+        result = service.get_user_by_email("")
+
+        # 验证返回 None
+        assert result is None
+
+    def test_get_user_by_id_with_empty_string(self):
+        """测试 get_user_by_id 使用空字符串
+
+        验证:
+        - 接受空字符串作为参数
+        - 返回 None（空字符串不是有效 ID）
+        - 优雅处理边界情况
+        """
+        db = Mock(spec=Session)
+        service = UserService(db)
+
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.first = Mock(return_value=None)
+        mock_query.filter = Mock(return_value=mock_filter)
+        db.query = Mock(return_value=mock_query)
+
+        # 调用方法使用空字符串
+        result = service.get_user_by_id("")
+
+        # 验证返回 None
+        assert result is None
 

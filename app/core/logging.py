@@ -230,5 +230,4 @@ def log_database_operation(
 
 # 创建全局日志记录器实例
 app_logger = setup_logger("maimnp", level=settings.LOG_LEVEL)
-app_logger.info("日志系统初始化完成")
-app_logger.info(f"日志级别设置为 {settings.LOG_LEVEL}")
+app_logger.info(f"日志系统已初始化 (级别: {settings.LOG_LEVEL})")

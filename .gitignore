@@ -71,13 +71,32 @@ Thumbs.db
 
 # Testing
 .coverage
+.coverage.*
 .pytest_cache/
 htmlcov/
 .tox/
 .nox/
+.hypothesis/
 tests/.test_env
 tests/test_*.db
+tests/test_*.db-shm
+tests/test_*.db-wal
+tests/.coverage.*
+tests/coverage.json
+tests/test_results_*.log
+tests/tests.log
+tests/*,cover
 *.coverage.*
+badges/
+test_results_*.log
+test_gw*.db
+test_gw*.db-shm
+test_gw*.db-wal
+coverage.json
+tests.log
+*,cover
+test_uploads/
+temp_*.py
 
 # Documentation build
 docs/_build/

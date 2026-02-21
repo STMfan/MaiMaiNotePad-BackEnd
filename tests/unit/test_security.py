@@ -349,7 +349,9 @@ class TestTokenSecurity:
         payload["role"] = "admin"  # 尝试提升权限
         
         # 重新编码（但签名会不同）
-        modified_token = jwt.encode(payload, "wrong_secret", algorithm=ALGORITHM)
+        # 使用一个足够长的错误密钥（至少 32 字节）来避免 InsecureKeyLengthWarning
+        wrong_secret = "wrong_secret_key_that_is_long_enough_for_hmac_sha256_algorithm"
+        modified_token = jwt.encode(payload, wrong_secret, algorithm=ALGORITHM)
         
         # 验证应该失败
         verified_payload = verify_token(modified_token)

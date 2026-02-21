@@ -14,16 +14,14 @@ from unittest.mock import patch, MagicMock
 
 from app.models.database import User, EmailVerification
 from app.core.security import get_password_hash
-from tests.test_data_factory import TestDataFactory
+from tests.fixtures.data_factory import TestDataFactory
 
 
 class TestLogin:
     """测试 POST /api/auth/token 端点（登录）"""
     
-    def test_login_with_valid_credentials_json(self, test_db: Session):
+    def test_login_with_valid_credentials_json(self, client, test_db: Session):
         """测试使用 JSON 格式的有效凭据登录"""
-        from app.main import app
-        client = TestClient(app)
         
         # Create test user
         user = User(
@@ -62,10 +60,8 @@ class TestLogin:
         test_db.refresh(user)
         assert user.failed_login_attempts == 0
     
-    def test_login_with_valid_credentials_form(self, test_db: Session):
+    def test_login_with_valid_credentials_form(self, client, test_db: Session):
         """测试使用表单数据的有效凭据登录"""
-        from app.main import app
-        client = TestClient(app)
         
         # Create test user
         user = User(
@@ -95,10 +91,8 @@ class TestLogin:
         assert "access_token" in data["data"]
         assert data["data"]["user"]["username"] == "formuser"
     
-    def test_login_with_invalid_password(self, test_db: Session):
+    def test_login_with_invalid_password(self, client, test_db: Session):
         """测试使用无效密码登录"""
-        from app.main import app
-        client = TestClient(app)
         
         # Create test user
         user = User(
@@ -132,10 +126,8 @@ class TestLogin:
         test_db.refresh(user)
         assert user.failed_login_attempts == 1
     
-    def test_login_with_nonexistent_user(self, test_db: Session):
+    def test_login_with_nonexistent_user(self, client, test_db: Session):
         """测试使用不存在的用户名登录"""
-        from app.main import app
-        client = TestClient(app)
         
         response = client.post(
             "/api/auth/token",
@@ -146,10 +138,8 @@ class TestLogin:
         data = response.json()
         assert ("用户名或密码错误" in data["error"]["message"] or "过程中" in data["error"]["message"])
     
-    def test_login_with_missing_username(self, test_db: Session):
+    def test_login_with_missing_username(self, client, test_db: Session):
         """测试缺少用户名的登录"""
-        from app.main import app
-        client = TestClient(app)
         
         response = client.post(
             "/api/auth/token",
@@ -160,10 +150,8 @@ class TestLogin:
         data = response.json()
         assert ("登录过程中" in data["error"]["message"] or "过程中" in data["error"]["message"]) or "请提供用户名和密码" in data["error"]["message"]
     
-    def test_login_with_missing_password(self, test_db: Session):
+    def test_login_with_missing_password(self, client, test_db: Session):
         """测试缺少密码的登录"""
-        from app.main import app
-        client = TestClient(app)
         
         response = client.post(
             "/api/auth/token",
@@ -174,10 +162,8 @@ class TestLogin:
         data = response.json()
         assert ("登录过程中" in data["error"]["message"] or "过程中" in data["error"]["message"]) or "请提供用户名和密码" in data["error"]["message"]
     
-    def test_login_with_empty_credentials(self, test_db: Session):
+    def test_login_with_empty_credentials(self, client, test_db: Session):
         """测试使用空用户名和密码登录"""
-        from app.main import app
-        client = TestClient(app)
         
         response = client.post(
             "/api/auth/token",
@@ -188,14 +174,12 @@ class TestLogin:
         data = response.json()
         assert ("登录过程中" in data["error"]["message"] or "过程中" in data["error"]["message"]) or "请提供用户名和密码" in data["error"]["message"]
     
-    def test_login_with_invalid_content_type(self, test_db: Session):
+    def test_login_with_invalid_content_type(self, client, test_db: Session):
         """测试使用不支持的内容类型登录"""
-        from app.main import app
-        client = TestClient(app)
         
         response = client.post(
             "/api/auth/token",
-            data="username=test&password=test",
+            content="username=test&password=test",
             headers={"Content-Type": "text/plain"}
         )
         
@@ -203,14 +187,12 @@ class TestLogin:
         data = response.json()
         assert ("登录过程中" in data["error"]["message"] or "过程中" in data["error"]["message"]) or "不支持的Content-Type" in data["error"]["message"]
     
-    def test_login_with_invalid_json(self, test_db: Session):
+    def test_login_with_invalid_json(self, client, test_db: Session):
         """测试使用格式错误的 JSON 登录"""
-        from app.main import app
-        client = TestClient(app)
         
         response = client.post(
             "/api/auth/token",
-            data="invalid json",
+            content="invalid json",
             headers={"Content-Type": "application/json"}
         )
         
@@ -222,10 +204,8 @@ class TestLogin:
 class TestTokenRefresh:
     """测试 POST /api/auth/refresh 端点"""
     
-    def test_refresh_token_success_json(self, test_db: Session):
+    def test_refresh_token_success_json(self, client, test_db: Session):
         """测试使用 JSON 格式成功刷新令牌"""
-        from app.main import app
-        client = TestClient(app)
         
         # Create test user and login
         user = User(
@@ -266,10 +246,8 @@ class TestTokenRefresh:
         assert "token_type" in data["data"]
         assert data["data"]["token_type"] == "bearer"
     
-    def test_refresh_token_success_form(self, test_db: Session):
+    def test_refresh_token_success_form(self, client, test_db: Session):
         """测试使用表单数据成功刷新令牌"""
-        from app.main import app
-        client = TestClient(app)
         
         # Create test user and login
         user = User(
@@ -305,10 +283,8 @@ class TestTokenRefresh:
         data = response.json()
         assert "access_token" in data["data"]
     
-    def test_refresh_token_missing(self, test_db: Session):
+    def test_refresh_token_missing(self, client, test_db: Session):
         """测试缺少刷新令牌的令牌刷新"""
-        from app.main import app
-        client = TestClient(app)
         
         response = client.post(
             "/api/auth/refresh",
@@ -319,10 +295,8 @@ class TestTokenRefresh:
         data = response.json()
         assert "刷新令牌" in data["error"]["message"] or "缺失" in data["error"]["message"]
     
-    def test_refresh_token_invalid(self, test_db: Session):
+    def test_refresh_token_invalid(self, client, test_db: Session):
         """测试使用无效刷新令牌的令牌刷新"""
-        from app.main import app
-        client = TestClient(app)
         
         response = client.post(
             "/api/auth/refresh",
@@ -331,14 +305,12 @@ class TestTokenRefresh:
         
         assert response.status_code == 400  # API 返回 400 而不是 401
     
-    def test_refresh_token_unsupported_content_type(self, test_db: Session):
+    def test_refresh_token_unsupported_content_type(self, client, test_db: Session):
         """测试使用不支持的内容类型刷新令牌"""
-        from app.main import app
-        client = TestClient(app)
         
         response = client.post(
             "/api/auth/refresh",
-            data="refresh_token=test",
+            content="refresh_token=test",
             headers={"Content-Type": "text/plain"}
         )
         
@@ -351,10 +323,8 @@ class TestUserRegistration:
     """测试 POST /api/auth/user/register 端点"""
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_register_user_success(self, mock_send_email, test_db: Session):
+    def test_register_user_success(self, mock_send_email, client, test_db: Session):
         """测试成功的用户注册"""
-        from app.main import app
-        client = TestClient(app)
         
         mock_send_email.return_value = True
         
@@ -394,7 +364,7 @@ class TestUserRegistration:
         assert user is not None
         assert user.email == email
     
-    def test_register_user_missing_fields(self, test_db: Session):
+    def test_register_user_missing_fields(self, client, test_db: Session):
         """测试缺少字段的注册"""
         from app.main import app
         from tests.conftest import assert_error_response
@@ -411,10 +381,8 @@ class TestUserRegistration:
         
         assert_error_response(response, [400, 422], ["required", "field", "email", "verification"])
     
-    def test_register_user_duplicate_username(self, test_db: Session):
+    def test_register_user_duplicate_username(self, client, test_db: Session):
         """测试使用重复用户名的注册"""
-        from app.main import app
-        client = TestClient(app)
         
         # Create existing user
         user = User(
@@ -446,10 +414,8 @@ class TestUserRegistration:
         data = response.json()
         assert ("用户名已存在" in data["error"]["message"] or "过程中" in data["error"]["message"])
     
-    def test_register_user_invalid_verification_code(self, test_db: Session):
+    def test_register_user_invalid_verification_code(self, client, test_db: Session):
         """测试使用无效验证码的注册"""
-        from app.main import app
-        client = TestClient(app)
         
         response = client.post(
             "/api/auth/user/register",
@@ -469,10 +435,8 @@ class TestUserRegistration:
 class TestCheckRegister:
     """测试 POST /api/auth/user/check_register 端点"""
     
-    def test_check_register_valid(self, test_db: Session):
+    def test_check_register_valid(self, client, test_db: Session):
         """测试使用有效用户名和邮箱检查注册"""
-        from app.main import app
-        client = TestClient(app)
         
         response = client.post(
             "/api/auth/user/check_register",
@@ -486,10 +450,8 @@ class TestCheckRegister:
         data = response.json()
         assert "可以注册" in data["message"]
     
-    def test_check_register_duplicate_username(self, test_db: Session):
+    def test_check_register_duplicate_username(self, client, test_db: Session):
         """测试使用重复用户名检查注册"""
-        from app.main import app
-        client = TestClient(app)
         
         # Create existing user
         user = User(
@@ -519,7 +481,7 @@ class TestCheckRegister:
         data = response.json()
         assert ("用户名已存在" in data["error"]["message"] or "过程中" in data["error"]["message"])
     
-    def test_check_register_missing_fields(self, test_db: Session):
+    def test_check_register_missing_fields(self, client, test_db: Session):
         """测试缺少字段的检查注册"""
         from app.main import app
         from tests.conftest import assert_error_response
@@ -538,10 +500,8 @@ class TestEmailVerification:
     """测试 POST /api/auth/send_verification_code 端点"""
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_send_verification_code_success(self, mock_send_email, test_db: Session):
+    def test_send_verification_code_success(self, mock_send_email, client, test_db: Session):
         """测试成功发送验证码"""
-        from app.main import app
-        client = TestClient(app)
         
         mock_send_email.return_value = True
         
@@ -564,7 +524,7 @@ class TestEmailVerification:
         assert verification.code.isdigit()
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_send_verification_code_invalid_email(self, mock_send_email, test_db: Session):
+    def test_send_verification_code_invalid_email(self, mock_send_email, client, test_db: Session):
         """测试使用无效邮箱格式发送验证码"""
         from app.main import app
         from tests.conftest import assert_error_response
@@ -578,10 +538,8 @@ class TestEmailVerification:
         assert_error_response(response, [400, 422], ["发送验证码失败", "稍后再试"])
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_send_verification_code_email_case_insensitive(self, mock_send_email, test_db: Session):
+    def test_send_verification_code_email_case_insensitive(self, mock_send_email, client, test_db: Session):
         """测试邮箱转换为小写"""
-        from app.main import app
-        client = TestClient(app)
         
         mock_send_email.return_value = True
         
@@ -599,10 +557,8 @@ class TestEmailVerification:
         assert verification is not None
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_verification_code_expiration(self, mock_send_email, test_db: Session):
+    def test_verification_code_expiration(self, mock_send_email, client, test_db: Session):
         """测试验证码在时间限制后过期"""
-        from app.main import app
-        client = TestClient(app)
         
         mock_send_email.return_value = True
         
@@ -631,10 +587,8 @@ class TestEmailVerification:
         assert result == False
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_verification_code_reuse_prevention(self, mock_send_email, test_db: Session):
+    def test_verification_code_reuse_prevention(self, mock_send_email, client, test_db: Session):
         """测试验证码不能被重复使用"""
-        from app.main import app
-        client = TestClient(app)
         
         mock_send_email.return_value = True
         
@@ -669,10 +623,8 @@ class TestEmailVerification:
         assert verification.is_used == True
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_send_verification_code_email_service_error(self, mock_send_email, test_db: Session):
+    def test_send_verification_code_email_service_error(self, mock_send_email, client, test_db: Session):
         """测试邮件服务错误的处理"""
-        from app.main import app
-        client = TestClient(app)
         
         # Simulate email service failure
         mock_send_email.side_effect = Exception("SMTP connection failed")
@@ -692,10 +644,8 @@ class TestPasswordReset:
     """测试密码重置端点"""
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_send_reset_password_code_success(self, mock_send_email, test_db: Session):
+    def test_send_reset_password_code_success(self, mock_send_email, client, test_db: Session):
         """测试成功发送密码重置验证码"""
-        from app.main import app
-        client = TestClient(app)
         
         mock_send_email.return_value = True
         
@@ -731,7 +681,7 @@ class TestPasswordReset:
         assert verification is not None
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_send_reset_password_code_unregistered_email(self, mock_send_email, test_db: Session):
+    def test_send_reset_password_code_unregistered_email(self, mock_send_email, client, test_db: Session):
         """测试向未注册的邮箱发送重置验证码"""
         from app.main import app
         from tests.conftest import assert_error_response
@@ -745,7 +695,7 @@ class TestPasswordReset:
         assert_error_response(response, [400, 422], ["重置密码失败", "稍后再试", "邮箱"])
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_send_reset_password_code_invalid_email(self, mock_send_email, test_db: Session):
+    def test_send_reset_password_code_invalid_email(self, mock_send_email, client, test_db: Session):
         """测试使用无效邮箱格式发送重置验证码"""
         from app.main import app
         from tests.conftest import assert_error_response
@@ -759,10 +709,8 @@ class TestPasswordReset:
         assert_error_response(response, [400, 422], ["重置密码失败", "稍后再试"])
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_reset_password_success(self, mock_send_email, test_db: Session):
+    def test_reset_password_success(self, mock_send_email, client, test_db: Session):
         """测试成功重置密码"""
-        from app.main import app
-        client = TestClient(app)
         from app.core.security import verify_password
         
         mock_send_email.return_value = True
@@ -815,10 +763,8 @@ class TestPasswordReset:
         assert user.password_version == 1
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_reset_password_invalid_code(self, mock_send_email, test_db: Session):
+    def test_reset_password_invalid_code(self, mock_send_email, client, test_db: Session):
         """测试使用无效验证码重置密码 - 由于实现错误当前返回成功"""
-        from app.main import app
-        client = TestClient(app)
         
         # Create test user
         user = User(
@@ -850,10 +796,8 @@ class TestPasswordReset:
         assert response.status_code == 200
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_reset_password_expired_code(self, mock_send_email, test_db: Session):
+    def test_reset_password_expired_code(self, mock_send_email, client, test_db: Session):
         """测试使用过期验证码重置密码 - 由于实现错误当前返回成功"""
-        from app.main import app
-        client = TestClient(app)
         
         mock_send_email.return_value = True
         
@@ -901,10 +845,8 @@ class TestPasswordReset:
         assert response.status_code == 200
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_reset_password_code_reuse_prevention(self, mock_send_email, test_db: Session):
+    def test_reset_password_code_reuse_prevention(self, mock_send_email, client, test_db: Session):
         """测试重置验证码不能被重复使用"""
-        from app.main import app
-        client = TestClient(app)
         
         mock_send_email.return_value = True
         
@@ -959,7 +901,7 @@ class TestPasswordReset:
         # NOTE: Due to implementation bug, this returns 200 instead of error
         assert response2.status_code == 200
     
-    def test_reset_password_missing_fields(self, test_db: Session):
+    def test_reset_password_missing_fields(self, client, test_db: Session):
         """测试缺少字段的密码重置"""
         from app.main import app
         from tests.conftest import assert_error_response
@@ -976,7 +918,7 @@ class TestPasswordReset:
         
         assert_error_response(response, [400, 422], ["required", "field", "password"])
     
-    def test_reset_password_short_password(self, test_db: Session):
+    def test_reset_password_short_password(self, client, test_db: Session):
         """测试使用过短密码的密码重置"""
         from app.main import app
         from tests.conftest import assert_error_response
@@ -999,10 +941,8 @@ class TestRateLimiting:
     """测试邮件发送的速率限制"""
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_rate_limit_one_per_minute(self, mock_send_email, test_db: Session):
+    def test_rate_limit_one_per_minute(self, mock_send_email, client, test_db: Session):
         """测试每分钟 1 封邮件的速率限制"""
-        from app.main import app
-        client = TestClient(app)
         
         mock_send_email.return_value = True
         
@@ -1025,10 +965,8 @@ class TestRateLimiting:
         assert "发送验证码失败" in data["error"]["message"] or "频繁" in data["error"]["message"]
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_rate_limit_five_per_hour(self, mock_send_email, test_db: Session):
+    def test_rate_limit_five_per_hour(self, mock_send_email, client, test_db: Session):
         """测试每小时 5 封邮件的速率限制"""
-        from app.main import app
-        client = TestClient(app)
         
         mock_send_email.return_value = True
         
@@ -1057,10 +995,8 @@ class TestRateLimiting:
         assert "发送验证码失败" in data["error"]["message"] or "频繁" in data["error"]["message"]
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_rate_limit_reset_password_one_per_minute(self, mock_send_email, test_db: Session):
+    def test_rate_limit_reset_password_one_per_minute(self, mock_send_email, client, test_db: Session):
         """测试密码重置的速率限制（每分钟 1 次）"""
-        from app.main import app
-        client = TestClient(app)
         
         mock_send_email.return_value = True
         
@@ -1097,10 +1033,8 @@ class TestRateLimiting:
         assert "发送" in data["error"]["message"] or "频繁" in data["error"]["message"]
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_rate_limit_different_emails_independent(self, mock_send_email, test_db: Session):
+    def test_rate_limit_different_emails_independent(self, mock_send_email, client, test_db: Session):
         """测试不同邮箱的速率限制是独立的"""
-        from app.main import app
-        client = TestClient(app)
         
         mock_send_email.return_value = True
         
@@ -1119,10 +1053,8 @@ class TestRateLimiting:
         assert response2.status_code == 200
     
     @patch('app.services.email_service.EmailService.send_email')
-    def test_rate_limit_error_response_format(self, mock_send_email, test_db: Session):
+    def test_rate_limit_error_response_format(self, mock_send_email, client, test_db: Session):
         """测试速率限制错误响应格式"""
-        from app.main import app
-        client = TestClient(app)
         
         mock_send_email.return_value = True
         
@@ -1151,10 +1083,8 @@ class TestRateLimiting:
 class TestAccountLockout:
     """测试登录失败后的账户锁定"""
     
-    def test_account_locks_after_5_failed_attempts(self, test_db: Session):
+    def test_account_locks_after_5_failed_attempts(self, client, test_db: Session):
         """测试 5 次登录失败后账户被锁定"""
-        from app.main import app
-        client = TestClient(app)
         
         # Create test user
         user = User(
@@ -1191,10 +1121,8 @@ class TestAccountLockout:
         assert user.locked_until is not None
         assert user.locked_until > datetime.now()
     
-    def test_locked_account_cannot_login(self, test_db: Session):
+    def test_locked_account_cannot_login(self, client, test_db: Session):
         """测试被锁定的账户即使使用正确密码也无法登录"""
-        from app.main import app
-        client = TestClient(app)
         
         # Create locked user
         user = User(
@@ -1224,10 +1152,8 @@ class TestAccountLockout:
         data = response.json()
         assert ("用户名或密码错误" in data["error"]["message"] or "过程中" in data["error"]["message"])
     
-    def test_account_unlocks_after_timeout(self, test_db: Session):
+    def test_account_unlocks_after_timeout(self, client, test_db: Session):
         """测试账户在超时后解锁"""
-        from app.main import app
-        client = TestClient(app)
         
         # Create user with expired lock
         user = User(
@@ -1261,10 +1187,8 @@ class TestAccountLockout:
         test_db.refresh(user)
         assert user.failed_login_attempts == 0
     
-    def test_successful_login_resets_failed_attempts(self, test_db: Session):
+    def test_successful_login_resets_failed_attempts(self, client, test_db: Session):
         """测试成功登录重置失败登录计数器"""
-        from app.main import app
-        client = TestClient(app)
         
         # Create user with some failed attempts
         user = User(
@@ -1295,10 +1219,8 @@ class TestAccountLockout:
         test_db.refresh(user)
         assert user.failed_login_attempts == 0
     
-    def test_failed_login_increments_counter(self, test_db: Session):
+    def test_failed_login_increments_counter(self, client, test_db: Session):
         """测试每次登录失败都会增加计数器"""
-        from app.main import app
-        client = TestClient(app)
         
         # Create test user
         user = User(
@@ -1325,10 +1247,8 @@ class TestAccountLockout:
         test_db.refresh(user)
         assert user.failed_login_attempts == 1
     
-    def test_lockout_duration_is_30_minutes(self, test_db: Session):
+    def test_lockout_duration_is_30_minutes(self, client, test_db: Session):
         """测试锁定持续时间为 30 分钟"""
-        from app.main import app
-        client = TestClient(app)
         
         # Create test user with 4 failed attempts already
         user = User(

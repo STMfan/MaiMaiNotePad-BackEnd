@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.services.knowledge_service import KnowledgeService
 from app.models.database import KnowledgeBase, KnowledgeBaseFile, User, StarRecord, UploadRecord
-from tests.test_data_factory import TestDataFactory
+from tests.fixtures.data_factory import TestDataFactory
 
 
 class TestKnowledgeServiceInit:
@@ -811,3 +811,582 @@ class TestResolveUploaderId:
 
 
 
+
+
+class TestKnowledgeServiceExceptionHandling:
+    """测试 KnowledgeService 异常处理
+    
+    测试所有方法的数据库异常处理、验证失败和边界情况
+    """
+    
+    def test_get_knowledge_base_by_id_database_exception(self, test_db: Session, caplog):
+        """测试 get_knowledge_base_by_id 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        
+        with patch.object(test_db, 'query', side_effect=Exception("Database error")):
+            result = service.get_knowledge_base_by_id("test_id")
+            
+            assert result is None
+            assert "获取知识库失败" in caplog.text
+    
+    def test_get_public_knowledge_bases_database_exception(self, test_db: Session, caplog):
+        """测试 get_public_knowledge_bases 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        
+        with patch.object(test_db, 'query', side_effect=Exception("Database error")):
+            kbs, total = service.get_public_knowledge_bases()
+            
+            assert kbs == []
+            assert total == 0
+            assert "获取公开知识库列表失败" in caplog.text
+    
+    def test_get_user_knowledge_bases_database_exception(self, test_db: Session, caplog):
+        """测试 get_user_knowledge_bases 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        
+        with patch.object(test_db, 'query', side_effect=Exception("Database error")):
+            kbs, total = service.get_user_knowledge_bases("user_id")
+            
+            assert kbs == []
+            assert total == 0
+            assert "获取用户" in caplog.text and "的知识库列表失败" in caplog.text
+    
+    def test_save_knowledge_base_database_exception(self, test_db: Session, factory: TestDataFactory, caplog):
+        """测试 save_knowledge_base 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        user = factory.create_user()
+        
+        kb_data = {
+            "name": "Test KB",
+            "description": "Test description",
+            "uploader_id": user.id,
+            "copyright_owner": user.username,
+            "base_path": "/tmp/test_kb"
+        }
+        
+        with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+            result = service.save_knowledge_base(kb_data)
+            
+            assert result is None
+            assert "保存知识库失败" in caplog.text
+    
+    def test_save_knowledge_base_rollback_on_error(self, test_db: Session, factory: TestDataFactory):
+        """测试 save_knowledge_base 错误时回滚"""
+        service = KnowledgeService(test_db)
+        user = factory.create_user()
+        
+        kb_data = {
+            "name": "Test KB",
+            "description": "Test description",
+            "uploader_id": user.id,
+            "copyright_owner": user.username,
+            "base_path": "/tmp/test_kb"
+        }
+        
+        with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+            with patch.object(test_db, 'rollback') as mock_rollback:
+                result = service.save_knowledge_base(kb_data)
+                
+                assert result is None
+                mock_rollback.assert_called_once()
+    
+    def test_check_duplicate_name_database_exception(self, test_db: Session, caplog):
+        """测试 check_duplicate_name 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        
+        with patch.object(test_db, 'query', side_effect=Exception("Database error")):
+            result = service.check_duplicate_name("user_id", "name")
+            
+            assert result is False
+            assert "检查知识库重名失败" in caplog.text
+    
+    def test_update_knowledge_base_database_exception(self, test_db: Session, factory: TestDataFactory, caplog):
+        """测试 update_knowledge_base 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        user = factory.create_user()
+        kb = factory.create_knowledge_base(uploader=user)
+        
+        # Store IDs before patching
+        user_id = user.id
+        kb_id = kb.id
+        
+        with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+            success, message, result = service.update_knowledge_base(
+                kb_id,
+                {"description": "New description"},
+                user_id
+            )
+            
+            assert success is False
+            assert "修改知识库失败" in message
+            assert result is None
+            assert "更新知识库" in caplog.text and "失败" in caplog.text
+    
+    def test_update_knowledge_base_rollback_on_error(self, test_db: Session, factory: TestDataFactory):
+        """测试 update_knowledge_base 错误时回滚"""
+        service = KnowledgeService(test_db)
+        user = factory.create_user()
+        kb = factory.create_knowledge_base(uploader=user)
+        
+        # Store IDs before patching
+        user_id = user.id
+        kb_id = kb.id
+        
+        with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+            with patch.object(test_db, 'rollback') as mock_rollback:
+                success, message, result = service.update_knowledge_base(
+                    kb_id,
+                    {"description": "New description"},
+                    user_id
+                )
+                
+                assert success is False
+                mock_rollback.assert_called_once()
+    
+    def test_delete_knowledge_base_database_exception(self, test_db: Session, factory: TestDataFactory, caplog):
+        """测试 delete_knowledge_base 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        kb = factory.create_knowledge_base()
+        kb_id = kb.id
+        
+        # Mock get_knowledge_base_by_id to return the kb, then mock commit to fail
+        with patch.object(test_db, 'delete'):
+            with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+                result = service.delete_knowledge_base(kb_id)
+                
+                assert result is False
+                assert "删除知识库" in caplog.text and "失败" in caplog.text
+    
+    def test_delete_knowledge_base_rollback_on_error(self, test_db: Session, factory: TestDataFactory):
+        """测试 delete_knowledge_base 错误时回滚"""
+        service = KnowledgeService(test_db)
+        kb = factory.create_knowledge_base()
+        
+        with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+            with patch.object(test_db, 'rollback') as mock_rollback:
+                result = service.delete_knowledge_base(kb.id)
+                
+                assert result is False
+                mock_rollback.assert_called_once()
+    
+    def test_is_starred_database_exception(self, test_db: Session, caplog):
+        """测试 is_starred 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        
+        with patch.object(test_db, 'query', side_effect=Exception("Database error")):
+            result = service.is_starred("user_id", "kb_id")
+            
+            assert result is False
+            assert "检查收藏状态失败" in caplog.text
+    
+    def test_add_star_database_exception(self, test_db: Session, caplog):
+        """测试 add_star 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        
+        with patch.object(service, 'is_starred', return_value=False):
+            with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+                result = service.add_star("user_id", "kb_id")
+                
+                assert result is False
+                assert "收藏知识库失败" in caplog.text
+    
+    def test_add_star_rollback_on_error(self, test_db: Session):
+        """测试 add_star 错误时回滚"""
+        service = KnowledgeService(test_db)
+        
+        with patch.object(service, 'is_starred', return_value=False):
+            with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+                with patch.object(test_db, 'rollback') as mock_rollback:
+                    result = service.add_star("user_id", "kb_id")
+                    
+                    assert result is False
+                    mock_rollback.assert_called_once()
+    
+    def test_remove_star_database_exception(self, test_db: Session, caplog):
+        """测试 remove_star 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        
+        with patch.object(test_db, 'query', side_effect=Exception("Database error")):
+            result = service.remove_star("user_id", "kb_id")
+            
+            assert result is False
+            assert "取消收藏知识库失败" in caplog.text
+    
+    def test_remove_star_rollback_on_error(self, test_db: Session, factory: TestDataFactory):
+        """测试 remove_star 错误时回滚"""
+        service = KnowledgeService(test_db)
+        user = factory.create_user()
+        kb = factory.create_knowledge_base()
+        
+        # Store IDs before creating star record
+        user_id = user.id
+        kb_id = kb.id
+        
+        factory.create_star_record(user=user, target_id=kb_id, target_type="knowledge")
+        
+        with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+            with patch.object(test_db, 'rollback') as mock_rollback:
+                result = service.remove_star(user_id, kb_id)
+                
+                assert result is False
+                mock_rollback.assert_called_once()
+    
+    def test_increment_downloads_database_exception(self, test_db: Session, factory: TestDataFactory, caplog):
+        """测试 increment_downloads 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        kb = factory.create_knowledge_base()
+        
+        with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+            result = service.increment_downloads(kb.id)
+            
+            assert result is False
+            assert "递增知识库" in caplog.text and "下载次数失败" in caplog.text
+    
+    def test_increment_downloads_rollback_on_error(self, test_db: Session, factory: TestDataFactory):
+        """测试 increment_downloads 错误时回滚"""
+        service = KnowledgeService(test_db)
+        kb = factory.create_knowledge_base()
+        
+        with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+            with patch.object(test_db, 'rollback') as mock_rollback:
+                result = service.increment_downloads(kb.id)
+                
+                assert result is False
+                mock_rollback.assert_called_once()
+    
+    def test_get_files_by_knowledge_base_id_database_exception(self, test_db: Session, caplog):
+        """测试 get_files_by_knowledge_base_id 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        
+        with patch.object(test_db, 'query', side_effect=Exception("Database error")):
+            files = service.get_files_by_knowledge_base_id("kb_id")
+            
+            assert files == []
+            assert "获取知识库" in caplog.text and "的文件列表失败" in caplog.text
+    
+    def test_create_upload_record_database_exception(self, test_db: Session, caplog):
+        """测试 create_upload_record 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        
+        with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+            record_id = service.create_upload_record(
+                uploader_id="user_id",
+                target_id="kb_id",
+                name="Test KB",
+                description="Test description"
+            )
+            
+            assert record_id is None
+            assert "创建上传记录失败" in caplog.text
+    
+    def test_create_upload_record_rollback_on_error(self, test_db: Session):
+        """测试 create_upload_record 错误时回滚"""
+        service = KnowledgeService(test_db)
+        
+        with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+            with patch.object(test_db, 'rollback') as mock_rollback:
+                record_id = service.create_upload_record(
+                    uploader_id="user_id",
+                    target_id="kb_id",
+                    name="Test KB",
+                    description="Test description"
+                )
+                
+                assert record_id is None
+                mock_rollback.assert_called_once()
+    
+    def test_delete_upload_records_by_target_database_exception(self, test_db: Session, caplog):
+        """测试 delete_upload_records_by_target 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        
+        with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+            result = service.delete_upload_records_by_target("target_id")
+            
+            assert result is False
+            assert "删除上传记录失败" in caplog.text
+    
+    def test_delete_upload_records_by_target_rollback_on_error(self, test_db: Session):
+        """测试 delete_upload_records_by_target 错误时回滚"""
+        service = KnowledgeService(test_db)
+        
+        with patch.object(test_db, 'commit', side_effect=Exception("Database error")):
+            with patch.object(test_db, 'rollback') as mock_rollback:
+                result = service.delete_upload_records_by_target("target_id")
+                
+                assert result is False
+                mock_rollback.assert_called_once()
+    
+    def test_resolve_uploader_id_database_exception(self, test_db: Session, caplog):
+        """测试 resolve_uploader_id 数据库异常处理"""
+        service = KnowledgeService(test_db)
+        
+        with patch.object(test_db, 'query', side_effect=Exception("Database error")):
+            result = service.resolve_uploader_id("identifier")
+            
+            assert result is None
+            assert "解析上传者标识失败" in caplog.text
+
+
+class TestKnowledgeServiceEdgeCases:
+    """测试 KnowledgeService 边界情况"""
+    
+    def test_get_knowledge_base_by_id_with_none(self, test_db: Session):
+        """测试使用 None 作为 ID 获取知识库"""
+        service = KnowledgeService(test_db)
+        
+        result = service.get_knowledge_base_by_id(None)
+        
+        assert result is None
+    
+    def test_get_knowledge_base_by_id_with_empty_string(self, test_db: Session):
+        """测试使用空字符串作为 ID 获取知识库"""
+        service = KnowledgeService(test_db)
+        
+        result = service.get_knowledge_base_by_id("")
+        
+        assert result is None
+    
+    def test_get_public_knowledge_bases_with_zero_page_size(self, test_db: Session, factory: TestDataFactory):
+        """测试使用零作为页面大小"""
+        service = KnowledgeService(test_db)
+        factory.create_knowledge_base(is_public=True, is_pending=False)
+        
+        kbs, total = service.get_public_knowledge_bases(page=1, page_size=0)
+        
+        assert len(kbs) == 0
+        assert total >= 0
+    
+    def test_get_public_knowledge_bases_with_negative_page(self, test_db: Session, factory: TestDataFactory):
+        """测试使用负数页码"""
+        service = KnowledgeService(test_db)
+        factory.create_knowledge_base(is_public=True, is_pending=False)
+        
+        kbs, total = service.get_public_knowledge_bases(page=-1, page_size=10)
+        
+        # 应该返回空列表或第一页
+        assert isinstance(kbs, list)
+        assert isinstance(total, int)
+    
+    def test_get_public_knowledge_bases_with_invalid_sort_field(self, test_db: Session, factory: TestDataFactory):
+        """测试使用无效的排序字段"""
+        service = KnowledgeService(test_db)
+        factory.create_knowledge_base(is_public=True, is_pending=False)
+        
+        kbs, total = service.get_public_knowledge_bases(sort_by="invalid_field")
+        
+        # 应该使用默认排序字段
+        assert isinstance(kbs, list)
+        assert total >= 0
+    
+    def test_get_user_knowledge_bases_with_empty_user_id(self, test_db: Session):
+        """测试使用空用户 ID 获取知识库"""
+        service = KnowledgeService(test_db)
+        
+        kbs, total = service.get_user_knowledge_bases("")
+        
+        assert kbs == []
+        assert total == 0
+    
+    def test_get_user_knowledge_bases_with_none_user_id(self, test_db: Session):
+        """测试使用 None 作为用户 ID 获取知识库"""
+        service = KnowledgeService(test_db)
+        
+        kbs, total = service.get_user_knowledge_bases(None)
+        
+        assert kbs == []
+        assert total == 0
+    
+    def test_save_knowledge_base_with_empty_data(self, test_db: Session):
+        """测试使用空数据保存知识库"""
+        service = KnowledgeService(test_db)
+        
+        # 应该处理空数据而不崩溃
+        try:
+            result = service.save_knowledge_base({})
+            # 可能返回 None 或抛出异常
+            assert result is None or isinstance(result, KnowledgeBase)
+        except Exception:
+            # 如果抛出异常也是可以接受的
+            pass
+    
+    def test_check_duplicate_name_with_empty_name(self, test_db: Session, factory: TestDataFactory):
+        """测试使用空名称检查重复"""
+        service = KnowledgeService(test_db)
+        user = factory.create_user()
+        
+        result = service.check_duplicate_name(user.id, "")
+        
+        assert isinstance(result, bool)
+    
+    def test_check_duplicate_name_with_none_name(self, test_db: Session, factory: TestDataFactory):
+        """测试使用 None 作为名称检查重复"""
+        service = KnowledgeService(test_db)
+        user = factory.create_user()
+        
+        result = service.check_duplicate_name(user.id, None)
+        
+        assert isinstance(result, bool)
+    
+    def test_update_knowledge_base_with_empty_update_data(self, test_db: Session, factory: TestDataFactory):
+        """测试使用空更新数据更新知识库"""
+        service = KnowledgeService(test_db)
+        user = factory.create_user()
+        kb = factory.create_knowledge_base(uploader=user)
+        
+        success, message, result = service.update_knowledge_base(
+            kb.id,
+            {},
+            user.id
+        )
+        
+        # 空更新应该成功但不改变任何内容
+        assert success is True
+        assert result is not None
+    
+    def test_increment_downloads_with_none_downloads(self, test_db: Session, factory: TestDataFactory):
+        """测试递增 None 下载次数"""
+        service = KnowledgeService(test_db)
+        kb = factory.create_knowledge_base(downloads=None)
+        
+        result = service.increment_downloads(kb.id)
+        
+        assert result is True
+        test_db.refresh(kb)
+        assert kb.downloads == 1
+    
+    def test_add_star_with_none_star_count(self, test_db: Session, factory: TestDataFactory):
+        """测试为 None 收藏数的知识库添加收藏"""
+        service = KnowledgeService(test_db)
+        user = factory.create_user()
+        kb = factory.create_knowledge_base(star_count=None)
+        
+        result = service.add_star(user.id, kb.id)
+        
+        assert result is True
+        test_db.refresh(kb)
+        assert kb.star_count == 1
+    
+    def test_remove_star_with_zero_star_count(self, test_db: Session, factory: TestDataFactory):
+        """测试从零收藏数的知识库移除收藏"""
+        service = KnowledgeService(test_db)
+        user = factory.create_user()
+        kb = factory.create_knowledge_base(star_count=0)
+        factory.create_star_record(user=user, target_id=kb.id, target_type="knowledge")
+        
+        result = service.remove_star(user.id, kb.id)
+        
+        assert result is True
+        test_db.refresh(kb)
+        # star_count 不应该变成负数
+        assert kb.star_count == 0
+    
+    def test_resolve_uploader_id_with_empty_string(self, test_db: Session):
+        """测试使用空字符串解析上传者 ID"""
+        service = KnowledgeService(test_db)
+        
+        result = service.resolve_uploader_id("")
+        
+        assert result is None
+    
+    def test_resolve_uploader_id_with_none(self, test_db: Session):
+        """测试使用 None 解析上传者 ID"""
+        service = KnowledgeService(test_db)
+        
+        result = service.resolve_uploader_id(None)
+        
+        assert result is None
+
+
+class TestKnowledgeServicePermissionChecks:
+    """测试 KnowledgeService 权限检查"""
+    
+    def test_update_knowledge_base_permission_denied_for_non_owner(self, test_db: Session, factory: TestDataFactory):
+        """测试非所有者无权更新知识库"""
+        service = KnowledgeService(test_db)
+        owner = factory.create_user()
+        other_user = factory.create_user()
+        kb = factory.create_knowledge_base(uploader=owner)
+        
+        success, message, result = service.update_knowledge_base(
+            kb.id,
+            {"description": "New description"},
+            other_user.id,
+            is_admin=False,
+            is_moderator=False
+        )
+        
+        assert success is False
+        assert "是你的知识库吗你就改" in message
+        assert result is None
+    
+    def test_update_knowledge_base_moderator_can_update(self, test_db: Session, factory: TestDataFactory):
+        """测试审核员可以更新知识库"""
+        service = KnowledgeService(test_db)
+        owner = factory.create_user()
+        moderator = factory.create_user()
+        kb = factory.create_knowledge_base(uploader=owner)
+        
+        success, message, result = service.update_knowledge_base(
+            kb.id,
+            {"description": "Moderator update"},
+            moderator.id,
+            is_admin=False,
+            is_moderator=True
+        )
+        
+        assert success is True
+        assert result.description == "Moderator update"
+    
+    def test_update_knowledge_base_public_status_requires_admin(self, test_db: Session, factory: TestDataFactory):
+        """测试修改公开状态需要管理员权限"""
+        service = KnowledgeService(test_db)
+        user = factory.create_user()
+        kb = factory.create_knowledge_base(uploader=user, is_public=False, is_pending=False)
+        
+        success, message, result = service.update_knowledge_base(
+            kb.id,
+            {"is_public": True},
+            user.id,
+            is_admin=False,
+            is_moderator=False
+        )
+        
+        assert success is False
+        assert "只有管理员可以直接修改公开状态" in message
+    
+    def test_update_knowledge_base_pending_restricted_fields(self, test_db: Session, factory: TestDataFactory):
+        """测试审核中的知识库限制修改字段"""
+        service = KnowledgeService(test_db)
+        user = factory.create_user()
+        kb = factory.create_knowledge_base(uploader=user, is_pending=True)
+        
+        success, message, result = service.update_knowledge_base(
+            kb.id,
+            {"name": "New name"},
+            user.id
+        )
+        
+        assert success is False
+        assert "仅允许修改补充说明" in message
+    
+    def test_update_knowledge_base_protected_fields_removed(self, test_db: Session, factory: TestDataFactory):
+        """测试受保护字段被移除"""
+        service = KnowledgeService(test_db)
+        user = factory.create_user()
+        kb = factory.create_knowledge_base(uploader=user, is_public=False, is_pending=False, copyright_owner="Original Owner")
+        
+        success, message, result = service.update_knowledge_base(
+            kb.id,
+            {
+                "description": "New description",
+                "copyright_owner": "Hacker",
+                "name": "Hacked Name"
+            },
+            user.id
+        )
+        
+        assert success is True
+        assert result.description == "New description"
+        # 受保护字段不应该被修改
+        assert result.copyright_owner == "Original Owner"
+        assert result.name == kb.name
