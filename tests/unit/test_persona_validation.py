@@ -8,8 +8,8 @@
 import pytest
 from io import BytesIO
 from fastapi import UploadFile
-from app.file_upload import FileUploadService
-from app.error_handlers import ValidationError
+from app.services.file_upload_service import FileUploadService
+from app.core.error_handlers import ValidationError
 
 
 class TestPersonaCardValidation:

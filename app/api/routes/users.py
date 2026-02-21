@@ -20,7 +20,7 @@ from app.utils.avatar import (
     delete_avatar_file, ensure_avatar_dir, generate_initial_avatar
 )
 from app.core.logging import app_logger, log_exception, log_file_operation, log_database_operation
-from app.error_handlers import (
+from app.core.error_handlers import (
     APIError, ValidationError, AuthenticationError,
     NotFoundError, DatabaseError
 )

@@ -15,13 +15,13 @@ from datetime import datetime
 from fastapi import UploadFile, HTTPException
 import sys
 
-# Inject sqlite_db_manager mock into app.file_upload module before importing
-import app.file_upload
-if not hasattr(app.file_upload, 'sqlite_db_manager'):
-    app.file_upload.sqlite_db_manager = Mock()
+# Inject sqlite_db_manager mock into app.services.file_upload_service module before importing
+import app.services.file_upload_service
+if not hasattr(app.services.file_upload_service, 'sqlite_db_manager'):
+    app.services.file_upload_service.sqlite_db_manager = Mock()
 
-from app.file_upload import FileUploadService
-from app.error_handlers import ValidationError, DatabaseError
+from app.services.file_upload_service import FileUploadService
+from app.core.error_handlers import ValidationError, DatabaseError
 
 
 class TestKnowledgeBaseUpload:
@@ -32,9 +32,9 @@ class TestKnowledgeBaseUpload:
         self.service = FileUploadService()
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     @patch('os.makedirs')
-    @patch('app.file_upload.datetime')
+    @patch('app.services.file_upload_service.datetime')
     async def test_upload_knowledge_base_success(self, mock_datetime, mock_makedirs, mock_db):
         """测试成功上传知识库
         
@@ -210,7 +210,7 @@ class TestKnowledgeBaseUpload:
         mock_file.seek = AsyncMock()
         
         # Mock database and file operations to allow the test to proceed
-        with patch('app.file_upload.sqlite_db_manager') as mock_db:
+        with patch('app.services.file_upload_service.sqlite_db_manager') as mock_db:
             mock_kb = Mock()
             mock_kb.id = "kb123"
             mock_db.save_knowledge_base.return_value = mock_kb
@@ -250,7 +250,7 @@ class TestKnowledgeBaseUpload:
         mock_file.seek = AsyncMock()
         
         # Mock database and file operations
-        with patch('app.file_upload.sqlite_db_manager') as mock_db:
+        with patch('app.services.file_upload_service.sqlite_db_manager') as mock_db:
             mock_kb = Mock()
             mock_kb.id = "kb123"
             mock_db.save_knowledge_base.return_value = mock_kb
@@ -271,7 +271,7 @@ class TestKnowledgeBaseUpload:
                     assert result == mock_kb
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_add_files_to_knowledge_base_success(self, mock_db):
         """测试成功向知识库添加文件
         
@@ -314,7 +314,7 @@ class TestKnowledgeBaseUpload:
         mock_db.save_knowledge_base.assert_called_once()
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_add_files_to_knowledge_base_not_found(self, mock_db):
         """测试向不存在的知识库添加文件
         
@@ -336,7 +336,7 @@ class TestKnowledgeBaseUpload:
         assert "知识库不存在" in exc_info.value.message
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_add_files_to_knowledge_base_too_many_files(self, mock_db):
         """测试添加文件超过数量限制
         
@@ -366,7 +366,7 @@ class TestKnowledgeBaseUpload:
         assert "文件数量超过限制" in exc_info.value.message
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_add_files_to_knowledge_base_duplicate_filename(self, mock_db):
         """测试添加同名文件
         
@@ -395,7 +395,7 @@ class TestKnowledgeBaseUpload:
         assert "文件名已存在" in exc_info.value.message
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     @patch('os.path.exists')
     @patch('os.remove')
     async def test_delete_files_from_knowledge_base_success(self, mock_remove, mock_exists, mock_db):
@@ -438,7 +438,7 @@ class TestKnowledgeBaseUpload:
         mock_db.save_knowledge_base.assert_called_once()
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_delete_files_from_knowledge_base_kb_not_found(self, mock_db):
         """测试删除文件时知识库不存在
         
@@ -458,7 +458,7 @@ class TestKnowledgeBaseUpload:
         assert "知识库不存在" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_delete_files_from_knowledge_base_file_not_found(self, mock_db):
         """测试删除不存在的文件
         
@@ -481,7 +481,7 @@ class TestKnowledgeBaseUpload:
         assert "文件不存在" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     @patch('os.path.exists')
     @patch('os.remove')
     async def test_delete_files_from_knowledge_base_remove_failure(self, mock_remove, mock_exists, mock_db):
@@ -521,7 +521,7 @@ class TestKnowledgeBaseUpload:
         assert "test.txt" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     @patch('os.path.exists')
     async def test_delete_files_from_knowledge_base_kb_dir_not_exist(self, mock_exists, mock_db):
         """测试删除文件时知识库目录不存在
@@ -562,10 +562,10 @@ class TestPersonaCardUpload:
         self.service = FileUploadService()
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.toml')
+    @patch('app.services.file_upload_service.toml')
     @patch('builtins.open', create=True)
     @patch('os.makedirs')
-    @patch('app.file_upload.datetime')
+    @patch('app.services.file_upload_service.datetime')
     async def test_upload_persona_card_success(self, mock_datetime, mock_makedirs, mock_open, mock_toml):
         """测试成功上传人设卡
         
@@ -689,7 +689,7 @@ class TestPersonaCardUpload:
         assert "不支持的文件类型" in exc_info.value.message
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.toml')
+    @patch('app.services.file_upload_service.toml')
     @patch('builtins.open', create=True)
     @patch('os.makedirs')
     @patch('shutil.rmtree')
@@ -727,8 +727,8 @@ class TestPersonaCardUpload:
         mock_rmtree.assert_called_once()
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
-    @patch('app.file_upload.toml')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
+    @patch('app.services.file_upload_service.toml')
     @patch('builtins.open', create=True)
     @patch('os.path.exists')
     @patch('os.remove')
@@ -783,7 +783,7 @@ class TestPersonaCardUpload:
         mock_db.save_persona_card.assert_called_once()
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_add_files_to_persona_card_not_found(self, mock_db):
         """测试向不存在的人设卡添加文件
         
@@ -803,7 +803,7 @@ class TestPersonaCardUpload:
         assert result is None
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_add_files_to_persona_card_wrong_file_count(self, mock_db):
         """测试添加文件数量错误
         
@@ -827,7 +827,7 @@ class TestPersonaCardUpload:
         assert "一次仅支持上传一个" in exc_info.value.message
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     @patch('os.path.exists')
     @patch('os.remove')
     async def test_delete_files_from_persona_card_success(self, mock_remove, mock_exists, mock_db):
@@ -865,7 +865,7 @@ class TestPersonaCardUpload:
         mock_db.delete_persona_card_file.assert_called_once_with("file123")
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_delete_files_from_persona_card_not_found(self, mock_db):
         """测试删除文件时人设卡不存在
         
@@ -883,7 +883,7 @@ class TestPersonaCardUpload:
         assert result is False
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     @patch('os.path.exists')
     @patch('os.remove')
     async def test_delete_files_from_persona_card_remove_failure(self, mock_remove, mock_exists, mock_db):
@@ -922,7 +922,7 @@ class TestPersonaCardUpload:
         assert "bot_config.toml" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     @patch('os.path.exists')
     async def test_delete_files_from_persona_card_dir_not_exist(self, mock_exists, mock_db):
         """测试删除文件时人设卡目录不存在
@@ -960,8 +960,8 @@ class TestZipCreation:
         self.service = FileUploadService()
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
-    @patch('app.file_upload.datetime')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
+    @patch('app.services.file_upload_service.datetime')
     @patch('tempfile.gettempdir')
     @patch('zipfile.ZipFile')
     @patch('os.path.exists')
@@ -1027,7 +1027,7 @@ class TestZipCreation:
         assert mock_zip.writestr.call_count == 1  # README
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_create_knowledge_base_zip_not_found(self, mock_db):
         """测试创建不存在的知识库 ZIP
         
@@ -1043,7 +1043,7 @@ class TestZipCreation:
         assert "知识库不存在" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     @patch('os.path.exists')
     async def test_create_knowledge_base_zip_missing_files(self, mock_exists, mock_db):
         """测试创建 ZIP 时文件缺失
@@ -1072,8 +1072,8 @@ class TestZipCreation:
         assert "文件不存在" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
-    @patch('app.file_upload.datetime')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
+    @patch('app.services.file_upload_service.datetime')
     @patch('tempfile.gettempdir')
     @patch('zipfile.ZipFile')
     @patch('os.path.exists')
@@ -1134,7 +1134,7 @@ class TestZipCreation:
         assert mock_zip.writestr.call_count == 1  # README
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_create_persona_card_zip_not_found(self, mock_db):
         """测试创建不存在的人设卡 ZIP
         
@@ -1150,8 +1150,8 @@ class TestZipCreation:
         assert "人设卡不存在" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
-    @patch('app.file_upload.datetime')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
+    @patch('app.services.file_upload_service.datetime')
     @patch('tempfile.gettempdir')
     @patch('zipfile.ZipFile')
     @patch('os.path.exists')

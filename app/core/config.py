@@ -12,6 +12,9 @@ import os
 # 导入配置管理器
 from app.core.config_manager import config_manager
 
+# 导入版本号
+from app.__version__ import __version__
+
 
 class Settings(BaseSettings):
     """应用配置类，从环境变量和 TOML 文件加载配置"""
@@ -25,7 +28,7 @@ class Settings(BaseSettings):
     
     # 应用配置
     APP_NAME: str = config_manager.get("app.name", "MaiMNP Backend")
-    APP_VERSION: str = config_manager.get("app.version", "1.0.0")
+    APP_VERSION: str = __version__  # 从 __version__.py 读取
     HOST: str = config_manager.get("app.host", "0.0.0.0", env_var="HOST")
     PORT: int = config_manager.get_int("app.port", 9278, env_var="PORT")
     

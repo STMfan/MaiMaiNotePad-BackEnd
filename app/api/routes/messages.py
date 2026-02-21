@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.response_util import Success, Page
-from app.error_handlers import (
+from app.core.error_handlers import (
     APIError, ValidationError,
     AuthorizationError, NotFoundError, DatabaseError
 )

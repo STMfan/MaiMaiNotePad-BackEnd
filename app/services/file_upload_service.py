@@ -21,7 +21,7 @@ from app.models.database import (
     PersonaCard,
     KnowledgeBaseFile,
 )
-from app.error_handlers import ValidationError
+from app.core.error_handlers import ValidationError
 from app.core.database import get_db_context
 from app.core.config import settings
 from app.core.config_manager import config_manager

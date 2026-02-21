@@ -14,7 +14,7 @@ from app.models.schemas import (
     TokenResponse,
 )
 from app.core.logging import app_logger, log_exception, log_database_operation
-from app.error_handlers import (
+from app.core.error_handlers import (
     APIError, ValidationError, AuthenticationError
 )
 from sqlalchemy.orm import Session

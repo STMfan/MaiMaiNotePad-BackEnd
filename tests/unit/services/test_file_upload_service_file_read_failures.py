@@ -11,13 +11,13 @@ import pytest
 from unittest.mock import Mock, patch, AsyncMock, MagicMock, mock_open
 from fastapi import UploadFile
 
-# Inject sqlite_db_manager mock into app.file_upload module before importing
-import app.file_upload
-if not hasattr(app.file_upload, 'sqlite_db_manager'):
-    app.file_upload.sqlite_db_manager = Mock()
+# Inject sqlite_db_manager mock into app.services.file_upload_service module before importing
+import app.services.file_upload_service
+if not hasattr(app.services.file_upload_service, 'sqlite_db_manager'):
+    app.services.file_upload_service.sqlite_db_manager = Mock()
 
-from app.file_upload import FileUploadService
-from app.error_handlers import ValidationError
+from app.services.file_upload_service import FileUploadService
+from app.core.error_handlers import ValidationError
 
 
 class TestFileReadFailures:
@@ -209,7 +209,7 @@ class TestFileReadFailures:
         assert "TOML 语法错误" in exc_info.value.message or "配置解析失败" in exc_info.value.message
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     @patch('builtins.open', create=True)
     @patch('os.path.exists')
     async def test_add_files_to_persona_card_file_read_permission_error(self, mock_exists, mock_file_open, mock_db):
@@ -251,7 +251,7 @@ class TestFileReadFailures:
         mock_remove.assert_called_once_with("/path/to/pc/bot_config.toml")
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     @patch('builtins.open', create=True)
     @patch('os.path.exists')
     async def test_add_files_to_persona_card_file_read_io_error(self, mock_exists, mock_file_open, mock_db):
@@ -289,7 +289,7 @@ class TestFileReadFailures:
         mock_remove.assert_called_once()
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     @patch('builtins.open', create=True)
     @patch('os.path.exists')
     async def test_add_files_to_persona_card_file_not_found(self, mock_exists, mock_file_open, mock_db):
@@ -325,7 +325,7 @@ class TestFileReadFailures:
         assert "TOML 语法错误" in exc_info.value.message or "配置解析失败" in exc_info.value.message
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     @patch('builtins.open', create=True)
     @patch('os.path.exists')
     async def test_add_files_to_persona_card_file_read_timeout(self, mock_exists, mock_file_open, mock_db):

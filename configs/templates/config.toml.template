@@ -5,7 +5,7 @@
 [app]
 # 应用基本配置
 name = "MaiMNP Backend"
-version = "1.0.0"
+# 注意：版本号从 app/__version__.py 自动读取，无需在此配置
 host = "0.0.0.0"
 port = 9278
 

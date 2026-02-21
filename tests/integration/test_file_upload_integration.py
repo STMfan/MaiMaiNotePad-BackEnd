@@ -19,13 +19,13 @@ from fastapi import UploadFile
 from datetime import datetime
 
 # Mock sqlite_db_manager before importing file_upload
-import app.file_upload
-if not hasattr(app.file_upload, 'sqlite_db_manager'):
-    app.file_upload.sqlite_db_manager = Mock()
+import app.services.file_upload_service
+if not hasattr(app.services.file_upload_service, 'sqlite_db_manager'):
+    app.services.file_upload_service.sqlite_db_manager = Mock()
 
-from app.file_upload import FileUploadService
+from app.services.file_upload_service import FileUploadService
 from app.models.database import KnowledgeBase, PersonaCard, KnowledgeBaseFile, PersonaCardFile
-from app.error_handlers import ValidationError
+from app.core.error_handlers import ValidationError
 
 # Mark all tests in this file as serial to avoid file system race conditions
 # and mock state pollution between parallel workers
@@ -36,12 +36,12 @@ pytestmark = [pytest.mark.serial, pytest.mark.xdist_group("file_upload")]
 def reset_file_upload_mocks():
     """Reset file upload mocks before each test to avoid state pollution"""
     # Reset before test
-    if hasattr(app.file_upload, 'sqlite_db_manager'):
-        app.file_upload.sqlite_db_manager.reset_mock()
+    if hasattr(app.services.file_upload_service, 'sqlite_db_manager'):
+        app.services.file_upload_service.sqlite_db_manager.reset_mock()
     yield
     # Reset after test
-    if hasattr(app.file_upload, 'sqlite_db_manager'):
-        app.file_upload.sqlite_db_manager.reset_mock()
+    if hasattr(app.services.file_upload_service, 'sqlite_db_manager'):
+        app.services.file_upload_service.sqlite_db_manager.reset_mock()
 
 
 class TestCompleteUploadWorkflow:
@@ -108,8 +108,8 @@ class TestCompleteUploadWorkflow:
         mock_file_record2.id = "file_2"
         mock_file_record2.file_name = "knowledge2.json"
         
-        app.file_upload.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
-        app.file_upload.sqlite_db_manager.save_knowledge_base_file.side_effect = [
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base_file.side_effect = [
             mock_file_record1, mock_file_record2
         ]
         
@@ -129,8 +129,8 @@ class TestCompleteUploadWorkflow:
         assert result.id == "kb_test_123"
         
         # Verify database calls
-        app.file_upload.sqlite_db_manager.save_knowledge_base.assert_called_once()
-        assert app.file_upload.sqlite_db_manager.save_knowledge_base_file.call_count == 2
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base.assert_called_once()
+        assert app.services.file_upload_service.sqlite_db_manager.save_knowledge_base_file.call_count == 2
 
     
     @pytest.mark.asyncio
@@ -316,8 +316,8 @@ class TestUploadProgressTracking:
             mock_record.file_name = f"file{i}.txt"
             mock_file_records.append(mock_record)
         
-        app.file_upload.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
-        app.file_upload.sqlite_db_manager.save_knowledge_base_file.side_effect = mock_file_records
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base_file.side_effect = mock_file_records
         
         # Execute upload
         result = await self.service.upload_knowledge_base(
@@ -329,7 +329,7 @@ class TestUploadProgressTracking:
         
         # Verify all files were processed
         assert result is not None
-        assert app.file_upload.sqlite_db_manager.save_knowledge_base_file.call_count == 5
+        assert app.services.file_upload_service.sqlite_db_manager.save_knowledge_base_file.call_count == 5
     
     @pytest.mark.asyncio
     async def test_file_size_tracking_during_upload(self):
@@ -361,8 +361,8 @@ class TestUploadProgressTracking:
             mock_record.id = "file_1"
             return mock_record
         
-        app.file_upload.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
-        app.file_upload.sqlite_db_manager.save_knowledge_base_file.side_effect = capture_file_data
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base_file.side_effect = capture_file_data
         
         # Execute upload
         await self.service.upload_knowledge_base(
@@ -467,7 +467,7 @@ name = "Test Character"
         mock_kb.id = "kb_error_123"
         mock_kb.base_path = os.path.join(self.temp_dir, "error_kb")
         
-        app.file_upload.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
         
         # Attempt upload - should fail with read error
         with pytest.raises(Exception) as exc_info:
@@ -503,7 +503,7 @@ name = "Test Character"
         mock_kb.id = "kb_disk_123"
         mock_kb.base_path = os.path.join(self.temp_dir, "disk_kb")
         
-        app.file_upload.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
         
         # Mock file write to simulate disk full
         with patch('builtins.open', side_effect=OSError("No space left on device")):
@@ -572,8 +572,8 @@ class TestFileMetadataSaving:
             mock_record.id = "file_meta_1"
             return mock_record
         
-        app.file_upload.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
-        app.file_upload.sqlite_db_manager.save_knowledge_base_file.side_effect = capture_metadata
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base_file.side_effect = capture_metadata
         
         # Execute upload
         await self.service.upload_knowledge_base(
@@ -674,8 +674,8 @@ class TestFileMetadataSaving:
                 mock_record.id = f"file_{filename}"
                 return mock_record
             
-            app.file_upload.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
-            app.file_upload.sqlite_db_manager.save_knowledge_base_file.side_effect = capture_metadata
+            app.services.file_upload_service.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
+            app.services.file_upload_service.sqlite_db_manager.save_knowledge_base_file.side_effect = capture_metadata
             
             # Execute upload
             await self.service.upload_knowledge_base(
@@ -708,10 +708,10 @@ class TestFileUploadCoverageImprovement:
         self.temp_dir = tempfile.mkdtemp(suffix=f"_{self.unique_id}")
         
         # Reset mocks to avoid side_effect carryover from previous tests
-        app.file_upload.sqlite_db_manager.save_knowledge_base_file.reset_mock()
-        app.file_upload.sqlite_db_manager.save_knowledge_base.reset_mock()
-        app.file_upload.sqlite_db_manager.get_knowledge_base_by_id.reset_mock()
-        app.file_upload.sqlite_db_manager.get_files_by_knowledge_base_id.reset_mock()
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base_file.reset_mock()
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base.reset_mock()
+        app.services.file_upload_service.sqlite_db_manager.get_knowledge_base_by_id.reset_mock()
+        app.services.file_upload_service.sqlite_db_manager.get_files_by_knowledge_base_id.reset_mock()
     
     def teardown_method(self):
         """Cleanup after each test method"""
@@ -741,8 +741,8 @@ class TestFileUploadCoverageImprovement:
         mock_file2.original_name = "file2.json"
         mock_file2.file_size = 2048
         
-        app.file_upload.sqlite_db_manager.get_knowledge_base_by_id.return_value = mock_kb
-        app.file_upload.sqlite_db_manager.get_files_by_knowledge_base_id.return_value = [
+        app.services.file_upload_service.sqlite_db_manager.get_knowledge_base_by_id.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.get_files_by_knowledge_base_id.return_value = [
             mock_file1, mock_file2
         ]
         
@@ -765,7 +765,7 @@ class TestFileUploadCoverageImprovement:
         
         Covers: Error path in get_knowledge_base_content
         """
-        app.file_upload.sqlite_db_manager.get_knowledge_base_by_id.return_value = None
+        app.services.file_upload_service.sqlite_db_manager.get_knowledge_base_by_id.return_value = None
         
         # Execute - should raise HTTPException
         with pytest.raises(Exception) as exc_info:
@@ -792,8 +792,8 @@ class TestFileUploadCoverageImprovement:
         mock_file.original_name = "bot_config.toml"
         mock_file.file_size = 512
         
-        app.file_upload.sqlite_db_manager.get_persona_card_by_id.return_value = mock_pc
-        app.file_upload.sqlite_db_manager.get_files_by_persona_card_id.return_value = [mock_file]
+        app.services.file_upload_service.sqlite_db_manager.get_persona_card_by_id.return_value = mock_pc
+        app.services.file_upload_service.sqlite_db_manager.get_files_by_persona_card_id.return_value = [mock_file]
         
         # Execute
         result = self.service.get_persona_card_content("pc_content_123")
@@ -831,8 +831,8 @@ class TestFileUploadCoverageImprovement:
         existing_file = Mock(spec=KnowledgeBaseFile)
         existing_file.original_name = f"existing_{unique_id}.txt"
         
-        app.file_upload.sqlite_db_manager.get_knowledge_base_by_id.return_value = mock_kb
-        app.file_upload.sqlite_db_manager.get_files_by_knowledge_base_id.return_value = [existing_file]
+        app.services.file_upload_service.sqlite_db_manager.get_knowledge_base_by_id.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.get_files_by_knowledge_base_id.return_value = [existing_file]
         
         # Create new file to add with unique name
         content = b"New file content"
@@ -844,8 +844,8 @@ class TestFileUploadCoverageImprovement:
         mock_new_file_record = Mock(spec=KnowledgeBaseFile)
         mock_new_file_record.id = f"new_file_{unique_id}"
         
-        app.file_upload.sqlite_db_manager.save_knowledge_base_file.return_value = mock_new_file_record
-        app.file_upload.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base_file.return_value = mock_new_file_record
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
         
         # Execute
         result = await self.service.add_files_to_knowledge_base(
@@ -856,7 +856,7 @@ class TestFileUploadCoverageImprovement:
         
         # Verify
         assert result is not None
-        app.file_upload.sqlite_db_manager.save_knowledge_base_file.assert_called_once()
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base_file.assert_called_once()
 
     
     @pytest.mark.asyncio
@@ -878,8 +878,8 @@ class TestFileUploadCoverageImprovement:
             mock_file.original_name = f"existing_{i}.txt"
             existing_files.append(mock_file)
         
-        app.file_upload.sqlite_db_manager.get_knowledge_base_by_id.return_value = mock_kb
-        app.file_upload.sqlite_db_manager.get_files_by_knowledge_base_id.return_value = existing_files
+        app.services.file_upload_service.sqlite_db_manager.get_knowledge_base_by_id.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.get_files_by_knowledge_base_id.return_value = existing_files
         
         # Try to add one more file
         content = b"One more file"
@@ -915,8 +915,8 @@ class TestFileUploadCoverageImprovement:
         existing_file = Mock(spec=KnowledgeBaseFile)
         existing_file.original_name = "duplicate.txt"
         
-        app.file_upload.sqlite_db_manager.get_knowledge_base_by_id.return_value = mock_kb
-        app.file_upload.sqlite_db_manager.get_files_by_knowledge_base_id.return_value = [existing_file]
+        app.services.file_upload_service.sqlite_db_manager.get_knowledge_base_by_id.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.get_files_by_knowledge_base_id.return_value = [existing_file]
         
         # Try to add file with same name
         content = b"Duplicate file"
@@ -962,10 +962,10 @@ class TestFileUploadCoverageImprovement:
         mock_file.file_path = "to_delete.txt"
         mock_file.original_name = "to_delete.txt"
         
-        app.file_upload.sqlite_db_manager.get_knowledge_base_by_id.return_value = mock_kb
-        app.file_upload.sqlite_db_manager.get_knowledge_base_file_by_id.return_value = mock_file
-        app.file_upload.sqlite_db_manager.delete_knowledge_base_file.return_value = True
-        app.file_upload.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.get_knowledge_base_by_id.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.get_knowledge_base_file_by_id.return_value = mock_file
+        app.services.file_upload_service.sqlite_db_manager.delete_knowledge_base_file.return_value = True
+        app.services.file_upload_service.sqlite_db_manager.save_knowledge_base.return_value = mock_kb
         
         # Execute
         result = await self.service.delete_files_from_knowledge_base(
@@ -977,7 +977,7 @@ class TestFileUploadCoverageImprovement:
         # Verify
         assert result is True
         assert not os.path.exists(file_path)
-        app.file_upload.sqlite_db_manager.delete_knowledge_base_file.assert_called_once_with("file_del_1")
+        app.services.file_upload_service.sqlite_db_manager.delete_knowledge_base_file.assert_called_once_with("file_del_1")
     
     @pytest.mark.asyncio
     async def test_create_knowledge_base_zip(self):
@@ -1011,9 +1011,9 @@ class TestFileUploadCoverageImprovement:
         mock_user = Mock()
         mock_user.username = "testuser"
         
-        app.file_upload.sqlite_db_manager.get_knowledge_base_by_id.return_value = mock_kb
-        app.file_upload.sqlite_db_manager.get_files_by_knowledge_base_id.return_value = [mock_file1]
-        app.file_upload.sqlite_db_manager.get_user_by_id.return_value = mock_user
+        app.services.file_upload_service.sqlite_db_manager.get_knowledge_base_by_id.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.get_files_by_knowledge_base_id.return_value = [mock_file1]
+        app.services.file_upload_service.sqlite_db_manager.get_user_by_id.return_value = mock_user
         
         # Execute
         result = await self.service.create_knowledge_base_zip("kb_zip_123")
@@ -1047,8 +1047,8 @@ class TestFileUploadCoverageImprovement:
         mock_file.file_path = "nonexistent.txt"
         mock_file.original_name = "nonexistent.txt"
         
-        app.file_upload.sqlite_db_manager.get_knowledge_base_by_id.return_value = mock_kb
-        app.file_upload.sqlite_db_manager.get_files_by_knowledge_base_id.return_value = [mock_file]
+        app.services.file_upload_service.sqlite_db_manager.get_knowledge_base_by_id.return_value = mock_kb
+        app.services.file_upload_service.sqlite_db_manager.get_files_by_knowledge_base_id.return_value = [mock_file]
         
         # Execute - should fail
         with pytest.raises(Exception) as exc_info:

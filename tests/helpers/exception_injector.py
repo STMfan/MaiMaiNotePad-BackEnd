@@ -315,13 +315,13 @@ class ExceptionInjector:
         
         try:
             if error_type == "custom_validation":
-                # 注入自定义 ValidationError（来自 app.error_handlers）
+                # 注入自定义 ValidationError（来自 app.core.error_handlers）
                 try:
-                    from app.error_handlers import ValidationError as CustomValidationError
+                    from app.core.error_handlers import ValidationError as CustomValidationError
                     
                     # Mock 可能抛出 ValidationError 的函数
                     # 这里我们 mock 一个通用的验证函数
-                    validation_patch = patch('app.error_handlers.ValidationError')
+                    validation_patch = patch('app.core.error_handlers.ValidationError')
                     mock_validation = validation_patch.start()
                     mock_validation.side_effect = CustomValidationError(error_message)
                     patches.append(validation_patch)

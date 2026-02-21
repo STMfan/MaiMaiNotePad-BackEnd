@@ -12,7 +12,7 @@ from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp
 
-from app.error_handlers import (
+from app.core.error_handlers import (
     resolve_error_code,
     load_error_messages,
     resolve_display_message,
@@ -116,7 +116,7 @@ class TestResolveDisplayMessage:
     
     def test_resolve_with_zh_cn_message(self):
         """测试解析中文消息（zh-CN）"""
-        with patch("app.error_handlers.ERROR_MESSAGES", {
+        with patch("app.core.error_handlers.ERROR_MESSAGES", {
             "10001": {"messages": {"zh-CN": "中文消息"}}
         }):
             message = resolve_display_message("10001", "fallback")
@@ -124,7 +124,7 @@ class TestResolveDisplayMessage:
     
     def test_resolve_with_zh_cn_underscore_message(self):
         """测试解析中文消息（zh_CN）"""
-        with patch("app.error_handlers.ERROR_MESSAGES", {
+        with patch("app.core.error_handlers.ERROR_MESSAGES", {
             "10001": {"messages": {"zh_CN": "中文消息"}}
         }):
             message = resolve_display_message("10001", "fallback")
@@ -132,7 +132,7 @@ class TestResolveDisplayMessage:
     
     def test_resolve_with_default_message(self):
         """测试使用默认消息"""
-        with patch("app.error_handlers.ERROR_MESSAGES", {
+        with patch("app.core.error_handlers.ERROR_MESSAGES", {
             "10001": {"defaultMessage": "默认消息"}
         }):
             message = resolve_display_message("10001", "fallback")
@@ -140,13 +140,13 @@ class TestResolveDisplayMessage:
     
     def test_resolve_with_fallback(self):
         """测试使用回退消息"""
-        with patch("app.error_handlers.ERROR_MESSAGES", {}):
+        with patch("app.core.error_handlers.ERROR_MESSAGES", {}):
             message = resolve_display_message("99999", "fallback message")
             assert message == "fallback message"
     
     def test_resolve_with_empty_zh_cn_message(self):
         """测试空的中文消息时使用回退"""
-        with patch("app.error_handlers.ERROR_MESSAGES", {
+        with patch("app.core.error_handlers.ERROR_MESSAGES", {
             "10001": {"messages": {"zh-CN": ""}}
         }):
             message = resolve_display_message("10001", "fallback")

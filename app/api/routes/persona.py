@@ -19,12 +19,12 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.response_util import Page, Success
-from app.error_handlers import (
+from app.core.error_handlers import (
     APIError, ValidationError, AuthenticationError,
     AuthorizationError, NotFoundError, ConflictError,
     FileOperationError, DatabaseError
 )
-from app.file_upload import file_upload_service
+from app.services.file_upload_service import file_upload_service
 # 导入错误处理和日志记录模块
 from app.core.logging import app_logger, log_exception, log_file_operation, log_database_operation
 from app.models.schemas import (

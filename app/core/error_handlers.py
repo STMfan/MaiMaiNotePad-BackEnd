@@ -180,7 +180,7 @@ def resolve_error_code(status_code: int, message: str, details: Optional[Dict[st
     return DEFAULT_ERROR_CODE_BY_STATUS.get(status_code, "99999")
 
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # app/ 目录
 ERROR_MESSAGES_FILE = os.path.join(BASE_DIR, "error_messages.json")
 
 

@@ -22,7 +22,7 @@ from app.models.database import (
     User, KnowledgeBase, PersonaCard, UploadRecord, 
     KnowledgeBaseFile, PersonaCardFile, Message
 )
-from app.error_handlers import (
+from app.core.error_handlers import (
     APIError, ValidationError, NotFoundError, ConflictError, DatabaseError
 )
 from app.services.user_service import UserService

@@ -19,7 +19,7 @@ from app.core.logging import app_logger
 from app.core.middleware import setup_middlewares
 from app.api import api_router
 from app.api.websocket import message_websocket_endpoint
-from app.error_handlers import setup_exception_handlers
+from app.core.error_handlers import setup_exception_handlers
 
 # 加载环境变量
 load_dotenv()

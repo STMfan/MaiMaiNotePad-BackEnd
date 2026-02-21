@@ -14,13 +14,13 @@ from datetime import datetime
 from fastapi import UploadFile, HTTPException, status
 from io import BytesIO
 
-# Inject sqlite_db_manager mock into app.file_upload module before importing
-import app.file_upload
-if not hasattr(app.file_upload, 'sqlite_db_manager'):
-    app.file_upload.sqlite_db_manager = Mock()
+# Inject sqlite_db_manager mock into app.services.file_upload_service module before importing
+import app.services.file_upload_service
+if not hasattr(app.services.file_upload_service, 'sqlite_db_manager'):
+    app.services.file_upload_service.sqlite_db_manager = Mock()
 
-from app.file_upload import FileUploadService
-from app.error_handlers import ValidationError
+from app.services.file_upload_service import FileUploadService
+from app.core.error_handlers import ValidationError
 
 
 class TestFileUploadServiceInit:
@@ -376,7 +376,7 @@ class TestFileUploadServiceSaveFileMocked:
     
     @pytest.mark.asyncio
     @patch('builtins.open', create=True)
-    @patch('app.file_upload.datetime')
+    @patch('app.services.file_upload_service.datetime')
     async def test_save_uploaded_file_mocked(self, mock_datetime, mock_open):
         """测试保存文件（使用 Mock）
         
@@ -470,7 +470,7 @@ class TestFileUploadServiceSaveFileMocked:
     @patch('builtins.open', create=True)
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('app.file_upload.datetime')
+    @patch('app.services.file_upload_service.datetime')
     async def test_save_uploaded_file_with_size_duplicate_mocked(self, mock_datetime, mock_exists, mock_makedirs, mock_open):
         """测试保存重复文件名（使用 Mock）
         
@@ -1486,8 +1486,8 @@ class TestFileUploadServiceFileSystemErrors:
             mock_exists("/test/file.txt")
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.FileUploadService._save_uploaded_file_with_size')
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.FileUploadService._save_uploaded_file_with_size')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     @patch('os.makedirs')
     async def test_upload_knowledge_base_disk_space_error_during_file_save(
         self, mock_makedirs, mock_db, mock_save_file
@@ -1858,7 +1858,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         self.service = FileUploadService()
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_file_extension_pdf(self, mock_db):
         """测试上传不支持的 PDF 文件类型
         
@@ -1893,7 +1893,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         mock_db.save_knowledge_base.assert_not_called()
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_file_extension_exe(self, mock_db):
         """测试上传不支持的 EXE 可执行文件
         
@@ -1920,7 +1920,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "malware.exe" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_file_extension_zip(self, mock_db):
         """测试上传不支持的 ZIP 压缩文件
         
@@ -1945,7 +1945,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "不支持的文件类型" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_file_extension_docx(self, mock_db):
         """测试上传不支持的 DOCX 文档文件
         
@@ -1971,7 +1971,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "document.docx" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_file_extension_xlsx(self, mock_db):
         """测试上传不支持的 XLSX 表格文件
         
@@ -1996,7 +1996,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "不支持的文件类型" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_file_extension_mp3(self, mock_db):
         """测试上传不支持的 MP3 音频文件
         
@@ -2021,7 +2021,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "不支持的文件类型" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_file_extension_mp4(self, mock_db):
         """测试上传不支持的 MP4 视频文件
         
@@ -2046,7 +2046,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "不支持的文件类型" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_file_extension_png(self, mock_db):
         """测试上传不支持的 PNG 图片文件
         
@@ -2071,7 +2071,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "不支持的文件类型" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_file_without_extension(self, mock_db):
         """测试上传没有扩展名的文件
         
@@ -2096,7 +2096,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "不支持的文件类型" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_mixed_valid_and_invalid_files(self, mock_db):
         """测试上传混合有效和无效文件类型
         
@@ -2129,7 +2129,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "invalid.pdf" in exc_info.value.detail or "pdf" in exc_info.value.detail.lower()
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_double_extension(self, mock_db):
         """测试上传双扩展名文件（如 .tar.gz）
         
@@ -2155,7 +2155,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "不支持的文件类型" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_uppercase_extension(self, mock_db):
         """测试上传大写扩展名的不支持文件
         
@@ -2180,7 +2180,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "不支持的文件类型" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_script_file(self, mock_db):
         """测试上传不支持的脚本文件（.py, .sh, .bat）
         
@@ -2206,7 +2206,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
             assert "不支持的文件类型" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_html_file(self, mock_db):
         """测试上传不支持的 HTML 文件
         
@@ -2231,7 +2231,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "不支持的文件类型" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_xml_file(self, mock_db):
         """测试上传不支持的 XML 文件
         
@@ -2256,7 +2256,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "不支持的文件类型" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_csv_file(self, mock_db):
         """测试上传不支持的 CSV 文件
         
@@ -2281,7 +2281,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "不支持的文件类型" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_markdown_file(self, mock_db):
         """测试上传不支持的 Markdown 文件
         
@@ -2306,7 +2306,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         assert "不支持的文件类型" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_unsupported_yaml_file(self, mock_db):
         """测试上传不支持的 YAML 文件
         
@@ -2332,7 +2332,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
             assert "不支持的文件类型" in exc_info.value.detail
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_supported_txt_file_passes(self, mock_db):
         """测试上传支持的 TXT 文件成功通过验证
         
@@ -2366,7 +2366,7 @@ class TestFileUploadServiceUnsupportedFileTypes:
         mock_db.save_knowledge_base.assert_called_once()
     
     @pytest.mark.asyncio
-    @patch('app.file_upload.sqlite_db_manager')
+    @patch('app.services.file_upload_service.sqlite_db_manager')
     async def test_upload_knowledge_base_supported_json_file_passes(self, mock_db):
         """测试上传支持的 JSON 文件成功通过验证
         
