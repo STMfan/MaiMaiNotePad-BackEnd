@@ -78,7 +78,12 @@ def reset_database(root: Path) -> None:
         db_path.unlink()
     data_dir.mkdir(parents=True, exist_ok=True)
     try:
-        subprocess.run(["alembic", "upgrade", "head"], cwd=root, check=True)
+        # 使用 configs/alembic.ini 配置文件
+        subprocess.run(
+            ["alembic", "-c", "configs/alembic.ini", "upgrade", "head"],
+            cwd=root,
+            check=True
+        )
         print("数据库已使用 Alembic 重新创建")
     except Exception as exc:
         print(f"数据库迁移执行失败: {exc}")
