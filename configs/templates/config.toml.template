@@ -1,0 +1,93 @@
+# MaiMNP 后端配置文件模板
+# 复制此文件为 config.toml 并根据实际情况修改配置
+# 优先级：环境变量 > config.toml > 默认值
+
+[app]
+# 应用基本配置
+name = "MaiMNP Backend"
+version = "1.0.0"
+host = "0.0.0.0"
+port = 9278
+
+[database]
+# 数据库配置
+url = "sqlite:///data/mainnp.db"
+
+[upload]
+# 上传目录配置
+base_dir = "uploads"
+max_file_size_mb = 100
+
+# 头像配置
+[upload.avatar]
+max_size_mb = 2
+max_dimension = 1024
+thumbnail_size = 128
+allowed_formats = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
+
+# 知识库文件配置
+[upload.knowledge]
+max_files = 100
+allowed_types = [".txt", ".json"]
+
+# 人设卡文件配置
+[upload.persona]
+max_files = 1
+allowed_types = [".toml"]
+
+[jwt]
+# JWT 配置
+# 注意：JWT_SECRET_KEY 必须从环境变量读取，不要在此文件中配置
+algorithm = "HS256"
+expiration_hours = 24
+access_token_expire_minutes = 15
+refresh_token_expire_days = 7
+
+[email]
+# 邮件服务配置
+# 注意：MAIL_USER 和 MAIL_PWD 必须从环境变量读取，不要在此文件中配置
+host = "smtp.qq.com"
+port = 465
+timeout = 30
+
+[admin]
+# 管理员配置
+# 注意：SUPERADMIN_PWD 和 HIGHEST_PASSWORD 必须从环境变量读取，不要在此文件中配置
+superadmin_username = "superadmin"
+external_domain = "example.com"
+
+[logging]
+# 日志配置
+level = "INFO"
+file = "logs/app.log"
+
+[security]
+# 密码哈希配置（测试环境可以覆盖）
+bcrypt_rounds = 12
+
+# 登录安全配置
+max_failed_login_attempts = 5
+account_lock_duration_minutes = 30
+
+[email_verification]
+# 邮箱验证码配置
+code_expire_minutes = 2
+hourly_limit = 5
+minute_limit = 1
+
+[pagination]
+# 分页配置
+default_page_size = 20
+max_page_size = 100
+admin_default_page_size = 10
+
+[moderation]
+# 禁言和封禁时长配置（天数）
+mute_durations = ["1d", "7d", "30d", "permanent"]
+ban_durations = ["1d", "7d", "30d", "permanent"]
+
+[statistics]
+# 统计数据配置
+min_trend_days = 1
+max_trend_days = 90
+default_trend_days = 30

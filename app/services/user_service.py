@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.models.database import User
 from app.core.security import verify_password, get_password_hash
+from app.core.config_manager import config_manager
 
 logger = logging.getLogger(__name__)
 
@@ -375,9 +376,13 @@ class UserService:
             user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
             user.last_failed_login = datetime.now()
 
-            # 5 次失败后锁定账户 30 分钟
-            if user.failed_login_attempts >= 5:
-                user.locked_until = datetime.now() + timedelta(minutes=30)
+            # 从配置读取失败次数限制和锁定时长
+            max_attempts = config_manager.get_int("security.max_failed_login_attempts", 5)
+            lock_duration = config_manager.get_int("security.account_lock_duration_minutes", 30)
+            
+            # 达到失败次数限制后锁定账户
+            if user.failed_login_attempts >= max_attempts:
+                user.locked_until = datetime.now() + timedelta(minutes=lock_duration)
                 logger.warning(f'Account locked: username={user.username}, attempts={user.failed_login_attempts}')
 
             self.db.commit()
@@ -708,10 +713,14 @@ class UserService:
             from sqlalchemy import func
             from app.models.database import KnowledgeBase, PersonaCard, DownloadRecord, StarRecord
 
-            if days < 1:
-                days = 1
-            if days > 90:
-                days = 90
+            # 从配置读取天数限制
+            min_days = config_manager.get_int("statistics.min_trend_days", 1)
+            max_days = config_manager.get_int("statistics.max_trend_days", 90)
+            
+            if days < min_days:
+                days = min_days
+            if days > max_days:
+                days = max_days
 
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=days - 1)

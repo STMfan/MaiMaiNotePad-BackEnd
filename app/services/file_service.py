@@ -15,6 +15,7 @@ import tempfile
 from werkzeug.utils import secure_filename
 
 from app.core.config import settings
+from app.core.config_manager import config_manager
 from app.models.database import (
     KnowledgeBase,
     PersonaCard,
@@ -43,11 +44,12 @@ class FileDatabaseError(Exception):
 class FileService:
     """文件服务类"""
 
-    MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE_MB", "100")) * 1024 * 1024
-    MAX_KNOWLEDGE_FILES = 100
-    MAX_PERSONA_FILES = 1
-    ALLOWED_KNOWLEDGE_TYPES = [".txt", ".json"]
-    ALLOWED_PERSONA_TYPES = [".toml"]
+    # 从配置管理器读取配置
+    MAX_FILE_SIZE = settings.MAX_FILE_SIZE_MB * 1024 * 1024
+    MAX_KNOWLEDGE_FILES = config_manager.get_int("upload.knowledge.max_files", 100)
+    MAX_PERSONA_FILES = config_manager.get_int("upload.persona.max_files", 1)
+    ALLOWED_KNOWLEDGE_TYPES = config_manager.get_list("upload.knowledge.allowed_types", [".txt", ".json"])
+    ALLOWED_PERSONA_TYPES = config_manager.get_list("upload.persona.allowed_types", [".toml"])
 
     def __init__(self, db: Session):
         """初始化文件服务

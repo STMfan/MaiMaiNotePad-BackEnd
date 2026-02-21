@@ -12,8 +12,12 @@ if BASE_DIR not in sys.path:
 
 from app.models.database import Base
 
-
+# 使用 configs 目录中的配置文件
 config = context.config
+
+# 如果从命令行运行且没有指定配置文件，使用默认路径
+if config.config_file_name is None:
+    config.config_file_name = os.path.join(BASE_DIR, "configs", "alembic.ini")
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

@@ -11,16 +11,18 @@ from typing import Tuple, Optional
 from PIL import Image, ImageDraw, ImageFont
 import hashlib
 
-# 头像配置
-AVATAR_MAX_SIZE = 2 * 1024 * 1024  # 2MB
-AVATAR_MAX_DIMENSION = 1024  # 1024x1024 像素
-AVATAR_ALLOWED_FORMATS = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+from app.core.config_manager import config_manager
+
+# 头像配置（从配置管理器读取）
+AVATAR_MAX_SIZE = config_manager.get_int("upload.avatar.max_size_mb", 2) * 1024 * 1024
+AVATAR_MAX_DIMENSION = config_manager.get_int("upload.avatar.max_dimension", 1024)
+AVATAR_ALLOWED_FORMATS = config_manager.get_list("upload.avatar.allowed_formats", ['.jpg', '.jpeg', '.png', '.gif', '.webp'])
 
 # 动态获取上传目录，支持测试环境
-_BASE_UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
+_BASE_UPLOAD_DIR = os.getenv("UPLOAD_DIR") or config_manager.get("upload.base_dir", "uploads")
 AVATAR_UPLOAD_DIR = os.path.join(_BASE_UPLOAD_DIR, "avatars")
 
-AVATAR_THUMBNAIL_SIZE = 128  # 缩略图尺寸
+AVATAR_THUMBNAIL_SIZE = config_manager.get_int("upload.avatar.thumbnail_size", 128)
 
 
 def ensure_avatar_dir() -> None:

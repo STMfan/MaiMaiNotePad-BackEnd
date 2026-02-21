@@ -13,11 +13,12 @@ import secrets
 import warnings
 
 from app.core.config import settings
+from app.core.config_manager import config_manager
 
 
 # 密码哈希上下文
 # 在测试环境中使用更少的 rounds 来加速测试（通过 PASSLIB_BCRYPT_ROUNDS 环境变量）
-bcrypt_rounds = int(os.getenv("PASSLIB_BCRYPT_ROUNDS", "12"))
+bcrypt_rounds = int(os.getenv("PASSLIB_BCRYPT_ROUNDS") or config_manager.get_int("security.bcrypt_rounds", 12))
 pwd_context = CryptContext(
     schemes=["bcrypt"],
     deprecated="auto",

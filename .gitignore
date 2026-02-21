@@ -53,6 +53,12 @@ logs/
 .env.test.local
 .env.production.local
 
+# Configuration files (use templates in configs/templates/ instead)
+configs/config.toml
+
+# Pytest cache
+.pytest_cache/
+
 # IDE
 .vscode/
 .idea/

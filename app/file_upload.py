@@ -23,6 +23,8 @@ from app.models.database import (
 )
 from app.error_handlers import ValidationError
 from app.core.database import get_db_context
+from app.core.config import settings
+from app.core.config_manager import config_manager
 
 load_dotenv()
 
@@ -30,14 +32,16 @@ load_dotenv()
 class FileUploadService:
     """文件上传服务"""
 
-    MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE_MB", "100")) * 1024 * 1024
-    MAX_KNOWLEDGE_FILES = 100
-    MAX_PERSONA_FILES = 1
-    ALLOWED_KNOWLEDGE_TYPES = [".txt", ".json"]
-    ALLOWED_PERSONA_TYPES = [".toml"]
+    # 从配置管理器读取配置
+    MAX_FILE_SIZE = settings.MAX_FILE_SIZE_MB * 1024 * 1024
+    MAX_KNOWLEDGE_FILES = config_manager.get_int("upload.knowledge.max_files", 100)
+    MAX_PERSONA_FILES = config_manager.get_int("upload.persona.max_files", 1)
+    ALLOWED_KNOWLEDGE_TYPES = config_manager.get_list("upload.knowledge.allowed_types", [".txt", ".json"])
+    ALLOWED_PERSONA_TYPES = config_manager.get_list("upload.persona.allowed_types", [".toml"])
 
     def __init__(self):
-        base_dir = os.getenv("UPLOAD_DIR", "uploads")
+        # 使用配置管理器获取上传目录
+        base_dir = os.getenv("UPLOAD_DIR", config_manager.get("upload.base_dir", "uploads"))
         if not base_dir:
             base_dir = "uploads"
         if not (base_dir.startswith("/") or base_dir.startswith(".")):

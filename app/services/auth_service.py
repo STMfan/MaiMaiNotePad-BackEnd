@@ -19,6 +19,7 @@ from app.core.security import (
     create_refresh_token,
     ACCESS_TOKEN_EXPIRE_MINUTES
 )
+from app.core.config_manager import config_manager
 
 logger = logging.getLogger(__name__)
 
@@ -227,7 +228,7 @@ class AuthService:
     def save_verification_code(self, email: str, code: str) -> Optional[str]:
         """
         保存邮箱验证码到数据库。
-        验证码有效期为 2 分钟。
+        验证码有效期从配置读取（默认 2 分钟）。
         
         Args:
             email: 邮箱地址（应为小写）
@@ -237,12 +238,15 @@ class AuthService:
             成功返回验证记录 ID，否则返回 None
         """
         try:
+            # 从配置读取验证码有效期
+            expire_minutes = config_manager.get_int("email_verification.code_expire_minutes", 2)
+            
             verification = EmailVerification(
                 id=str(uuid.uuid4()),
                 email=email,
                 code=code,
                 is_used=False,
-                expires_at=datetime.now() + timedelta(minutes=2)
+                expires_at=datetime.now() + timedelta(minutes=expire_minutes)
             )
             self.db.add(verification)
             self.db.commit()
@@ -256,9 +260,8 @@ class AuthService:
 
     def check_email_rate_limit(self, email: str) -> bool:
         """
-        检查邮箱是否超过发送频率限制：
-        - 每小时最多 5 次
-        - 每分钟最多 1 次
+        检查邮箱是否超过发送频率限制。
+        限制从配置读取（默认：每小时 5 次，每分钟 1 次）
         
         Args:
             email: 邮箱地址（应为小写）
@@ -267,27 +270,31 @@ class AuthService:
             未超限返回 True，已超限返回 False
         """
         try:
+            # 从配置读取频率限制
+            hourly_limit = config_manager.get_int("email_verification.hourly_limit", 5)
+            minute_limit = config_manager.get_int("email_verification.minute_limit", 1)
+            
             now = datetime.now()
             one_hour_ago = now - timedelta(hours=1)
             one_minute_ago = now - timedelta(minutes=1)
 
-            # 检查每小时限制（5 次）
+            # 检查每小时限制
             hourly_count = self.db.query(EmailVerification).filter(
                 EmailVerification.email == email,
                 EmailVerification.created_at > one_hour_ago
             ).count()
             
-            if hourly_count >= 5:
+            if hourly_count >= hourly_limit:
                 logger.warning(f'邮箱发送频率超限（每小时）: email={email}, count={hourly_count}')
                 return False
 
-            # 检查每分钟限制（1 次）
+            # 检查每分钟限制
             minute_count = self.db.query(EmailVerification).filter(
                 EmailVerification.email == email,
                 EmailVerification.created_at > one_minute_ago
             ).count()
             
-            if minute_count >= 1:
+            if minute_count >= minute_limit:
                 logger.warning(f'邮箱发送频率超限（每分钟）: email={email}')
                 return False
 
@@ -492,7 +499,7 @@ class AuthService:
     def _increment_failed_login(self, user: User) -> None:
         """
         递增登录失败次数，可能锁定账户。
-        5 次失败后锁定账户 30 分钟。
+        失败次数限制和锁定时长从配置读取（默认：5 次失败后锁定 30 分钟）
         
         Args:
             user: 用户对象
@@ -501,9 +508,13 @@ class AuthService:
             user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
             user.last_failed_login = datetime.now()
 
-            # 5 次失败后锁定账户 30 分钟
-            if user.failed_login_attempts >= 5:
-                user.locked_until = datetime.now() + timedelta(minutes=30)
+            # 从配置读取失败次数限制和锁定时长
+            max_attempts = config_manager.get_int("security.max_failed_login_attempts", 5)
+            lock_duration = config_manager.get_int("security.account_lock_duration_minutes", 30)
+            
+            # 达到失败次数限制后锁定账户
+            if user.failed_login_attempts >= max_attempts:
+                user.locked_until = datetime.now() + timedelta(minutes=lock_duration)
                 logger.warning(
                     f'账户因多次登录失败被锁定: '
                     f'username={user.username}, attempts={user.failed_login_attempts}'

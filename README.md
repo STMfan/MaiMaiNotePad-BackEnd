@@ -1,10 +1,5 @@
 # MaiMaiNotePad 后端服务
 
-[![Tests](https://github.com/<username>/<repo>/workflows/Tests%20and%20Coverage/badge.svg)](https://github.com/<username>/<repo>/actions)
-[![Coverage](./badges/coverage.svg)](./htmlcov/index.html)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.129.0-009688.svg)](https://fastapi.tiangolo.com)
-
 这是一个基于 FastAPI 构建的后端服务，提供知识库管理、人设卡功能、用户管理、消息系统和审核功能。
 
 对应的前端项目位于：`../MaiMaiNotePad-FrontEnd`，两者配合运行即可完成完整功能体验。
@@ -118,28 +113,50 @@ MaiMaiNotePad-BackEnd/
 │       ├── avatar.py             # 头像处理工具
 │       └── websocket.py          # WebSocket 管理器
 ├── tests/                        # 测试目录
-│   ├── __init__.py
+│   ├── docs/                     # 测试文档
+│   ├── fixtures/                 # 测试 fixtures
+│   ├── helpers/                  # 测试辅助工具（供测试使用）
+│   ├── test_helpers/             # 测试辅助工具的单元测试
+│   ├── unit/                     # 单元测试（严格镜像 app/ 结构）
+│   │   ├── api/                  # API 层测试
+│   │   ├── core/                 # 核心模块测试
+│   │   ├── services/             # 服务层测试
+│   │   ├── utils/                # 工具函数测试
+│   │   ├── test_main.py          # 应用主入口测试
+│   │   ├── test_error_handlers.py  # 错误处理器测试
+│   │   └── test_file_upload*.py  # 文件上传相关测试
+│   ├── integration/              # 集成测试
+│   │   └── routes/               # API 路由测试
+│   ├── property/                 # 属性测试（Hypothesis）
 │   ├── conftest.py               # 测试配置
-│   ├── test_auth.py              # 认证测试
-│   ├── test_users.py             # 用户测试
-│   ├── test_knowledge.py         # 知识库测试
-│   └── test_persona.py           # 人设卡测试
+│   └── db_manager.py             # 测试数据库管理器
 ├── alembic/                      # 数据库迁移
 │   ├── versions/                 # 迁移版本
 │   └── env.py                    # Alembic 环境配置
 ├── scripts/                      # 辅助脚本
-│   ├── prepare_test_data.py      # 准备测试数据
-│   └── reset_security_env.py     # 清档脚本
+│   ├── python/                  # Python 脚本
+│   │   ├── generate_error_codes_doc.py    # 生成错误码文档
+│   │   ├── generate_test_templates.py     # 生成测试模板
+│   │   └── reset_security_env.py          # 重置安全环境
+│   └── shell/                   # Shell 脚本
+│       ├── alembic.sh           # Alembic 包装脚本
+│       ├── cleanup.sh           # 清理项目
+│       └── run_parallel_isolation_tests.sh  # 运行并行隔离测试
 ├── docs/                         # 文档目录
 ├── uploads/                      # 上传文件存储
 ├── data/                         # 数据库文件
 ├── logs/                         # 日志文件
 ├── .env                          # 环境变量配置
-├── .env.template                 # 环境变量模板
+├── main.py                       # 应用入口（兼容旧版）
+├── manage.sh                     # 🆕 管理工具（推荐使用）
 ├── requirements.txt              # Python 依赖
-├── alembic.ini                   # Alembic 配置
-├── pytest.ini                    # Pytest 配置
-├── start_backend.sh              # 启动脚本
+├── pyproject.toml                # 项目配置（包含 pytest 配置）
+├── configs/                      # 配置文件目录
+│   ├── config.toml               # 应用配置（不提交到 Git）
+│   ├── alembic.ini               # Alembic 数据库迁移配置
+│   └── templates/                # 配置模板目录
+│       ├── config.toml.template  # 应用配置模板
+│       └── .env.template         # 环境变量模板
 └── README.md                     # 项目文档（本文件）
 ```
 
@@ -160,6 +177,60 @@ MaiMaiNotePad-BackEnd/
 ---
 
 ## 🚀 快速开始
+
+### 方式一：使用管理工具（推荐）
+
+项目提供了友好的命令行管理工具 `manage.sh`，可以通过交互式菜单完成所有操作：
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/STMfan/MaiMaiNotePad-BackEnd.git
+cd MaiMaiNotePad/MaiMaiNotePad-BackEnd
+
+# 2. 安装依赖
+pip install -r requirements.txt
+
+# 3. 启动管理工具（交互式菜单）
+./manage.sh
+```
+
+管理工具提供以下功能：
+- 🚀 启动服务（开发/生产模式）
+- 🧪 运行测试（单元/集成/覆盖率）
+- 🧹 清理项目（缓存、临时文件）
+- 💾 数据库管理（迁移、升级、降级）
+- 📝 生成文档（错误码、测试模板）
+- ⚠️  清档重置（危险操作）
+
+也可以直接使用命令行参数：
+
+```bash
+# 启动开发服务器
+./manage.sh start-dev
+
+# 启动生产服务器
+./manage.sh start-prod
+
+# 运行所有测试
+./manage.sh test
+
+# 运行单元测试
+./manage.sh test-unit
+
+# 生成测试覆盖率报告
+./manage.sh test-cov
+
+# 清理项目
+./manage.sh cleanup
+
+# 升级数据库
+./manage.sh db-upgrade
+
+# 查看所有命令
+./manage.sh help
+```
+
+### 方式二：手动配置
 
 ### 环境要求
 - Python 3.8+
@@ -190,13 +261,34 @@ pip install -r requirements.txt
 - `alembic`: 数据库迁移
 - `pytest`: 测试框架
 
-### 3. 配置环境变量
+### 3. 配置环境变量和应用配置
 
-首次使用时，复制环境变量模板并根据需要修改配置：
+首次使用时，复制配置模板并根据需要修改：
 
 ```bash
-cp .env.template .env
+# 复制环境变量模板
+cp configs/templates/.env.template .env
+
+# 复制应用配置模板
+cp configs/templates/config.toml.template configs/config.toml
 ```
+
+编辑 `.env` 文件，设置必需的环境变量（敏感信息）：
+
+```bash
+# JWT 密钥（必需）
+JWT_SECRET_KEY=your-secret-key-here
+
+# 邮件配置（必需）
+MAIL_USER=your-email@example.com
+MAIL_PWD=your-email-password
+
+# 管理员配置（必需）
+SUPERADMIN_PWD=your-admin-password
+HIGHEST_PASSWORD=your-highest-password
+```
+
+编辑 `configs/config.toml` 文件，根据需要调整应用配置（非敏感信息）。
 
 必须配置的关键项：
 - `JWT_SECRET_KEY`: JWT 密钥（建议使用 32 字符以上的随机字符串）
@@ -213,41 +305,47 @@ cp .env.template .env
 
 ```bash
 # 创建数据库并执行迁移
-alembic upgrade head
+./scripts/shell/alembic.sh upgrade head
+
+# 或者直接使用 alembic 命令（需要指定配置文件）
+alembic -c configs/alembic.ini upgrade head
 ```
 
 这将创建 SQLite 数据库文件 `data/mainnp.db` 并建立所有表结构。
 
 ### 5. 启动服务器
 
-#### 开发模式（推荐）
-
-使用一键启动脚本（会自动以 `--reload` 模式运行 uvicorn）：
+推荐使用管理工具启动服务：
 
 ```bash
-./start_backend.sh
+# 启动开发服务器（会提示输入主机和端口）
+./manage.sh start-dev
+
+# 启动生产服务器（会提示输入配置）
+./manage.sh start-prod
 ```
 
 或直接使用 uvicorn 启动：
 
 ```bash
-# 使用模块方式启动（推荐）
+# 开发模式（自动重载）
 python -m uvicorn app.main:app --host 0.0.0.0 --port 9278 --reload
 
-# 或使用相对路径启动
-uvicorn app.main:app --host 0.0.0.0 --port 9278 --reload
+# 生产模式（多进程）
+python -m uvicorn app.main:app --host 0.0.0.0 --port 9278 --workers 4
 ```
 
 开发模式特性：
-- `--reload`: 代码修改后自动重启
+- 代码修改后自动重启
 - 详细的错误堆栈信息
 - 自动生成的 API 文档
+- 默认访问地址：http://localhost:9278
+- API 文档：http://localhost:9278/docs
 
-#### 生产模式
-```bash
-# 使用gunicorn
-pip install gunicorn
-gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:9278
+生产模式特性：
+- 多进程运行（提高并发性能）
+- 访问日志记录
+- 优化的日志格式
 
 # 或使用Docker
 docker build -t mainnp-backend .
@@ -685,8 +783,8 @@ class UserService:
 2. 在 `app/models/schemas.py` 中定义 Pydantic 模型
 3. 创建 Alembic 迁移：
    ```bash
-   alembic revision --autogenerate -m "Add new model"
-   alembic upgrade head
+   ./scripts/shell/alembic.sh revision --autogenerate -m "Add new model"
+   ./scripts/shell/alembic.sh upgrade head
    ```
 
 #### 3. 添加新的配置项
@@ -804,78 +902,24 @@ def test_create_user(db_session):
     assert user.email == "test@example.com"
 ```
 
-### CI/CD 自动化测试
-
-项目配置了完整的 CI/CD 自动化测试流程，确保代码质量和测试覆盖率。
-
-#### GitHub Actions
-
-项目使用 GitHub Actions 进行持续集成：
-
-- **自动测试**: 每次 push 和 pull request 自动运行测试
-- **覆盖率检查**: 自动检查测试覆盖率，要求达到 100%
-- **多版本测试**: 在 Python 3.11 和 3.12 上测试
-- **性能监控**: 确保测试套件在 2 分钟内完成
-
-#### 本地 CI 测试
-
-在提交代码前，可以在本地运行 CI 测试：
-
-**Linux/macOS:**
-```bash
-./scripts/run_ci_tests.sh
-```
-
-**Windows:**
-```cmd
-scripts\run_ci_tests.bat
-```
-
-这些脚本会：
-- 检查 Python 版本和依赖
-- 创建必需的目录
-- 配置测试环境变量
-- 运行完整的测试套件和覆盖率分析
-- 检查测试性能
-- 生成覆盖率报告和徽章
-
-#### 覆盖率报告
-
-测试完成后，可以查看详细的覆盖率报告：
-
-```bash
-# 在浏览器中打开 HTML 报告
-open htmlcov/index.html  # macOS
-xdg-open htmlcov/index.html  # Linux
-start htmlcov/index.html  # Windows
-```
-
-#### 更多信息
-
-详细的 CI/CD 配置和使用说明，请参考：
-- [CI 配置文档](docs/testing/CI_CONFIGURATION.md)
-- [覆盖率配置](docs/testing/COVERAGE_CONFIGURATION.md)
-- [并行测试](docs/testing/PARALLEL_TESTING.md)
-
 ### 数据库迁移
 
 使用 Alembic 管理数据库迁移：
 
 ```bash
-# 创建新的迁移
-alembic revision --autogenerate -m "描述迁移内容"
+# 使用包装脚本（推荐）
+./scripts/shell/alembic.sh revision --autogenerate -m "描述迁移内容"
+./scripts/shell/alembic.sh upgrade head
+./scripts/shell/alembic.sh downgrade -1
+./scripts/shell/alembic.sh history
+./scripts/shell/alembic.sh current
 
-# 应用迁移
-alembic upgrade head
-
-# 回滚迁移
-alembic downgrade -1
-
-# 查看迁移历史
-alembic history
-
-# 查看当前版本
-alembic current
+# 或者直接使用 alembic 命令（需要指定配置文件）
+alembic -c configs/alembic.ini revision --autogenerate -m "描述迁移内容"
+alembic -c configs/alembic.ini upgrade head
+alembic -c configs/alembic.ini downgrade -1
+alembic -c configs/alembic.ini history
+alembic -c configs/alembic.ini current
 ```
 
 ### 调试技巧
