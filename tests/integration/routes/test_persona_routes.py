@@ -578,9 +578,7 @@ class TestDeleteFilesFromPersonaCard:
         file1 = factory.create_persona_card_file(persona_card=pc)
         file2 = factory.create_persona_card_file(persona_card=pc)
 
-        with patch(
-            "app.services.file_upload_service.FileUploadService.delete_files_from_persona_card"
-        ) as mock_delete:
+        with patch("app.services.file_upload_service.FileUploadService.delete_files_from_persona_card") as mock_delete:
             mock_delete.return_value = True
 
             response = authenticated_client.delete(f"/api/persona/{pc.id}/{file1.id}")
@@ -596,9 +594,7 @@ class TestDeleteFilesFromPersonaCard:
         file1 = factory.create_persona_card_file(persona_card=pc)
         pc_id = pc.id
 
-        with patch(
-            "app.services.file_upload_service.FileUploadService.delete_files_from_persona_card"
-        ) as mock_delete:
+        with patch("app.services.file_upload_service.FileUploadService.delete_files_from_persona_card") as mock_delete:
             mock_delete.return_value = True
 
             # Delete the file record from database to simulate no remaining files

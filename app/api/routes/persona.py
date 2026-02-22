@@ -133,7 +133,7 @@ async def upload_persona_card(
         return Success(message="人设卡上传成功", data=pc.to_dict())
 
     except FileValidationError as e:
-        raise ValidationError(e.message, details=getattr(e, 'details', {}))
+        raise ValidationError(e.message, details=getattr(e, "details", {}))
     except FileDatabaseError as e:
         raise DatabaseError(e.message)
     except (ValidationError, FileOperationError, DatabaseError, HTTPException):

@@ -174,7 +174,7 @@ async def get_message_detail(
         msg_type: Literal["direct", "announcement"] = "direct"
         if message.message_type == "announcement":
             msg_type = "announcement"
-        
+
         return Success(
             message="消息详情获取成功",
             data=MessageResponse(
@@ -236,7 +236,7 @@ async def get_messages(
             msg_type: Literal["direct", "announcement"] = "direct"
             if msg.message_type == "announcement":
                 msg_type = "announcement"
-            
+
             message_responses.append(
                 MessageResponse(
                     id=msg.id,
@@ -251,7 +251,7 @@ async def get_messages(
                     created_at=msg.created_at if msg.created_at else datetime.now(),
                 )
             )
-        
+
         return Success(
             message="消息列表获取成功",
             data=message_responses,
@@ -294,7 +294,7 @@ async def get_messages_by_type(
             msg_type: Literal["direct", "announcement"] = "direct"
             if msg.message_type == "announcement":
                 msg_type = "announcement"
-            
+
             message_responses.append(
                 MessageResponse(
                     id=msg.id,
@@ -309,7 +309,7 @@ async def get_messages_by_type(
                     created_at=msg.created_at if msg.created_at else datetime.now(),
                 )
             )
-        
+
         return Success(
             message="按类型获取消息列表成功",
             data=message_responses,

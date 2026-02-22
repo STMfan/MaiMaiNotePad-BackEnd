@@ -304,7 +304,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
     ) -> JSONResponse:
         """创建错误响应"""
         from typing import Dict, Any
-        
+
         code = resolve_error_code(status_code, message, None)
         display_message = resolve_display_message(code, message)
         error_response: Dict[str, Any] = {

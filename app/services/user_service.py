@@ -646,7 +646,9 @@ class UserService:
             if target_type == "knowledge":
                 from app.models.database import KnowledgeBaseFile
 
-                kb_files = self.db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == target_id).all()
+                kb_files = (
+                    self.db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == target_id).all()
+                )
                 total_size = sum(f.file_size for f in kb_files if f.file_size)
                 return total_size
             elif target_type == "persona":

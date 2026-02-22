@@ -45,13 +45,13 @@ class FileUploadService:
     def __init__(self, db: Optional[Session] = None):
         """
         初始化文件上传服务
-        
+
         Args:
             db: SQLAlchemy 数据库会话。如果为 None，将在每个方法中使用 get_db_context()
         """
         self.db = db
         self._owns_db = db is None  # 标记是否需要自己管理数据库会话
-        
+
         # 使用配置管理器获取上传目录
         base_dir = os.getenv("UPLOAD_DIR", config_manager.get("upload.base_dir", "uploads"))
         if not base_dir:
@@ -64,7 +64,7 @@ class FileUploadService:
         os.makedirs(self.upload_dir, exist_ok=True)
         os.makedirs(self.knowledge_dir, exist_ok=True)
         os.makedirs(self.persona_dir, exist_ok=True)
-    
+
     def _get_db(self) -> Session:
         """获取数据库会话"""
         if self.db is not None:
@@ -213,7 +213,7 @@ class FileUploadService:
     ) -> KnowledgeBase:
         """上传知识库"""
         db = self._get_db()
-        
+
         # 验证文件数量
         if len(files) > self.MAX_KNOWLEDGE_FILES:
             raise HTTPException(
@@ -250,6 +250,7 @@ class FileUploadService:
         try:
             # 创建知识库记录
             import uuid
+
             kb = KnowledgeBase(
                 id=str(uuid.uuid4()),
                 name=name,
@@ -264,7 +265,7 @@ class FileUploadService:
                 created_at=datetime.now(),
                 updated_at=datetime.now(),
             )
-            
+
             db.add(kb)
             db.flush()  # 获取 ID 但不提交
 
@@ -289,16 +290,13 @@ class FileUploadService:
             db.commit()
             db.refresh(kb)
             return kb
-            
+
         except Exception as e:
             db.rollback()
             # 清理已创建的目录
             if os.path.exists(kb_dir):
                 shutil.rmtree(kb_dir)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"知识库保存失败: {str(e)}"
-            )
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"知识库保存失败: {str(e)}")
 
     async def upload_persona_card(
         self,
@@ -385,6 +383,7 @@ class FileUploadService:
 
             # 创建 PersonaCard 对象（不保存到数据库，由调用者处理）
             import uuid
+
             pc = PersonaCard(
                 id=str(uuid.uuid4()),
                 name=name,
@@ -412,21 +411,14 @@ class FileUploadService:
     def get_knowledge_base_content(self, kb_id: str) -> Dict[str, Any]:
         """获取知识库内容"""
         db = self._get_db()
-        
-        kb = db.query(KnowledgeBase).filter(
-            KnowledgeBase.id == kb_id
-        ).first()
-        
+
+        kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+
         if not kb:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="知识库不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在")
 
         # 获取知识库文件列表
-        kb_files = db.query(KnowledgeBaseFile).filter(
-            KnowledgeBaseFile.knowledge_base_id == kb_id
-        ).all()
+        kb_files = db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == kb_id).all()
 
         return {
             "knowledge_base": kb.to_dict(),
@@ -443,21 +435,14 @@ class FileUploadService:
     def get_persona_card_content(self, pc_id: str) -> Dict[str, Any]:
         """获取人设卡内容"""
         db = self._get_db()
-        
-        pc = db.query(PersonaCard).filter(
-            PersonaCard.id == pc_id
-        ).first()
-        
+
+        pc = db.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
+
         if not pc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="人设卡不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="人设卡不存在")
 
         # 获取人设卡文件列表
-        pc_files = db.query(PersonaCardFile).filter(
-            PersonaCardFile.persona_card_id == pc_id
-        ).all()
+        pc_files = db.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == pc_id).all()
 
         return {
             "persona_card": pc.to_dict(),
@@ -476,19 +461,15 @@ class FileUploadService:
     ) -> Optional[KnowledgeBase]:
         """向知识库添加文件"""
         db = self._get_db()
-        
+
         # 获取知识库信息
-        kb = db.query(KnowledgeBase).filter(
-            KnowledgeBase.id == kb_id
-        ).first()
-        
+        kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+
         if not kb:
             raise ValidationError(message="知识库不存在")
 
         # 获取知识库现有文件
-        current_files = db.query(KnowledgeBaseFile).filter(
-            KnowledgeBaseFile.knowledge_base_id == kb_id
-        ).all()
+        current_files = db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == kb_id).all()
         current_file_count = len(current_files)
 
         # 检查文件数量限制
@@ -524,14 +505,12 @@ class FileUploadService:
         # 获取知识库目录
         kb_dir = kb.base_path
         if not kb_dir or not os.path.exists(kb_dir):
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="知识库目录不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="知识库目录不存在")
 
         try:
             # 保存新文件并创建文件记录
             import uuid
+
             for file in files:
                 file_path, file_size_b = await self._save_uploaded_file_with_size(file, kb_dir)
                 file_ext = os.path.splitext(file.filename)[1].lower()
@@ -554,48 +533,35 @@ class FileUploadService:
             db.commit()
             db.refresh(kb)
             return kb
-            
+
         except Exception as e:
             db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"添加文件失败: {str(e)}"
-            )
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"添加文件失败: {str(e)}")
 
     async def delete_files_from_knowledge_base(self, kb_id: str, file_id: str, user_id: str) -> bool:
         """从知识库删除文件"""
         db = self._get_db()
-        
+
         # 获取知识库信息
-        kb = db.query(KnowledgeBase).filter(
-            KnowledgeBase.id == kb_id
-        ).first()
-        
+        kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+
         if not kb:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="知识库不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在")
 
         # 获取要删除的文件
-        kb_file = db.query(KnowledgeBaseFile).filter(
-            KnowledgeBaseFile.id == file_id,
-            KnowledgeBaseFile.knowledge_base_id == kb_id
-        ).first()
-        
+        kb_file = (
+            db.query(KnowledgeBaseFile)
+            .filter(KnowledgeBaseFile.id == file_id, KnowledgeBaseFile.knowledge_base_id == kb_id)
+            .first()
+        )
+
         if not kb_file:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="文件不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
 
         # 获取知识库目录
         kb_dir = kb.base_path
         if not kb_dir or not os.path.exists(kb_dir):
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="知识库目录不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="知识库目录不存在")
 
         try:
             # 删除物理文件
@@ -605,12 +571,12 @@ class FileUploadService:
 
             # 删除数据库记录
             db.delete(kb_file)
-            
+
             # 更新知识库时间戳
             kb.updated_at = datetime.now()
             db.commit()
             return True
-            
+
         except Exception as e:
             db.rollback()
             raise HTTPException(
@@ -621,34 +587,30 @@ class FileUploadService:
     async def delete_knowledge_base(self, kb_id: str, user_id: str) -> bool:
         """删除整个知识库"""
         db = self._get_db()
-        
+
         # 获取知识库信息
-        kb = db.query(KnowledgeBase).filter(
-            KnowledgeBase.id == kb_id
-        ).first()
-        
+        kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+
         if not kb:
             return False
 
         # 获取知识库目录
         kb_dir = kb.base_path
-        
+
         try:
             # 删除数据库中的文件记录
-            db.query(KnowledgeBaseFile).filter(
-                KnowledgeBaseFile.knowledge_base_id == kb_id
-            ).delete()
-            
+            db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == kb_id).delete()
+
             # 删除知识库记录
             db.delete(kb)
             db.commit()
-            
+
             # 删除整个知识库目录
             if kb_dir and os.path.exists(kb_dir):
                 shutil.rmtree(kb_dir)
-            
+
             return True
-            
+
         except Exception as e:
             db.rollback()
             print(f"删除知识库失败 {kb_id}: {str(e)}")
@@ -657,27 +619,18 @@ class FileUploadService:
     async def create_knowledge_base_zip(self, kb_id: str) -> dict:
         """创建知识库的ZIP文件，返回ZIP文件路径和文件名"""
         db = self._get_db()
-        
+
         # 获取知识库信息
-        kb = db.query(KnowledgeBase).filter(
-            KnowledgeBase.id == kb_id
-        ).first()
-        
+        kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+
         if not kb:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="知识库不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在")
 
         # 获取知识库文件列表
-        kb_files = db.query(KnowledgeBaseFile).filter(
-            KnowledgeBaseFile.knowledge_base_id == kb_id
-        ).all()
+        kb_files = db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == kb_id).all()
 
         # 获取上传者信息
-        uploader = db.query(User).filter(
-            User.id == kb.uploader_id
-        ).first()
+        uploader = db.query(User).filter(User.id == kb.uploader_id).first()
         uploader_name = uploader.username if uploader else "未知用户"
 
         # 检查文件是否存在
@@ -689,8 +642,7 @@ class FileUploadService:
 
         if missing_files:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"以下文件不存在: {', '.join(missing_files)}"
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"以下文件不存在: {', '.join(missing_files)}"
             )
 
         # 创建临时ZIP文件
@@ -737,290 +689,262 @@ class FileUploadService:
             # 清理临时文件
             if os.path.exists(zip_path):
                 os.remove(zip_path)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"创建压缩包失败: {str(e)}"
-            )
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"创建压缩包失败: {str(e)}")
 
     async def get_knowledge_base_file_path(self, kb_id: str, file_id: str) -> dict:
         """获取知识库中指定文件的完整路径"""
         db = self._get_db()
-        
+
         # 获取知识库信息
-        kb = db.query(KnowledgeBase).filter(
-            KnowledgeBase.id == kb_id
-        ).first()
-        
+        kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+
         if not kb:
             return None
 
         # 查找文件
-        kb_file = db.query(KnowledgeBaseFile).filter(
-            KnowledgeBaseFile.id == file_id,
-            KnowledgeBaseFile.knowledge_base_id == kb_id
-        ).first()
-        
+        kb_file = (
+            db.query(KnowledgeBaseFile)
+            .filter(KnowledgeBaseFile.id == file_id, KnowledgeBaseFile.knowledge_base_id == kb_id)
+            .first()
+        )
+
         if not kb_file:
             return None
-        
-        return {
-            "file_name": kb_file.original_name,
-            "file_path": kb_file.file_path
-        }
+
+        return {"file_name": kb_file.original_name, "file_path": kb_file.file_path}
 
     async def add_files_to_persona_card(self, pc_id: str, files: List[UploadFile]) -> Optional[PersonaCard]:
-            """向人设卡添加文件"""
-            db = self._get_db()
+        """向人设卡添加文件"""
+        db = self._get_db()
 
-            # 获取人设卡信息
-            pc = db.query(PersonaCard).filter(
-                PersonaCard.id == pc_id
-            ).first()
+        # 获取人设卡信息
+        pc = db.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
 
-            if not pc:
-                return None
+        if not pc:
+            return None
 
-            # 获取当前人设卡的所有文件
-            current_files = db.query(PersonaCardFile).filter(
-                PersonaCardFile.persona_card_id == pc_id
-            ).all()
+        # 获取当前人设卡的所有文件
+        current_files = db.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == pc_id).all()
 
-            # 只允许一次上传一个文件
-            if len(files) != 1:
+        # 只允许一次上传一个文件
+        if len(files) != 1:
+            raise ValidationError(
+                message="人设卡配置错误：一次仅支持上传一个 bot_config.toml 文件",
+                details={"code": "PERSONA_FILE_COUNT_INVALID"},
+            )
+
+        # 验证文件类型、名称和大小
+        for file in files:
+            if file.filename != "bot_config.toml":
                 raise ValidationError(
-                    message="人设卡配置错误：一次仅支持上传一个 bot_config.toml 文件",
-                    details={"code": "PERSONA_FILE_COUNT_INVALID"},
+                    message=f"人设卡配置错误：文件名必须为 bot_config.toml，当前为 {file.filename}",
+                    details={"code": "PERSONA_FILE_NAME_INVALID", "filename": file.filename},
                 )
 
-            # 验证文件类型、名称和大小
-            for file in files:
-                if file.filename != "bot_config.toml":
-                    raise ValidationError(
-                        message=f"人设卡配置错误：文件名必须为 bot_config.toml，当前为 {file.filename}",
-                        details={"code": "PERSONA_FILE_NAME_INVALID", "filename": file.filename},
-                    )
-
-                if not self._validate_file_type(file, self.ALLOWED_PERSONA_TYPES):
-                    raise ValidationError(
-                        message=f"人设卡配置错误：不支持的文件类型 {file.filename}，仅支持{', '.join(self.ALLOWED_PERSONA_TYPES)} 文件",
-                        details={"code": "PERSONA_FILE_TYPE_INVALID", "filename": file.filename},
-                    )
-
-                if not self._validate_file_size(file):
-                    raise ValidationError(
-                        message=f"人设卡配置错误：文件过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
-                        details={"code": "PERSONA_FILE_SIZE_EXCEEDED", "filename": file.filename},
-                    )
-
-                # 验证实际文件内容大小
-                if not await self._validate_file_content(file):
-                    raise ValidationError(
-                        message=f"人设卡配置错误：文件内容过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
-                        details={"code": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED", "filename": file.filename},
-                    )
-
-            # 获取人设卡目录
-            pc_dir = pc.base_path
-            if not pc_dir or not os.path.exists(pc_dir):
-                raise DatabaseError(message="人设卡目录不存在，请稍后重试或联系管理员")
-
-            # 保存新文件并创建文件记录，同时校验 TOML 版本号
-            new_file = files[0]
-            persona_version: Optional[str] = None
-            file_path, file_size_b = await self._save_uploaded_file_with_size(new_file, pc_dir)
-            file_ext = os.path.splitext(new_file.filename)[1].lower()
-
-            try:
-                if file_ext == ".toml":
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        toml_data = toml.load(f)
-                    parsed_version = self._extract_version_from_toml(toml_data)
-                    if not parsed_version:
-                        raise ValidationError(
-                            message="人设卡配置错误：TOML 中未找到版本号字段，请在 bot_config.toml 中添加 version 等版本字段后重试",
-                            details={"code": "PERSONA_TOML_VERSION_MISSING"},
-                        )
-                    persona_version = parsed_version
-
-                # 创建新文件记录
-                import uuid
-                pc_file = PersonaCardFile(
-                    id=str(uuid.uuid4()),
-                    persona_card_id=pc_id,
-                    file_name=new_file.filename,
-                    original_name=new_file.filename,
-                    file_path=os.path.basename(file_path),
-                    file_type=file_ext,
-                    file_size=file_size_b,
-                    created_at=datetime.now(),
-                )
-                db.add(pc_file)
-                db.flush()
-
-                # 新文件保存成功后，删除旧文件及记录（实现"替换"）
-                for old_file in current_files:
-                    try:
-                        old_full_path = os.path.join(pc_dir, old_file.file_path)
-                        if os.path.exists(old_full_path):
-                            os.remove(old_full_path)
-                        db.delete(old_file)
-                    except Exception as e:
-                        raise DatabaseError(
-                            message=f"删除旧人设卡文件失败：{old_file.original_name}，错误：{str(e)}"
-                        )
-
-                # 更新人设卡时间戳和版本号
-                pc.updated_at = datetime.now()
-                if persona_version:
-                    pc.version = persona_version
-
-                db.commit()
-                db.refresh(pc)
-                return pc
-
-            except HTTPException:
-                db.rollback()
-                # 删除新文件，保留旧文件不变
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                raise
-            except Exception:
-                db.rollback()
-                if os.path.exists(file_path):
-                    os.remove(file_path)
+            if not self._validate_file_type(file, self.ALLOWED_PERSONA_TYPES):
                 raise ValidationError(
-                    message="人设卡配置解析失败：TOML 语法错误，请检查 bot_config.toml 格式是否正确",
-                    details={"code": "PERSONA_TOML_PARSE_ERROR"},
+                    message=f"人设卡配置错误：不支持的文件类型 {file.filename}，仅支持{', '.join(self.ALLOWED_PERSONA_TYPES)} 文件",
+                    details={"code": "PERSONA_FILE_TYPE_INVALID", "filename": file.filename},
                 )
+
+            if not self._validate_file_size(file):
+                raise ValidationError(
+                    message=f"人设卡配置错误：文件过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
+                    details={"code": "PERSONA_FILE_SIZE_EXCEEDED", "filename": file.filename},
+                )
+
+            # 验证实际文件内容大小
+            if not await self._validate_file_content(file):
+                raise ValidationError(
+                    message=f"人设卡配置错误：文件内容过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
+                    details={"code": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED", "filename": file.filename},
+                )
+
+        # 获取人设卡目录
+        pc_dir = pc.base_path
+        if not pc_dir or not os.path.exists(pc_dir):
+            raise DatabaseError(message="人设卡目录不存在，请稍后重试或联系管理员")
+
+        # 保存新文件并创建文件记录，同时校验 TOML 版本号
+        new_file = files[0]
+        persona_version: Optional[str] = None
+        file_path, file_size_b = await self._save_uploaded_file_with_size(new_file, pc_dir)
+        file_ext = os.path.splitext(new_file.filename)[1].lower()
+
+        try:
+            if file_ext == ".toml":
+                with open(file_path, "r", encoding="utf-8") as f:
+                    toml_data = toml.load(f)
+                parsed_version = self._extract_version_from_toml(toml_data)
+                if not parsed_version:
+                    raise ValidationError(
+                        message="人设卡配置错误：TOML 中未找到版本号字段，请在 bot_config.toml 中添加 version 等版本字段后重试",
+                        details={"code": "PERSONA_TOML_VERSION_MISSING"},
+                    )
+                persona_version = parsed_version
+
+            # 创建新文件记录
+            import uuid
+
+            pc_file = PersonaCardFile(
+                id=str(uuid.uuid4()),
+                persona_card_id=pc_id,
+                file_name=new_file.filename,
+                original_name=new_file.filename,
+                file_path=os.path.basename(file_path),
+                file_type=file_ext,
+                file_size=file_size_b,
+                created_at=datetime.now(),
+            )
+            db.add(pc_file)
+            db.flush()
+
+            # 新文件保存成功后，删除旧文件及记录（实现"替换"）
+            for old_file in current_files:
+                try:
+                    old_full_path = os.path.join(pc_dir, old_file.file_path)
+                    if os.path.exists(old_full_path):
+                        os.remove(old_full_path)
+                    db.delete(old_file)
+                except Exception as e:
+                    raise DatabaseError(message=f"删除旧人设卡文件失败：{old_file.original_name}，错误：{str(e)}")
+
+            # 更新人设卡时间戳和版本号
+            pc.updated_at = datetime.now()
+            if persona_version:
+                pc.version = persona_version
+
+            db.commit()
+            db.refresh(pc)
+            return pc
+
+        except HTTPException:
+            db.rollback()
+            # 删除新文件，保留旧文件不变
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            raise
+        except Exception:
+            db.rollback()
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            raise ValidationError(
+                message="人设卡配置解析失败：TOML 语法错误，请检查 bot_config.toml 格式是否正确",
+                details={"code": "PERSONA_TOML_PARSE_ERROR"},
+            )
 
     async def delete_files_from_persona_card(self, pc_id: str, file_id: str, user_id: str) -> bool:
-            """从人设卡删除文件"""
-            db = self._get_db()
+        """从人设卡删除文件"""
+        db = self._get_db()
 
-            # 获取人设卡信息
-            pc = db.query(PersonaCard).filter(
-                PersonaCard.id == pc_id
-            ).first()
+        # 获取人设卡信息
+        pc = db.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
 
-            if not pc:
-                return False
+        if not pc:
+            return False
 
-            # 获取要删除的文件
-            pc_file = db.query(PersonaCardFile).filter(
-                PersonaCardFile.id == file_id,
-                PersonaCardFile.persona_card_id == pc_id
-            ).first()
+        # 获取要删除的文件
+        pc_file = (
+            db.query(PersonaCardFile)
+            .filter(PersonaCardFile.id == file_id, PersonaCardFile.persona_card_id == pc_id)
+            .first()
+        )
 
-            if not pc_file:
-                return False
+        if not pc_file:
+            return False
 
-            # 获取人设卡目录
-            pc_dir = pc.base_path
-            if not pc_dir or not os.path.exists(pc_dir):
-                return False
+        # 获取人设卡目录
+        pc_dir = pc.base_path
+        if not pc_dir or not os.path.exists(pc_dir):
+            return False
 
-            try:
-                # 删除物理文件
-                file_full_path = os.path.join(pc_dir, pc_file.file_path)
-                if os.path.exists(file_full_path):
-                    os.remove(file_full_path)
+        try:
+            # 删除物理文件
+            file_full_path = os.path.join(pc_dir, pc_file.file_path)
+            if os.path.exists(file_full_path):
+                os.remove(file_full_path)
 
-                # 删除数据库记录
-                db.delete(pc_file)
+            # 删除数据库记录
+            db.delete(pc_file)
 
-                # 更新人设卡时间戳
-                pc.updated_at = datetime.now()
-                db.commit()
-                return True
+            # 更新人设卡时间戳
+            pc.updated_at = datetime.now()
+            db.commit()
+            return True
 
-            except Exception as e:
-                db.rollback()
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"删除文件失败 {pc_file.original_name}: {str(e)}",
-                )
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"删除文件失败 {pc_file.original_name}: {str(e)}",
+            )
 
     async def get_persona_card_file_path(self, pc_id: str, file_id: str) -> dict:
-            """获取人设卡中指定文件的信息"""
-            db = self._get_db()
+        """获取人设卡中指定文件的信息"""
+        db = self._get_db()
 
-            # 获取人设卡信息
-            pc = db.query(PersonaCard).filter(
-                PersonaCard.id == pc_id
-            ).first()
+        # 获取人设卡信息
+        pc = db.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
 
-            if not pc:
-                return None
+        if not pc:
+            return None
 
-            # 查找文件
-            pc_file = db.query(PersonaCardFile).filter(
-                PersonaCardFile.id == file_id,
-                PersonaCardFile.persona_card_id == pc_id
-            ).first()
+        # 查找文件
+        pc_file = (
+            db.query(PersonaCardFile)
+            .filter(PersonaCardFile.id == file_id, PersonaCardFile.persona_card_id == pc_id)
+            .first()
+        )
 
-            if not pc_file:
-                return None
+        if not pc_file:
+            return None
 
-            return {
-                "file_id": pc_file.id,
-                "file_name": pc_file.original_name,
-                "file_path": pc_file.file_path
-            }
+        return {"file_id": pc_file.id, "file_name": pc_file.original_name, "file_path": pc_file.file_path}
 
     async def create_persona_card_zip(self, pc_id: str) -> dict:
-            """创建人设卡的ZIP文件，返回ZIP文件路径和文件名"""
-            db = self._get_db()
+        """创建人设卡的ZIP文件，返回ZIP文件路径和文件名"""
+        db = self._get_db()
 
-            # 获取人设卡信息
-            pc = db.query(PersonaCard).filter(
-                PersonaCard.id == pc_id
-            ).first()
+        # 获取人设卡信息
+        pc = db.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
 
-            if not pc:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="人设卡不存在"
-                )
+        if not pc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="人设卡不存在")
 
-            # 获取人设卡文件列表
-            pc_files = db.query(PersonaCardFile).filter(
-                PersonaCardFile.persona_card_id == pc_id
-            ).all()
+        # 获取人设卡文件列表
+        pc_files = db.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == pc_id).all()
 
-            # 获取上传者信息
-            uploader = db.query(User).filter(
-                User.id == pc.uploader_id
-            ).first()
-            uploader_name = uploader.username if uploader else "未知用户"
+        # 获取上传者信息
+        uploader = db.query(User).filter(User.id == pc.uploader_id).first()
+        uploader_name = uploader.username if uploader else "未知用户"
 
-            # 检查文件是否存在
-            missing_files = []
-            for pc_file in pc_files:
-                file_full_path = os.path.join(pc.base_path, pc_file.file_path)
-                if not os.path.exists(file_full_path):
-                    missing_files.append(pc_file.original_name)
+        # 检查文件是否存在
+        missing_files = []
+        for pc_file in pc_files:
+            file_full_path = os.path.join(pc.base_path, pc_file.file_path)
+            if not os.path.exists(file_full_path):
+                missing_files.append(pc_file.original_name)
 
-            if missing_files:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"以下文件不存在: {', '.join(missing_files)}"
-                )
+        if missing_files:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"以下文件不存在: {', '.join(missing_files)}"
+            )
 
-            # 创建临时ZIP文件
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            zip_filename = f"{pc.name}-{uploader_name}_{timestamp}.zip"
-            temp_dir = tempfile.gettempdir()
-            zip_path = os.path.join(temp_dir, zip_filename)
+        # 创建临时ZIP文件
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        zip_filename = f"{pc.name}-{uploader_name}_{timestamp}.zip"
+        temp_dir = tempfile.gettempdir()
+        zip_path = os.path.join(temp_dir, zip_filename)
 
-            try:
-                with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-                    # 添加人设卡文件
-                    for pc_file in pc_files:
-                        file_full_path = os.path.join(pc.base_path, pc_file.file_path)
-                        zipf.write(file_full_path, pc_file.original_name)
+        try:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+                # 添加人设卡文件
+                for pc_file in pc_files:
+                    file_full_path = os.path.join(pc.base_path, pc_file.file_path)
+                    zipf.write(file_full_path, pc_file.original_name)
 
-                    # 创建说明文件
-                    readme_content = f"""人设卡下载包
+                # 创建说明文件
+                readme_content = f"""人设卡下载包
     ==================
 
     人设卡名称: {pc.name}
@@ -1032,28 +956,25 @@ class FileUploadService:
 
     包含文件:
     """
-                    for pc_file in pc_files:
-                        file_size_b = pc_file.file_size or 0
-                        readme_content += f"- {pc_file.original_name} ({file_size_b} B)\n"
+                for pc_file in pc_files:
+                    file_size_b = pc_file.file_size or 0
+                    readme_content += f"- {pc_file.original_name} ({file_size_b} B)\n"
 
-                    readme_content += """
+                readme_content += """
     注意事项:
     - 本压缩包包含人设卡的所有文件
     - 请遵守相关的版权协议
     """
 
-                    zipf.writestr("README.txt", readme_content)
+                zipf.writestr("README.txt", readme_content)
 
-                return {"zip_path": zip_path, "zip_filename": zip_filename}
+            return {"zip_path": zip_path, "zip_filename": zip_filename}
 
-            except Exception as e:
-                # 清理临时文件
-                if os.path.exists(zip_path):
-                    os.remove(zip_path)
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"创建压缩包失败: {str(e)}"
-                )
+        except Exception as e:
+            # 清理临时文件
+            if os.path.exists(zip_path):
+                os.remove(zip_path)
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"创建压缩包失败: {str(e)}")
 
 
 # 注意：FileUploadService 需要在使用时传入 db 参数

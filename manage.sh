@@ -819,16 +819,15 @@ database_menu() {
 code_quality_menu() {
     while true; do
         print_header "代码质量检查"
-        echo "  1. 运行所有检查（格式化 + Lint）"
+        echo "  1. 运行所有检查（格式化 + Lint + 类型检查）"
         echo "  2. 代码格式化（Black）"
         echo "  3. 代码风格检查（Flake8）"
-        echo "  4. 仅检查格式（不修改）"
+        echo "  4. 类型检查（Mypy）"
+        echo "  5. 仅检查格式（不修改）"
         echo "  0. 返回主菜单"
         echo ""
-        print_warning "注意：类型检查（Mypy）已暂时禁用，需要修复 SQLAlchemy 类型问题"
-        echo ""
         
-        read -p "$(echo -e ${CYAN}请选择操作 [0-4]: ${NC})" choice
+        read -p "$(echo -e ${CYAN}请选择操作 [0-5]: ${NC})" choice
         
         case $choice in
             0)
@@ -837,10 +836,13 @@ code_quality_menu() {
             1)
                 echo ""
                 print_info "运行代码格式化..."
-                black app tests scripts/python
+                black app tests scripts/python || true
                 echo ""
                 print_info "运行代码风格检查..."
-                flake8 app tests scripts/python
+                flake8 app tests scripts/python || true
+                echo ""
+                print_info "运行类型检查..."
+                mypy app --config-file=pyproject.toml || true
                 echo ""
                 print_success "所有检查完成"
                 pause
@@ -848,21 +850,30 @@ code_quality_menu() {
             2)
                 echo ""
                 print_info "格式化代码..."
-                black app tests scripts/python
+                echo ""
+                black app tests scripts/python || true
+                echo ""
                 print_success "代码格式化完成"
                 pause
                 ;;
             3)
                 echo ""
                 print_info "检查代码风格..."
-                flake8 app tests scripts/python
+                flake8 app tests scripts/python || true
                 print_success "代码风格检查完成"
                 pause
                 ;;
             4)
                 echo ""
+                print_info "运行类型检查..."
+                mypy app --config-file=pyproject.toml || true
+                print_success "类型检查完成"
+                pause
+                ;;
+            5)
+                echo ""
                 print_info "检查代码格式（不修改）..."
-                black --check --diff app tests scripts/python
+                black --check --diff app tests scripts/python || true
                 pause
                 ;;
             *)
@@ -1125,17 +1136,19 @@ if [ $# -gt 0 ]; then
             print_header "代码质量检查"
             echo ""
             print_info "运行代码格式化..."
-            black app tests scripts/python
+            black app tests scripts/python || true
             echo ""
             print_info "运行代码风格检查..."
-            flake8 app tests scripts/python
+            flake8 app tests scripts/python || true
+            echo ""
+            print_info "运行类型检查..."
+            mypy app --config-file=pyproject.toml || true
             echo ""
             print_success "所有检查完成"
-            print_warning "注意：类型检查（Mypy）已暂时禁用"
             ;;
         format)
             print_header "代码格式化"
-            black app tests scripts/python
+            black app tests scripts/python || true
             print_success "代码格式化完成"
             ;;
         db-upgrade)

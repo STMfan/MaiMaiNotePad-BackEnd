@@ -2147,15 +2147,15 @@ class TestDashboardTrendStats:
         """测试基本的趋势统计"""
         user = factory.create_user()
         service = UserService(test_db)
-        
+
         result = service.get_dashboard_trend_stats(user.id, days=7)
-        
+
         assert result is not None
         assert "days" in result
         assert "items" in result
         assert result["days"] == 7
         assert len(result["items"]) == 7
-        
+
         # 验证每一天的数据结构
         for item in result["items"]:
             assert "date" in item
@@ -2168,9 +2168,9 @@ class TestDashboardTrendStats:
         """测试有数据的趋势统计"""
         from app.models.database import KnowledgeBase, PersonaCard, DownloadRecord, StarRecord
         import uuid
-        
+
         user = factory.create_user()
-        
+
         # 创建知识库
         kb = KnowledgeBase(
             id=str(uuid.uuid4()),
@@ -2181,10 +2181,10 @@ class TestDashboardTrendStats:
             is_pending=False,
             is_public=True,
             created_at=datetime.now(),
-            updated_at=datetime.now()
+            updated_at=datetime.now(),
         )
         test_db.add(kb)
-        
+
         # 创建人格卡
         pc = PersonaCard(
             id=str(uuid.uuid4()),
@@ -2197,55 +2197,49 @@ class TestDashboardTrendStats:
             is_pending=False,
             is_public=True,
             created_at=datetime.now(),
-            updated_at=datetime.now()
+            updated_at=datetime.now(),
         )
         test_db.add(pc)
         test_db.commit()
-        
+
         # 创建下载记录
         download1 = DownloadRecord(
-            id=str(uuid.uuid4()),
-            target_id=kb.id,
-            target_type="knowledge",
-            created_at=datetime.now()
+            id=str(uuid.uuid4()), target_id=kb.id, target_type="knowledge", created_at=datetime.now()
         )
         test_db.add(download1)
-        
+
         download2 = DownloadRecord(
-            id=str(uuid.uuid4()),
-            target_id=pc.id,
-            target_type="persona",
-            created_at=datetime.now()
+            id=str(uuid.uuid4()), target_id=pc.id, target_type="persona", created_at=datetime.now()
         )
         test_db.add(download2)
-        
+
         # 创建收藏记录
         star1 = StarRecord(
             id=str(uuid.uuid4()),
             target_id=kb.id,
             target_type="knowledge",
             user_id=str(uuid.uuid4()),
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
         test_db.add(star1)
-        
+
         star2 = StarRecord(
             id=str(uuid.uuid4()),
             target_id=pc.id,
             target_type="persona",
             user_id=str(uuid.uuid4()),
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
         test_db.add(star2)
         test_db.commit()
-        
+
         service = UserService(test_db)
         result = service.get_dashboard_trend_stats(user.id, days=7)
-        
+
         assert result is not None
         assert result["days"] == 7
         assert len(result["items"]) == 7
-        
+
         # 今天应该有数据
         today_str = datetime.now().date().strftime("%Y-%m-%d")
         today_item = next((item for item in result["items"] if item["date"] == today_str), None)
@@ -2259,10 +2253,10 @@ class TestDashboardTrendStats:
         """测试最小天数限制"""
         user = factory.create_user()
         service = UserService(test_db)
-        
+
         # 请求 0 天，应该被限制为最小值（1天）
         result = service.get_dashboard_trend_stats(user.id, days=0)
-        
+
         assert result is not None
         assert result["days"] >= 1
 
@@ -2270,10 +2264,10 @@ class TestDashboardTrendStats:
         """测试最大天数限制"""
         user = factory.create_user()
         service = UserService(test_db)
-        
+
         # 请求 1000 天，应该被限制为最大值（90天）
         result = service.get_dashboard_trend_stats(user.id, days=1000)
-        
+
         assert result is not None
         assert result["days"] <= 90
 
@@ -2281,9 +2275,9 @@ class TestDashboardTrendStats:
         """测试 30 天的趋势统计"""
         user = factory.create_user()
         service = UserService(test_db)
-        
+
         result = service.get_dashboard_trend_stats(user.id, days=30)
-        
+
         assert result is not None
         assert result["days"] == 30
         assert len(result["items"]) == 30
@@ -2291,14 +2285,14 @@ class TestDashboardTrendStats:
     def test_get_dashboard_trend_stats_database_error(self, test_db, factory):
         """测试数据库错误时的处理"""
         user = factory.create_user()
-        
+
         # 创建一个会抛出异常的 mock
         db_mock = Mock(spec=Session)
         db_mock.query.side_effect = Exception("Database error")
-        
+
         service = UserService(db_mock)
         result = service.get_dashboard_trend_stats(user.id, days=7)
-        
+
         # 应该返回空数据而不是抛出异常
         assert result is not None
         assert result["days"] == 7
@@ -2308,13 +2302,13 @@ class TestDashboardTrendStats:
         """测试没有数据的用户"""
         user = factory.create_user()
         service = UserService(test_db)
-        
+
         result = service.get_dashboard_trend_stats(user.id, days=7)
-        
+
         assert result is not None
         assert result["days"] == 7
         assert len(result["items"]) == 7
-        
+
         # 所有数据应该为 0
         for item in result["items"]:
             assert item["knowledgeDownloads"] == 0
@@ -2330,11 +2324,11 @@ class TestUserServiceAdditionalCoverage:
         """测试更新用户邮箱时的冲突"""
         user1 = factory.create_user(username="user1", email="user1@example.com")
         user2 = factory.create_user(username="user2", email="user2@example.com")
-        
+
         service = UserService(test_db)
-        
+
         # 尝试将 user2 的邮箱改为 user1 的邮箱
         result = service.update_user(user2.id, email="user1@example.com")
-        
+
         # 应该返回 None，因为邮箱已存在
         assert result is None
