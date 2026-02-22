@@ -272,18 +272,8 @@ class LogAnalyzer:
         print("=" * 80)
 
 
-def main():
-    """主函数"""
-    # 项目根目录
-    project_root = Path(__file__).parent.parent.parent
-    log_dir = project_root / "logs"
-
-    if not log_dir.exists():
-        print(f"❌ 日志目录不存在: {log_dir}")
-        sys.exit(1)
-
-    analyzer = LogAnalyzer(log_dir)
-
+def _print_welcome_message():
+    """打印欢迎信息和使用说明"""
     print("=" * 80)
     print("智能日志分析工具")
     print("=" * 80)
@@ -308,108 +298,174 @@ def main():
     print("=" * 80)
     print()
 
+
+def _read_multiline_input() -> str:
+    """读取多行输入
+    
+    Returns:
+        合并后的输入字符串
+    """
+    lines = []
+    first_line = True
+    
+    while True:
+        try:
+            if first_line:
+                line = input("> ").strip()
+                first_line = False
+            else:
+                line = input("  ").strip()
+            
+            # 如果是空行且已经有内容，结束输入
+            if not line and lines:
+                break
+            
+            # 如果第一行就是空行，继续等待
+            if not line and not lines:
+                continue
+            
+            lines.append(line)
+            
+            # 检查是否是退出命令（只在第一行检查）
+            if len(lines) == 1 and line.lower() in ["q", "quit", "exit"]:
+                return "QUIT"
+            
+            # 检查是否是清屏命令（只在第一行检查）
+            if len(lines) == 1 and line.lower() in ["clear", "cls"]:
+                return "CLEAR"
+        
+        except EOFError:
+            # Ctrl+D 结束输入
+            break
+    
+    return " ".join(lines).strip()
+
+
+def _clear_screen():
+    """清屏并重新显示欢迎信息"""
+    import os
+    os.system("clear" if os.name != "nt" else "cls")
+    _print_welcome_message()
+
+
+def _display_query(query: str):
+    """显示接收到的查询内容
+    
+    Args:
+        query: 查询字符串
+    """
+    print()
+    print("📥 接收到的查询内容:")
+    print("-" * 80)
+    if len(query) > 200:
+        print(f"{query[:200]}...")
+        print(f"（共 {len(query)} 字符）")
+    else:
+        print(query)
+    print("-" * 80)
+
+
+def _display_search_terms(terms: dict):
+    """显示提取的搜索条件
+    
+    Args:
+        terms: 搜索条件字典
+        
+    Returns:
+        是否有有效的搜索条件
+    """
+    print()
+    print("🔍 提取的搜索条件:")
+    
+    if terms["request_ids"]:
+        print(f"  请求ID: {', '.join(terms['request_ids'])}")
+    if terms["error_codes"]:
+        print(f"  错误码: {', '.join(terms['error_codes'])}")
+    if terms["status_codes"]:
+        print(f"  状态码: {', '.join(terms['status_codes'])}")
+    if terms["keywords"]:
+        print(f"  关键词: {', '.join(terms['keywords'])}")
+    
+    has_terms = any(terms.values())
+    if not has_terms:
+        print("  ⚠️  未能提取到有效的搜索条件")
+    
+    return has_terms
+
+
+def _process_query(analyzer: LogAnalyzer, query: str):
+    """处理单个查询
+    
+    Args:
+        analyzer: 日志分析器实例
+        query: 查询字符串
+    """
+    # 显示查询内容
+    _display_query(query)
+    
+    # 提取搜索词
+    terms = analyzer.extract_search_terms(query)
+    
+    # 显示搜索条件
+    if not _display_search_terms(terms):
+        return
+    
+    # 搜索日志
+    print()
+    print("🔎 正在搜索日志...")
+    results = analyzer.search_logs(terms)
+    
+    # 分析结果
+    analysis = analyzer.analyze_results(results)
+    
+    # 输出结果
+    analyzer.format_output(results, analysis, show_context=True)
+
+
+def main():
+    """主函数"""
+    # 项目根目录
+    project_root = Path(__file__).parent.parent.parent
+    log_dir = project_root / "logs"
+    
+    if not log_dir.exists():
+        print(f"❌ 日志目录不存在: {log_dir}")
+        sys.exit(1)
+    
+    analyzer = LogAnalyzer(log_dir)
+    
+    # 显示欢迎信息
+    _print_welcome_message()
+    
     while True:
         try:
             print("请输入查询内容（多行输入请以空行结束，输入q/quit/exit退出程序）:")
-
+            
             # 读取多行输入
-            lines = []
-            first_line = True
-
-            while True:
-                try:
-                    if first_line:
-                        line = input("> ").strip()
-                        first_line = False
-                    else:
-                        line = input("  ").strip()
-
-                    # 如果是空行且已经有内容，结束输入
-                    if not line and lines:
-                        break
-
-                    # 如果第一行就是空行，继续等待
-                    if not line and not lines:
-                        continue
-
-                    lines.append(line)
-
-                    # 检查是否是命令（只在第一行检查）
-                    if len(lines) == 1:
-                        if line.lower() in ["q", "quit", "exit"]:
-                            print("再见！")
-                            return
-
-                        if line.lower() in ["clear", "cls"]:
-                            import os
-
-                            os.system("clear" if os.name != "nt" else "cls")
-                            print("=" * 80)
-                            print("智能日志分析工具")
-                            print("=" * 80)
-                            print()
-                            lines = []
-                            first_line = True
-                            continue
-
-                except EOFError:
-                    # Ctrl+D 结束输入
-                    break
-
-            # 合并所有行
-            query = " ".join(lines).strip()
-
+            query = _read_multiline_input()
+            
+            # 处理特殊命令
+            if query == "QUIT":
+                print("再见！")
+                return
+            
+            if query == "CLEAR":
+                _clear_screen()
+                continue
+            
+            # 跳过空查询
             if not query:
                 continue
-
-            # 显示接收到的完整内容
-            print()
-            print("📥 接收到的查询内容:")
-            print("-" * 80)
-            if len(query) > 200:
-                print(f"{query[:200]}...")
-                print(f"（共 {len(query)} 字符）")
-            else:
-                print(query)
-            print("-" * 80)
-
-            # 提取搜索词
-            terms = analyzer.extract_search_terms(query)
-
-            # 显示提取的搜索词
-            print()
-            print("🔍 提取的搜索条件:")
-            if terms["request_ids"]:
-                print(f"  请求ID: {', '.join(terms['request_ids'])}")
-            if terms["error_codes"]:
-                print(f"  错误码: {', '.join(terms['error_codes'])}")
-            if terms["status_codes"]:
-                print(f"  状态码: {', '.join(terms['status_codes'])}")
-            if terms["keywords"]:
-                print(f"  关键词: {', '.join(terms['keywords'])}")
-
-            if not any(terms.values()):
-                print("  ⚠️  未能提取到有效的搜索条件")
-                continue
-
-            # 搜索日志
-            print()
-            print("🔎 正在搜索日志...")
-            results = analyzer.search_logs(terms)
-
-            # 分析结果
-            analysis = analyzer.analyze_results(results)
-
-            # 输出结果
-            analyzer.format_output(results, analysis, show_context=True)
-
+            
+            # 处理查询
+            _process_query(analyzer, query)
+        
         except KeyboardInterrupt:
             print("\n\n再见！")
             break
         except Exception as e:
             print(f"\n❌ 错误: {e}")
             import traceback
-
             traceback.print_exc()
 
 

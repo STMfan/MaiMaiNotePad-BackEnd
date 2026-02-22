@@ -31,84 +31,192 @@ router = APIRouter()
 
 
 # 消息相关路由（发送、查询、标记已读、删除等）
+def _validate_message_input(title: str, content: str) -> tuple[str, str]:
+    """验证消息输入
+    
+    Args:
+        title: 消息标题
+        content: 消息内容
+        
+    Returns:
+        清理后的标题和内容元组
+        
+    Raises:
+        ValidationError: 输入验证失败
+    """
+    title = (title or "").strip()
+    content = (content or "").strip()
+    
+    if not title:
+        raise ValidationError("消息标题不能为空")
+    if not content:
+        raise ValidationError("消息内容不能为空")
+    
+    return title, content
+
+
+def _validate_broadcast_permissions(
+    message_type: str,
+    broadcast_scope: Optional[str],
+    user_role: str
+) -> None:
+    """验证广播权限
+    
+    Args:
+        message_type: 消息类型
+        broadcast_scope: 广播范围
+        user_role: 用户角色
+        
+    Raises:
+        ValidationError: 广播类型不匹配
+        AuthorizationError: 权限不足
+    """
+    # 只有announcement类型可以使用broadcast_scope
+    if broadcast_scope and message_type != "announcement":
+        raise ValidationError("只有公告类型消息可以使用广播功能")
+    
+    # 发送全用户广播需要管理员或审核员权限
+    if broadcast_scope == "all_users":
+        is_admin_or_moderator = user_role in ["admin", "moderator", "super_admin"]
+        if not is_admin_or_moderator:
+            raise AuthorizationError("只有管理员和审核员可以发送全用户广播")
+
+
+def _collect_recipient_ids(
+    message_service: MessageService,
+    recipient_id: Optional[str],
+    recipient_ids: Optional[List[str]],
+    message_type: str,
+    broadcast_scope: Optional[str],
+    sender_id: str
+) -> set:
+    """收集接收者ID
+    
+    Args:
+        message_service: 消息服务实例
+        recipient_id: 单个接收者ID
+        recipient_ids: 多个接收者ID列表
+        message_type: 消息类型
+        broadcast_scope: 广播范围
+        sender_id: 发送者ID
+        
+    Returns:
+        接收者ID集合
+        
+    Raises:
+        ValidationError: 接收者为空
+    """
+    recipients = set()
+    
+    # 收集指定的接收者
+    if recipient_id:
+        recipients.add(recipient_id)
+    if recipient_ids:
+        recipients.update(recipient_ids)
+    
+    # 处理全用户广播
+    if broadcast_scope == "all_users":
+        all_users = message_service.get_all_users()
+        recipients.update(user.id for user in all_users if user.id)
+    
+    # 移除发送者自身（仅限全用户广播公告）
+    if (
+        sender_id in recipients
+        and message_type == "announcement"
+        and broadcast_scope == "all_users"
+    ):
+        recipients.discard(sender_id)
+    
+    # 验证接收者
+    if message_type == "direct" and not recipients:
+        raise ValidationError("接收者ID不能为空")
+    
+    if not recipients:
+        raise ValidationError("没有有效的接收者")
+    
+    return recipients
+
+
+def _validate_and_deduplicate_recipients(
+    message_service: MessageService,
+    recipient_ids: set
+) -> dict:
+    """验证并去重接收者
+    
+    Args:
+        message_service: 消息服务实例
+        recipient_ids: 接收者ID集合
+        
+    Returns:
+        去重后的接收者字典 {user_id: user_object}
+        
+    Raises:
+        NotFoundError: 接收者不存在
+    """
+    # 检查接收者是否存在
+    recipient_objects = message_service.get_users_by_ids(list(recipient_ids))
+    found_ids = {user.id for user in recipient_objects}
+    missing = recipient_ids - found_ids
+    
+    if missing:
+        raise NotFoundError(f"接收者不存在: {', '.join(missing)}")
+    
+    # 按用户ID去重，确保每个用户只创建一条消息
+    unique_recipients = {}
+    for user in recipient_objects:
+        if user.id and user.id not in unique_recipients:
+            unique_recipients[user.id] = user
+    
+    return unique_recipients
+
+
 @router.post("/messages/send", response_model=BaseResponse[dict])
 async def send_message(
     message: MessageCreate, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """发送消息"""
     sender_id = current_user.get("id", "")
+    
     try:
         app_logger.info(
             f"Send message: sender={sender_id}, type={message.message_type}, "
             f"recipient={message.recipient_id}, broadcast_scope={message.broadcast_scope}"
         )
-
-        title = (message.title or "").strip()
-        content = (message.content or "").strip()
-
-        if not title:
-            raise ValidationError("消息标题不能为空")
-
-        if not content:
-            raise ValidationError("消息内容不能为空")
-
-        # 权限检查：只有announcement类型可以使用broadcast_scope
-        if message.broadcast_scope and message.message_type != "announcement":
-            raise ValidationError("只有公告类型消息可以使用广播功能")
-
-        # 权限检查：发送全用户广播需要管理员或审核员权限
-        if message.broadcast_scope == "all_users":
-            user_role = current_user.get("role", "user")
-            is_admin_or_moderator = user_role in ["admin", "moderator", "super_admin"]
-            if not is_admin_or_moderator:
-                raise AuthorizationError("只有管理员和审核员可以发送全用户广播")
-
+        
+        # 验证输入
+        title, content = _validate_message_input(message.title, message.content)
+        
+        # 验证广播权限
+        _validate_broadcast_permissions(
+            message.message_type,
+            message.broadcast_scope,
+            current_user.get("role", "user")
+        )
+        
         # 使用服务层
         message_service = MessageService(db)
-
-        recipient_ids = set()
-        if message.recipient_id:
-            recipient_ids.add(message.recipient_id)
-        if message.recipient_ids:
-            recipient_ids.update(message.recipient_ids)
-
-        if message.message_type == "direct":
-            if not recipient_ids:
-                raise ValidationError("接收者ID不能为空")
-        elif message.broadcast_scope == "all_users":
-            all_users = message_service.get_all_users()
-            recipient_ids.update(user.id for user in all_users if user.id)
-
-        # 移除发送者自身除非显式指定
-        if (
-            sender_id in recipient_ids
-            and message.message_type == "announcement"
-            and message.broadcast_scope == "all_users"
-        ):
-            recipient_ids.discard(sender_id)
-
-        if not recipient_ids:
-            raise ValidationError("没有有效的接收者")
-
-        # 检查接收者是否存在
-        recipient_objects = message_service.get_users_by_ids(list(recipient_ids))
-        found_ids = {user.id for user in recipient_objects}
-        missing = recipient_ids - found_ids
-        if missing:
-            raise NotFoundError(f"接收者不存在: {', '.join(missing)}")
-
-        # 对接收者对象按用户ID去重，确保每个用户只创建一条消息
-        # 使用字典按用户ID去重，保留第一个出现的用户对象
-        unique_recipients = {}
-        for user in recipient_objects:
-            if user.id and user.id not in unique_recipients:
-                unique_recipients[user.id] = user
-
-        # 如果未提供summary，可以从content自动生成（取前150字符）
+        
+        # 收集接收者ID
+        recipient_ids = _collect_recipient_ids(
+            message_service,
+            message.recipient_id,
+            message.recipient_ids,
+            message.message_type,
+            message.broadcast_scope,
+            sender_id
+        )
+        
+        # 验证并去重接收者
+        unique_recipients = _validate_and_deduplicate_recipients(
+            message_service,
+            recipient_ids
+        )
+        
+        # 生成摘要
         summary = message.summary
         if not summary and content:
             summary = message_service.generate_summary(content)
-
+        
         # 创建消息
         created_messages = message_service.create_messages(
             sender_id=sender_id,
@@ -119,16 +227,17 @@ async def send_message(
             message_type=message.message_type,
             broadcast_scope=message.broadcast_scope,
         )
-
+        
         if not created_messages:
             raise DatabaseError("消息创建失败")
-
+        
         # 记录数据库操作成功
         for msg in created_messages:
             log_database_operation(app_logger, "create", "message", record_id=msg.id, user_id=sender_id, success=True)
-
-        await message_ws_manager.broadcast_user_update(recipient_ids)
-
+        
+        # 广播WebSocket更新
+        await message_ws_manager.broadcast_user_update(set(unique_recipients.keys()))
+        
         return Success(
             message="消息发送成功",
             data={
@@ -137,7 +246,7 @@ async def send_message(
                 "count": len(created_messages),
             },
         )
-
+    
     except (ValidationError, NotFoundError, DatabaseError):
         raise
     except Exception as e:

@@ -32,6 +32,7 @@ from app.core.error_handlers import (
 # 导入错误处理和日志记录模块
 from app.core.logging import app_logger, log_exception, log_file_operation, log_database_operation
 from app.models.schemas import KnowledgeBaseUpdate
+from app.models.database import KnowledgeBase
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.services.knowledge_service import KnowledgeService
@@ -405,68 +406,13 @@ async def update_knowledge_base(
     try:
         app_logger.info(f"Update knowledge base: kb_id={kb_id}, user_id={user_id}")
 
-        # 使用服务层
         knowledge_service = KnowledgeService(db)
+        kb = _validate_kb_for_update(knowledge_service, kb_id, user_id, current_user)
 
-        # 检查知识库是否存在
-        kb = knowledge_service.get_knowledge_base_by_id(kb_id)
-        if not kb:
-            raise NotFoundError("知识库不存在")
+        update_dict = _prepare_update_dict(update_data, kb, current_user)
+        _apply_kb_updates(kb, update_dict, db)
 
-        # 验证权限：只有上传者和管理员可以修改
-        if (
-            kb.uploader_id != user_id
-            and not current_user.get("is_admin", False)
-            and not current_user.get("is_moderator", False)
-        ):
-            raise AuthorizationError("是你的知识库吗你就改")
-
-        # 更新知识库信息
-        update_dict = update_data.model_dump(exclude_unset=True)
-        if not update_dict:
-            raise ValidationError("没有提供要更新的字段")
-
-        # 仅私有知识库允许修改基础信息和文件；
-        # 公开或审核中的知识库仅允许修改补充说明（content）
-        if kb.is_public or kb.is_pending:
-            allowed_fields = {"content"}
-            disallowed_fields = [key for key in update_dict.keys() if key not in allowed_fields]
-            if disallowed_fields:
-                raise AuthorizationError("公开或审核中的知识库仅允许修改补充说明")
-
-        # 版权所有者不可通过该接口修改
-        if "copyright_owner" in update_dict:
-            update_dict.pop("copyright_owner", None)
-
-        # 名称不可通过该接口修改
-        if "name" in update_dict:
-            update_dict.pop("name", None)
-
-        # 业务规则（仅对非公开/非审核中的私有知识库生效）：
-        # - 普通用户可以修改名称、描述等基础信息
-        # - 普通用户可以将私有知识库标记为待审核（is_pending=True）以申请公开
-        # - 只有管理员或审核员可以直接修改 is_public 状态
-        if not (kb.is_public or kb.is_pending):
-            if "is_public" in update_dict and not (
-                current_user.get("is_admin", False) or current_user.get("is_moderator", False)
-            ):
-                raise AuthorizationError("只有管理员可以直接修改公开状态")
-
-        # 更新数据库记录
-        for key, value in update_dict.items():
-            if hasattr(kb, key):
-                setattr(kb, key, value)
-
-        if any(field != "content" for field in update_dict.keys()):
-            kb.updated_at = datetime.now()
-
-        # 提交更改
-        db.commit()
-        db.refresh(kb)
-
-        # 记录数据库操作成功
         log_database_operation(app_logger, "update", "knowledge_base", record_id=kb_id, user_id=user_id, success=True)
-
         return Success(message="修改知识库成功", data=kb_to_dict(kb))
 
     except (NotFoundError, AuthorizationError, ValidationError, DatabaseError):
@@ -483,6 +429,126 @@ async def update_knowledge_base(
             error_message=str(e),
         )
         raise APIError("修改知识库失败")
+
+
+def _validate_kb_for_update(
+    knowledge_service: KnowledgeService, kb_id: str, user_id: str, current_user: dict
+) -> KnowledgeBase:
+    """验证知识库是否可以更新
+
+    Args:
+        knowledge_service: 知识库服务实例
+        kb_id: 知识库ID
+        user_id: 用户ID
+        current_user: 当前用户信息
+
+    Returns:
+        知识库对象
+
+    Raises:
+        NotFoundError: 知识库不存在
+        AuthorizationError: 无权限修改
+    """
+    kb = knowledge_service.get_knowledge_base_by_id(kb_id)
+    if not kb:
+        raise NotFoundError("知识库不存在")
+
+    # 验证权限：只有上传者和管理员可以修改
+    if (
+        kb.uploader_id != user_id
+        and not current_user.get("is_admin", False)
+        and not current_user.get("is_moderator", False)
+    ):
+        raise AuthorizationError("是你的知识库吗你就改")
+
+    return kb
+
+
+def _prepare_update_dict(
+    update_data: KnowledgeBaseUpdate, kb: KnowledgeBase, current_user: dict
+) -> dict:
+    """准备更新字典并验证权限
+
+    Args:
+        update_data: 更新数据
+        kb: 知识库对象
+        current_user: 当前用户信息
+
+    Returns:
+        处理后的更新字典
+
+    Raises:
+        ValidationError: 没有提供要更新的字段
+        AuthorizationError: 权限不足
+    """
+    update_dict = update_data.model_dump(exclude_unset=True)
+    if not update_dict:
+        raise ValidationError("没有提供要更新的字段")
+
+    # 仅私有知识库允许修改基础信息和文件；
+    # 公开或审核中的知识库仅允许修改补充说明（content）
+    if kb.is_public or kb.is_pending:
+        _validate_public_kb_updates(update_dict)
+
+    # 移除不允许通过该接口修改的字段
+    update_dict.pop("copyright_owner", None)
+    update_dict.pop("name", None)
+
+    # 验证 is_public 修改权限
+    if not (kb.is_public or kb.is_pending):
+        _validate_public_status_change(update_dict, current_user)
+
+    return update_dict
+
+
+def _validate_public_kb_updates(update_dict: dict) -> None:
+    """验证公开或审核中的知识库更新
+
+    Args:
+        update_dict: 更新字典
+
+    Raises:
+        AuthorizationError: 尝试修改不允许的字段
+    """
+    allowed_fields = {"content"}
+    disallowed_fields = [key for key in update_dict.keys() if key not in allowed_fields]
+    if disallowed_fields:
+        raise AuthorizationError("公开或审核中的知识库仅允许修改补充说明")
+
+
+def _validate_public_status_change(update_dict: dict, current_user: dict) -> None:
+    """验证公开状态修改权限
+
+    Args:
+        update_dict: 更新字典
+        current_user: 当前用户信息
+
+    Raises:
+        AuthorizationError: 普通用户尝试直接修改公开状态
+    """
+    if "is_public" in update_dict and not (
+        current_user.get("is_admin", False) or current_user.get("is_moderator", False)
+    ):
+        raise AuthorizationError("只有管理员可以直接修改公开状态")
+
+
+def _apply_kb_updates(kb: KnowledgeBase, update_dict: dict, db: Session) -> None:
+    """应用知识库更新
+
+    Args:
+        kb: 知识库对象
+        update_dict: 更新字典
+        db: 数据库会话
+    """
+    for key, value in update_dict.items():
+        if hasattr(kb, key):
+            setattr(kb, key, value)
+
+    if any(field != "content" for field in update_dict.keys()):
+        kb.updated_at = datetime.now()
+
+    db.commit()
+    db.refresh(kb)
 
 
 @router.post("/{kb_id}/files")
@@ -569,73 +635,21 @@ async def delete_files_from_knowledge_base(
     try:
         app_logger.info(f"Delete files from knowledge base: kb_id={kb_id}, user_id={user_id}")
 
-        # 使用服务层
         knowledge_service = KnowledgeService(db)
-
-        # 检查知识库是否存在
-        kb = knowledge_service.get_knowledge_base_by_id(kb_id)
-        if not kb:
-            raise NotFoundError("知识库不存在")
-
-        # 验证权限：只有上传者和管理员可以删除文件
-        if (
-            kb.uploader_id != user_id
-            and not current_user.get("is_admin", False)
-            and not current_user.get("is_moderator", False)
-        ):
-            raise AuthorizationError("是你的知识库吗你就删")
-
-        # 仅私有知识库允许删除文件，公开或审核中的知识库不允许修改文件
-        if kb.is_public or kb.is_pending:
-            raise AuthorizationError("公开或审核中的知识库不允许修改文件")
+        kb = _validate_kb_for_file_deletion(knowledge_service, kb_id, user_id, current_user)
 
         if not file_id:
-            return Success(
-                message="文件删除成功",
-            )
+            return Success(message="文件删除成功")
 
-        # 使用 FileService 删除文件
         file_service = FileService(db)
-        success = file_service.delete_file_from_knowledge_base(kb_id, file_id, user_id)
+        _delete_file_from_kb(file_service, kb_id, file_id, user_id)
 
-        if not success:
-            raise FileOperationError("删除文件失败")
+        knowledge_deleted = _cleanup_empty_kb_if_needed(knowledge_service, file_service, kb_id, user_id)
 
-        knowledge_deleted = False
-        # 检查是否还有剩余文件，没有则自动删除整个知识库
-        remaining_files = knowledge_service.get_files_by_knowledge_base_id(kb_id)
-        if not remaining_files:
-            cleanup_success = file_service.delete_knowledge_base(kb_id, user_id)
-            if not cleanup_success:
-                raise FileOperationError("删除知识库文件失败")
-
-            if not knowledge_service.delete_knowledge_base(kb_id):
-                raise DatabaseError("删除知识库记录失败")
-
-            try:
-                knowledge_service.delete_upload_records_by_target(kb_id)
-            except Exception as e:
-                app_logger.warning(f"删除知识库上传记录失败: {str(e)}")
-
-            knowledge_deleted = True
-
-        # 记录文件操作成功
-        log_file_operation(app_logger, "delete_files", f"knowledge_base/{kb_id}", user_id=user_id, success=True)
-
-        # 记录数据库操作成功
-        log_database_operation(app_logger, "update", "knowledge_base", record_id=kb_id, user_id=user_id, success=True)
-
-        if knowledge_deleted:
-            # 补充记录知识库删除日志
-            log_file_operation(app_logger, "delete", f"knowledge_base/{kb_id}", user_id=user_id, success=True)
-            log_database_operation(
-                app_logger, "delete", "knowledge_base", record_id=kb_id, user_id=user_id, success=True
-            )
+        _log_file_deletion_success(kb_id, user_id, knowledge_deleted)
 
         message = "最后一个文件删除，知识库已自动删除" if knowledge_deleted else "文件删除成功"
-        return Success(
-            message=message,
-        )
+        return Success(message=message)
 
     except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError):
         raise
@@ -649,6 +663,115 @@ async def delete_files_from_knowledge_base(
             app_logger, "delete_files", f"knowledge_base/{kb_id}", user_id=user_id, success=False, error_message=str(e)
         )
         raise APIError("删除文件失败")
+
+
+def _validate_kb_for_file_deletion(
+    knowledge_service: KnowledgeService, kb_id: str, user_id: str, current_user: dict
+) -> KnowledgeBase:
+    """验证知识库是否可以删除文件
+
+    Args:
+        knowledge_service: 知识库服务实例
+        kb_id: 知识库ID
+        user_id: 用户ID
+        current_user: 当前用户信息
+
+    Returns:
+        知识库对象
+
+    Raises:
+        NotFoundError: 知识库不存在
+        AuthorizationError: 无权限或知识库状态不允许删除
+    """
+    kb = knowledge_service.get_knowledge_base_by_id(kb_id)
+    if not kb:
+        raise NotFoundError("知识库不存在")
+
+    # 验证权限：只有上传者和管理员可以删除文件
+    if (
+        kb.uploader_id != user_id
+        and not current_user.get("is_admin", False)
+        and not current_user.get("is_moderator", False)
+    ):
+        raise AuthorizationError("是你的知识库吗你就删")
+
+    # 仅私有知识库允许删除文件，公开或审核中的知识库不允许修改文件
+    if kb.is_public or kb.is_pending:
+        raise AuthorizationError("公开或审核中的知识库不允许修改文件")
+
+    return kb
+
+
+def _delete_file_from_kb(file_service: FileService, kb_id: str, file_id: str, user_id: str) -> None:
+    """从知识库中删除文件
+
+    Args:
+        file_service: 文件服务实例
+        kb_id: 知识库ID
+        file_id: 文件ID
+        user_id: 用户ID
+
+    Raises:
+        FileOperationError: 删除文件失败
+    """
+    success = file_service.delete_file_from_knowledge_base(kb_id, file_id, user_id)
+    if not success:
+        raise FileOperationError("删除文件失败")
+
+
+def _cleanup_empty_kb_if_needed(
+    knowledge_service: KnowledgeService, file_service: FileService, kb_id: str, user_id: str
+) -> bool:
+    """如果知识库没有剩余文件，则自动删除整个知识库
+
+    Args:
+        knowledge_service: 知识库服务实例
+        file_service: 文件服务实例
+        kb_id: 知识库ID
+        user_id: 用户ID
+
+    Returns:
+        是否删除了知识库
+
+    Raises:
+        FileOperationError: 删除知识库文件失败
+        DatabaseError: 删除知识库记录失败
+    """
+    remaining_files = knowledge_service.get_files_by_knowledge_base_id(kb_id)
+    if remaining_files:
+        return False
+
+    cleanup_success = file_service.delete_knowledge_base(kb_id, user_id)
+    if not cleanup_success:
+        raise FileOperationError("删除知识库文件失败")
+
+    if not knowledge_service.delete_knowledge_base(kb_id):
+        raise DatabaseError("删除知识库记录失败")
+
+    try:
+        knowledge_service.delete_upload_records_by_target(kb_id)
+    except Exception as e:
+        app_logger.warning(f"删除知识库上传记录失败: {str(e)}")
+
+    return True
+
+
+def _log_file_deletion_success(kb_id: str, user_id: str, knowledge_deleted: bool) -> None:
+    """记录文件删除成功的日志
+
+    Args:
+        kb_id: 知识库ID
+        user_id: 用户ID
+        knowledge_deleted: 是否删除了整个知识库
+    """
+    log_file_operation(app_logger, "delete_files", f"knowledge_base/{kb_id}", user_id=user_id, success=True)
+    log_database_operation(app_logger, "update", "knowledge_base", record_id=kb_id, user_id=user_id, success=True)
+
+    if knowledge_deleted:
+        log_file_operation(app_logger, "delete", f"knowledge_base/{kb_id}", user_id=user_id, success=True)
+        log_database_operation(
+            app_logger, "delete", "knowledge_base", record_id=kb_id, user_id=user_id, success=True
+        )
 
 
 @router.get("/{kb_id}/download")

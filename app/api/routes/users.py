@@ -282,7 +282,7 @@ async def get_user_avatar(user_id: str, size: int = 200, db: Session = Depends(g
 
 
 # 用户Star记录相关路由
-@router.get("/stars", response_model=PageResponse[dict])
+@router.get("/stars", response_model=PageResponse[dict], summary="获取用户收藏")
 async def get_user_stars(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -301,99 +301,135 @@ async def get_user_stars(
             f"page={page}, page_size={page_size}, sort_by={sort_by}, sort_order={sort_order}, type={type}"
         )
 
-        # 限制page_size的最大值
         page_size = min(page_size, 50)
+        stars = _get_user_star_records(db, user_id, type)
+        stars = _sort_star_records(db, stars, sort_by, sort_order)
+        result = _build_star_result_list(db, stars, include_details)
 
-        # 查询用户的Star记录
-        from app.models.database import StarRecord, KnowledgeBase, PersonaCard
-
-        stars = db.query(StarRecord).filter(StarRecord.user_id == user_id).all()
-
-        # 根据类型过滤
-        if type != "all":
-            stars = [star for star in stars if star.target_type == type]
-
-        # 排序处理
-        reverse_order = sort_order == "desc"
-        if sort_by == "star_count":
-            # 按Star数量排序需要获取目标对象的信息
-            star_items = []
-            for star in stars:
-                if star.target_type == "knowledge":
-                    kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == star.target_id).first()
-                    if kb and kb.is_public:
-                        star_items.append((star, kb.star_count))
-                elif star.target_type == "persona":
-                    pc = db.query(PersonaCard).filter(PersonaCard.id == star.target_id).first()
-                    if pc and pc.is_public:
-                        star_items.append((star, pc.star_count))
-
-            # 按Star数量排序
-            star_items.sort(key=lambda x: x[1], reverse=reverse_order)
-            stars = [item[0] for item in star_items]
-        else:
-            # 默认按创建时间排序
-            stars.sort(key=lambda x: x.created_at, reverse=reverse_order)
-
-        # 构建结果列表
-        result = []
-        for star in stars:
-            if star.target_type == "knowledge":
-                kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == star.target_id).first()
-                if kb and kb.is_public:
-                    item = {
-                        "id": star.id,
-                        "type": "knowledge",
-                        "target_id": star.target_id,
-                        "name": kb.name,
-                        "description": kb.description,
-                        "star_count": kb.star_count,
-                        "created_at": star.created_at.isoformat(),
-                    }
-                    # 如果需要完整详情，调用to_dict
-                    if include_details:
-                        kb_dict = kb.to_dict()
-                        item.update(kb_dict)
-                    result.append(item)
-            elif star.target_type == "persona":
-                pc = db.query(PersonaCard).filter(PersonaCard.id == star.target_id).first()
-                if pc and pc.is_public:
-                    item = {
-                        "id": star.id,
-                        "type": "persona",
-                        "target_id": star.target_id,
-                        "name": pc.name,
-                        "description": pc.description,
-                        "star_count": pc.star_count,
-                        "created_at": star.created_at.isoformat(),
-                    }
-                    # 如果需要完整详情，调用to_dict
-                    if include_details:
-                        pc_dict = pc.to_dict()
-                        item.update(pc_dict)
-                    result.append(item)
-
-        # 计算总数和分页
         total = len(result)
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        page_items = result[start_idx:end_idx]
+        page_items = _paginate_results(result, page, page_size)
 
-        # 记录数据库操作成功
         log_database_operation(app_logger, "read", "star", user_id=user_id, success=True)
-
         app_logger.info(f"Returning {len(page_items)} items out of {total} total items")
 
         return Page(data=page_items, page=page, page_size=page_size, total=total, message="获取收藏记录成功")
     except DatabaseError:
         raise
     except HTTPException:
-        # 参数错误，直接抛出
         raise
     except Exception as e:
         log_exception(app_logger, "Get user stars error", exception=e)
         log_database_operation(app_logger, "read", "star", user_id=user_id, success=False, error_message=str(e))
         raise APIError("获取收藏记录失败")
+
+
+def _get_user_star_records(db: Session, user_id: str, type_filter: str):
+    """获取用户的Star记录并按类型过滤"""
+    from app.models.database import StarRecord
+
+    stars = db.query(StarRecord).filter(StarRecord.user_id == user_id).all()
+
+    if type_filter != "all":
+        stars = [star for star in stars if star.target_type == type_filter]
+
+    return stars
+
+
+def _sort_star_records(db: Session, stars: list, sort_by: str, sort_order: str):
+    """对Star记录进行排序"""
+    from app.models.database import KnowledgeBase, PersonaCard
+
+    reverse_order = sort_order == "desc"
+
+    if sort_by == "star_count":
+        star_items = []
+        for star in stars:
+            if star.target_type == "knowledge":
+                kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == star.target_id).first()
+                if kb and kb.is_public:
+                    star_items.append((star, kb.star_count))
+            elif star.target_type == "persona":
+                pc = db.query(PersonaCard).filter(PersonaCard.id == star.target_id).first()
+                if pc and pc.is_public:
+                    star_items.append((star, pc.star_count))
+
+        star_items.sort(key=lambda x: x[1], reverse=reverse_order)
+        return [item[0] for item in star_items]
+    else:
+        stars.sort(key=lambda x: x.created_at, reverse=reverse_order)
+        return stars
+
+
+def _build_star_result_list(db: Session, stars: list, include_details: bool):
+    """构建Star结果列表"""
+    result = []
+    for star in stars:
+        if star.target_type == "knowledge":
+            item = _build_knowledge_star_item(db, star, include_details)
+            if item:
+                result.append(item)
+        elif star.target_type == "persona":
+            item = _build_persona_star_item(db, star, include_details)
+            if item:
+                result.append(item)
+    return result
+
+
+def _build_knowledge_star_item(db: Session, star, include_details: bool):
+    """构建知识库Star项"""
+    from app.models.database import KnowledgeBase
+
+    kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == star.target_id).first()
+    if not kb or not kb.is_public:
+        return None
+
+    item = {
+        "id": star.id,
+        "type": "knowledge",
+        "target_id": star.target_id,
+        "name": kb.name,
+        "description": kb.description,
+        "star_count": kb.star_count,
+        "created_at": star.created_at.isoformat(),
+    }
+
+    if include_details:
+        kb_dict = kb.to_dict()
+        item.update(kb_dict)
+
+    return item
+
+
+def _build_persona_star_item(db: Session, star, include_details: bool):
+    """构建人设卡Star项"""
+    from app.models.database import PersonaCard
+
+    pc = db.query(PersonaCard).filter(PersonaCard.id == star.target_id).first()
+    if not pc or not pc.is_public:
+        return None
+
+    item = {
+        "id": star.id,
+        "type": "persona",
+        "target_id": star.target_id,
+        "name": pc.name,
+        "description": pc.description,
+        "star_count": pc.star_count,
+        "created_at": star.created_at.isoformat(),
+    }
+
+    if include_details:
+        pc_dict = pc.to_dict()
+        item.update(pc_dict)
+
+    return item
+
+
+def _paginate_results(result: list, page: int, page_size: int):
+    """对结果进行分页"""
+    start_idx = (page - 1) * page_size
+    end_idx = start_idx + page_size
+    return result[start_idx:end_idx]
 
 
 # 用户上传历史和统计接口

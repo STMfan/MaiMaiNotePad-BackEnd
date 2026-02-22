@@ -102,9 +102,6 @@ async def get_comments(
         raise APIError("获取评论失败")
 
 
-@router.post(
-    "/comments",
-)
 def _validate_comment_input(content: str, target_type: str, target_id: Any) -> str:
     """验证评论输入参数
 
@@ -306,6 +303,9 @@ def _build_comment_response(comment: Comment, user: User) -> dict:
     }
 
 
+@router.post(
+    "/comments",
+)
 async def create_comment(
     data: dict = Body(...), current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
@@ -405,80 +405,18 @@ async def react_comment(
         )
 
         before_type: Optional[str] = reaction.reaction_type if reaction else None
-        after_type: Optional[str] = None
-
-        if action == "clear":
-            if reaction:
-                if reaction.reaction_type == "like":
-                    comment.like_count = max((comment.like_count or 0) - 1, 0)
-                elif reaction.reaction_type == "dislike":
-                    comment.dislike_count = max((comment.dislike_count or 0) - 1, 0)
-                db.delete(reaction)
-        elif action == "like":
-            if reaction and reaction.reaction_type == "like":
-                comment.like_count = max((comment.like_count or 0) - 1, 0)
-                db.delete(reaction)
-            else:
-                if reaction and reaction.reaction_type == "dislike":
-                    comment.dislike_count = max((comment.dislike_count or 0) - 1, 0)
-                    reaction.reaction_type = "like"
-                else:
-                    reaction = CommentReaction(user_id=user_id, comment_id=comment_id, reaction_type="like")
-                    db.add(reaction)
-                comment.like_count = (comment.like_count or 0) + 1
-                after_type = "like"
-        elif action == "dislike":
-            if reaction and reaction.reaction_type == "dislike":
-                comment.dislike_count = max((comment.dislike_count or 0) - 1, 0)
-                db.delete(reaction)
-            else:
-                if reaction and reaction.reaction_type == "like":
-                    comment.like_count = max((comment.like_count or 0) - 1, 0)
-                    reaction.reaction_type = "dislike"
-                else:
-                    reaction = CommentReaction(user_id=user_id, comment_id=comment_id, reaction_type="dislike")
-                    db.add(reaction)
-                comment.dislike_count = (comment.dislike_count or 0) + 1
-                after_type = "dislike"
+        after_type: Optional[str] = _process_reaction_action(db, comment, reaction, action, user_id, comment_id)
 
         db.commit()
         db.refresh(comment)
 
-        my_reaction: Optional[str]
-        if action == "clear":
-            my_reaction = None
-        else:
-            my_reaction = after_type
-            if action in ["like", "dislike"] and after_type is None:
-                my_reaction = None
-
-        should_notify = (
-            after_type in ["like", "dislike"] and after_type != before_type and str(user_id) != str(comment.user_id)
-        )
-
-        recipient_id = str(comment.user_id)
-        snippet = (comment.content or "")[:80]
-        sender_name = current_user.get("username", "")
-
-        if should_notify and recipient_id:
-            title = "你的评论收到新的点赞" if after_type == "like" else "你的评论收到新的踩"
-            body = f"{sender_name} 对你的评论进行了{'点赞' if after_type == 'like' else '踩'}：{snippet}"
-            try:
-                from app.models.database import Message
-
-                message = Message(
-                    sender_id=str(user_id),
-                    recipient_id=recipient_id,
-                    title=title,
-                    content=body,
-                    message_type="reaction",
-                    summary=snippet,
-                )
-                db.add(message)
-                db.commit()
-                await message_ws_manager.broadcast_user_update({recipient_id})
-            except Exception:
-                pass
+        my_reaction = _determine_my_reaction(action, after_type)
+        
+        # 发送通知
+        if _should_send_notification(after_type, before_type, user_id, comment.user_id):
+            await _send_reaction_notification(
+                db, user_id, comment, after_type, current_user.get("username", "")
+            )
 
         return Success(
             message="操作成功",
@@ -494,6 +432,219 @@ async def react_comment(
     except Exception as e:
         log_exception(app_logger, "React comment error", exception=e)
         raise APIError("操作失败")
+
+
+def _process_reaction_action(
+    db: Session,
+    comment: Comment,
+    reaction: Optional[CommentReaction],
+    action: str,
+    user_id: Any,
+    comment_id: str
+) -> Optional[str]:
+    """处理反应操作并返回操作后的反应类型
+    
+    Args:
+        db: 数据库会话
+        comment: 评论对象
+        reaction: 现有反应对象
+        action: 操作类型（like/dislike/clear）
+        user_id: 用户ID
+        comment_id: 评论ID
+        
+    Returns:
+        操作后的反应类型，如果清除则返回 None
+    """
+    if action == "clear":
+        return _handle_clear_reaction(db, comment, reaction)
+    elif action == "like":
+        return _handle_like_reaction(db, comment, reaction, user_id, comment_id)
+    elif action == "dislike":
+        return _handle_dislike_reaction(db, comment, reaction, user_id, comment_id)
+    return None
+
+
+def _handle_clear_reaction(
+    db: Session,
+    comment: Comment,
+    reaction: Optional[CommentReaction]
+) -> None:
+    """处理清除反应操作
+    
+    Args:
+        db: 数据库会话
+        comment: 评论对象
+        reaction: 现有反应对象
+    """
+    if not reaction:
+        return None
+    
+    if reaction.reaction_type == "like":
+        comment.like_count = max((comment.like_count or 0) - 1, 0)
+    elif reaction.reaction_type == "dislike":
+        comment.dislike_count = max((comment.dislike_count or 0) - 1, 0)
+    
+    db.delete(reaction)
+    return None
+
+
+def _handle_like_reaction(
+    db: Session,
+    comment: Comment,
+    reaction: Optional[CommentReaction],
+    user_id: Any,
+    comment_id: str
+) -> Optional[str]:
+    """处理点赞操作
+    
+    Args:
+        db: 数据库会话
+        comment: 评论对象
+        reaction: 现有反应对象
+        user_id: 用户ID
+        comment_id: 评论ID
+        
+    Returns:
+        操作后的反应类型
+    """
+    # 如果已经点赞，则取消点赞
+    if reaction and reaction.reaction_type == "like":
+        comment.like_count = max((comment.like_count or 0) - 1, 0)
+        db.delete(reaction)
+        return None
+    
+    # 如果之前是踩，则改为点赞
+    if reaction and reaction.reaction_type == "dislike":
+        comment.dislike_count = max((comment.dislike_count or 0) - 1, 0)
+        reaction.reaction_type = "like"
+    else:
+        # 新增点赞
+        reaction = CommentReaction(user_id=user_id, comment_id=comment_id, reaction_type="like")
+        db.add(reaction)
+    
+    comment.like_count = (comment.like_count or 0) + 1
+    return "like"
+
+
+def _handle_dislike_reaction(
+    db: Session,
+    comment: Comment,
+    reaction: Optional[CommentReaction],
+    user_id: Any,
+    comment_id: str
+) -> Optional[str]:
+    """处理踩操作
+    
+    Args:
+        db: 数据库会话
+        comment: 评论对象
+        reaction: 现有反应对象
+        user_id: 用户ID
+        comment_id: 评论ID
+        
+    Returns:
+        操作后的反应类型
+    """
+    # 如果已经踩，则取消踩
+    if reaction and reaction.reaction_type == "dislike":
+        comment.dislike_count = max((comment.dislike_count or 0) - 1, 0)
+        db.delete(reaction)
+        return None
+    
+    # 如果之前是点赞，则改为踩
+    if reaction and reaction.reaction_type == "like":
+        comment.like_count = max((comment.like_count or 0) - 1, 0)
+        reaction.reaction_type = "dislike"
+    else:
+        # 新增踩
+        reaction = CommentReaction(user_id=user_id, comment_id=comment_id, reaction_type="dislike")
+        db.add(reaction)
+    
+    comment.dislike_count = (comment.dislike_count or 0) + 1
+    return "dislike"
+
+
+def _determine_my_reaction(action: str, after_type: Optional[str]) -> Optional[str]:
+    """确定用户当前的反应状态
+    
+    Args:
+        action: 操作类型
+        after_type: 操作后的反应类型
+        
+    Returns:
+        用户当前的反应状态
+    """
+    if action == "clear":
+        return None
+    
+    if action in ["like", "dislike"] and after_type is None:
+        return None
+    
+    return after_type
+
+
+def _should_send_notification(
+    after_type: Optional[str],
+    before_type: Optional[str],
+    user_id: Any,
+    comment_user_id: Any
+) -> bool:
+    """判断是否需要发送通知
+    
+    Args:
+        after_type: 操作后的反应类型
+        before_type: 操作前的反应类型
+        user_id: 当前用户ID
+        comment_user_id: 评论作者ID
+        
+    Returns:
+        是否需要发送通知
+    """
+    return (
+        after_type in ["like", "dislike"] 
+        and after_type != before_type 
+        and str(user_id) != str(comment_user_id)
+    )
+
+
+async def _send_reaction_notification(
+    db: Session,
+    user_id: Any,
+    comment: Comment,
+    reaction_type: str,
+    sender_name: str
+) -> None:
+    """发送反应通知
+    
+    Args:
+        db: 数据库会话
+        user_id: 当前用户ID
+        comment: 评论对象
+        reaction_type: 反应类型
+        sender_name: 发送者用户名
+    """
+    recipient_id = str(comment.user_id)
+    snippet = (comment.content or "")[:80]
+    
+    title = "你的评论收到新的点赞" if reaction_type == "like" else "你的评论收到新的踩"
+    body = f"{sender_name} 对你的评论进行了{'点赞' if reaction_type == 'like' else '踩'}：{snippet}"
+    
+    try:
+        from app.models.database import Message
+        
+        message = Message(
+            sender_id=str(user_id),
+            recipient_id=recipient_id,
+            title=title,
+            content=body,
+            message_type="reaction",
+            summary=snippet,
+        )
+        db.add(message)
+        db.commit()
+        await message_ws_manager.broadcast_user_update({recipient_id})
+    except Exception:
+        pass
 
 
 @router.delete(

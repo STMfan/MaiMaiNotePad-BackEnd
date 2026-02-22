@@ -143,51 +143,122 @@ class FileService:
         """
         if not isinstance(data, dict):
             return None
-
-        # 首先在顶层查找版本字段
-        for key in ["version", "Version", "schema_version", "card_version"]:
+        
+        # 尝试从顶层提取版本
+        version = self._extract_version_from_top_level(data)
+        if version:
+            return version
+        
+        # 尝试从meta/card字段提取版本
+        version = self._extract_version_from_meta_fields(data)
+        if version:
+            return version
+        
+        # 深度搜索版本字段
+        return self._deep_search_version(data)
+    
+    def _extract_version_from_top_level(self, data: dict) -> Optional[str]:
+        """从顶层字段提取版本号
+        
+        Args:
+            data: TOML数据字典
+            
+        Returns:
+            版本号或None
+        """
+        version_keys = ["version", "Version", "schema_version", "card_version"]
+        for key in version_keys:
             value = data.get(key)
             if isinstance(value, (str, int, float)):
                 return str(value)
-
-        # 在meta或card字段中查找
-        meta_candidates = []
-        for meta_key in ["meta", "Meta", "card", "Card"]:
+        return None
+    
+    def _extract_version_from_meta_fields(self, data: dict) -> Optional[str]:
+        """从meta或card字段中提取版本号
+        
+        Args:
+            data: TOML数据字典
+            
+        Returns:
+            版本号或None
+        """
+        meta_keys = ["meta", "Meta", "card", "Card"]
+        version_keys = ["version", "Version", "schema_version", "card_version"]
+        
+        for meta_key in meta_keys:
             meta_value = data.get(meta_key)
             if isinstance(meta_value, dict):
-                meta_candidates.append(meta_value)
-
-        for meta in meta_candidates:
-            for key in ["version", "Version", "schema_version", "card_version"]:
-                value = meta.get(key)
-                if isinstance(value, (str, int, float)):
-                    return str(value)
-
-        # 深度搜索
+                for version_key in version_keys:
+                    value = meta_value.get(version_key)
+                    if isinstance(value, (str, int, float)):
+                        return str(value)
+        return None
+    
+    def _deep_search_version(self, data: dict) -> Optional[str]:
+        """深度搜索版本字段
+        
+        Args:
+            data: TOML数据字典
+            
+        Returns:
+            版本号或None
+        """
         visited = set()
         stack: List[Any] = [data]
+        
         while stack:
             current = stack.pop()
+            
+            # 避免循环引用
             if id(current) in visited:
                 continue
             visited.add(id(current))
-
+            
+            # 处理字典
             if isinstance(current, dict):
-                for k, v in current.items():
-                    if isinstance(k, str) and k.lower() == "version" and isinstance(v, (str, int, float)):
-                        return str(v)
-                    if isinstance(v, dict):
-                        stack.append(v)
-                    elif isinstance(v, list):
-                        for item in v:
-                            if isinstance(item, (dict, list)):
-                                stack.append(item)
+                version = self._search_version_in_dict(current, stack)
+                if version:
+                    return version
+            
+            # 处理列表
             elif isinstance(current, list):
-                for v in current:
-                    if isinstance(v, (dict, list)):
-                        stack.append(v)
-
+                self._add_list_items_to_stack(current, stack)
+        
         return None
+    
+    def _search_version_in_dict(self, data: dict, stack: list) -> Optional[str]:
+        """在字典中搜索版本字段
+        
+        Args:
+            data: 字典数据
+            stack: 搜索栈
+            
+        Returns:
+            版本号或None
+        """
+        for k, v in data.items():
+            # 找到version键
+            if isinstance(k, str) and k.lower() == "version" and isinstance(v, (str, int, float)):
+                return str(v)
+            
+            # 将嵌套结构加入栈
+            if isinstance(v, dict):
+                stack.append(v)
+            elif isinstance(v, list):
+                self._add_list_items_to_stack(v, stack)
+        
+        return None
+    
+    def _add_list_items_to_stack(self, items: list, stack: list) -> None:
+        """将列表中的字典和列表项加入搜索栈
+        
+        Args:
+            items: 列表项
+            stack: 搜索栈
+        """
+        for item in items:
+            if isinstance(item, (dict, list)):
+                stack.append(item)
 
     def upload_knowledge_base(
         self,

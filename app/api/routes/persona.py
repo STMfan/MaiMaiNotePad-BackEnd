@@ -43,6 +43,111 @@ router = APIRouter()
 
 
 # 人设卡相关路由（上传、查询、编辑、删除等）
+def _validate_persona_card_upload_input(name: str, description: str, files: List[UploadFile]) -> None:
+    """验证人设卡上传输入
+    
+    Args:
+        name: 人设卡名称
+        description: 人设卡描述
+        files: 上传的文件列表
+        
+    Raises:
+        ValidationError: 输入验证失败
+    """
+    if not name or not description:
+        raise ValidationError("名称和描述不能为空")
+
+    if not files:
+        raise ValidationError("至少需要上传一个文件")
+
+
+def _check_persona_card_uniqueness(persona_service: PersonaService) -> None:
+    """检查系统中是否已存在人设卡
+    
+    Args:
+        persona_service: 人设卡服务实例
+        
+    Raises:
+        ValidationError: 系统已存在人设卡
+    """
+    existing_pcs = persona_service.get_all_persona_cards()
+    if existing_pcs:
+        raise ValidationError(
+            message="当前系统已存在人设卡，暂不支持创建多个人设卡", details={"code": "PERSONA_ONLY_ONE_ALLOWED"}
+        )
+
+
+async def _prepare_persona_card_file_data(files: List[UploadFile]) -> List[tuple[str, bytes]]:
+    """准备人设卡文件数据
+    
+    Args:
+        files: 上传的文件列表
+        
+    Returns:
+        文件数据列表，每个元素为 (文件名, 文件内容) 元组
+    """
+    file_data = []
+    for file in files:
+        content_bytes = await file.read()
+        file_data.append((file.filename, content_bytes))
+        await file.seek(0)
+    return file_data
+
+
+def _set_persona_card_visibility(pc, is_public: bool, db: Session) -> str:
+    """设置人设卡可见性和审核状态
+    
+    Args:
+        pc: 人设卡对象
+        is_public: 是否公开
+        db: 数据库会话
+        
+    Returns:
+        上传状态（"pending" 或 "success"）
+        
+    Raises:
+        DatabaseError: 更新可见性状态失败
+    """
+    try:
+        if is_public:
+            pc.is_public = False
+            pc.is_pending = True
+            upload_status = "pending"
+        else:
+            pc.is_public = False
+            pc.is_pending = False
+            upload_status = "success"
+
+        db.commit()
+        db.refresh(pc)
+        return upload_status
+    except Exception as e:
+        db.rollback()
+        log_exception(app_logger, "Update persona card visibility after upload error", exception=e)
+        raise DatabaseError("更新人设卡可见性状态失败")
+
+
+def _create_persona_card_upload_record(
+    persona_service: PersonaService, user_id: str, pc_id: str, name: str, description: str, upload_status: str
+) -> None:
+    """创建人设卡上传记录
+    
+    Args:
+        persona_service: 人设卡服务实例
+        user_id: 用户ID
+        pc_id: 人设卡ID
+        name: 人设卡名称
+        description: 人设卡描述
+        upload_status: 上传状态
+    """
+    try:
+        persona_service.create_upload_record(
+            uploader_id=user_id, target_id=pc_id, name=name, description=description, status=upload_status
+        )
+    except Exception as e:
+        app_logger.warning(f"Failed to create upload record: {str(e)}")
+
+
 @router.post("/persona/upload")
 async def upload_persona_card(
     files: List[UploadFile] = File(...),
@@ -61,31 +166,13 @@ async def upload_persona_card(
     try:
         app_logger.info(f"Upload persona card: user_id={user_id}, name={name}")
 
-        # 验证输入参数
-        if not name or not description:
-            raise ValidationError("名称和描述不能为空")
+        _validate_persona_card_upload_input(name, description, files)
 
-        if not files:
-            raise ValidationError("至少需要上传一个文件")
-
-        # 使用服务层
         persona_service = PersonaService(db)
+        _check_persona_card_uniqueness(persona_service)
 
-        # 检查系统中是否已经存在人设卡（全局只允许一个人设卡）
-        existing_pcs = persona_service.get_all_persona_cards()
-        if existing_pcs:
-            raise ValidationError(
-                message="当前系统已存在人设卡，暂不支持创建多个人设卡", details={"code": "PERSONA_ONLY_ONE_ALLOWED"}
-            )
+        file_data = await _prepare_persona_card_file_data(files)
 
-        # 读取上传文件内容，构建文件数据
-        file_data = []
-        for file in files:
-            content_bytes = await file.read()
-            file_data.append((file.filename, content_bytes))
-            await file.seek(0)
-
-        # 使用文件服务保存人设卡及其文件
         file_service = FileService(db)
         pc = file_service.upload_persona_card(
             files=file_data,
@@ -97,36 +184,10 @@ async def upload_persona_card(
             tags=tags,
         )
 
-        # 根据是否公开调整可见性与审核状态
-        try:
-            if is_public:
-                pc.is_public = False
-                pc.is_pending = True
-                upload_status = "pending"
-            else:
-                pc.is_public = False
-                pc.is_pending = False
-                upload_status = "success"
+        upload_status = _set_persona_card_visibility(pc, is_public, db)
+        _create_persona_card_upload_record(persona_service, user_id, pc.id, name, description, upload_status)
 
-            db.commit()
-            db.refresh(pc)
-        except Exception as e:
-            db.rollback()
-            log_exception(app_logger, "Update persona card visibility after upload error", exception=e)
-            raise DatabaseError("更新人设卡可见性状态失败")
-
-        # 创建上传记录
-        try:
-            persona_service.create_upload_record(
-                uploader_id=user_id, target_id=pc.id, name=name, description=description, status=upload_status
-            )
-        except Exception as e:
-            app_logger.warning(f"Failed to create upload record: {str(e)}")
-
-        # 记录文件操作成功
         log_file_operation(app_logger, "upload", f"persona_card/{pc.id}", user_id=user_id, success=True)
-
-        # 记录数据库操作成功
         log_database_operation(app_logger, "create", "persona_card", record_id=pc.id, user_id=user_id, success=True)
 
         return Success(message="人设卡上传成功", data=pc.to_dict())
@@ -282,6 +343,143 @@ async def get_user_persona_cards(
         raise APIError("获取用户人设卡失败")
 
 
+def _validate_persona_card_for_update(
+    persona_service: PersonaService, pc_id: str, user_id: str, current_user: dict
+):
+    """验证人设卡是否可以更新
+    
+    Args:
+        persona_service: 人设卡服务实例
+        pc_id: 人设卡ID
+        user_id: 用户ID
+        current_user: 当前用户信息
+        
+    Returns:
+        人设卡对象
+        
+    Raises:
+        NotFoundError: 人设卡不存在
+        AuthorizationError: 无权限修改
+    """
+    pc = persona_service.get_persona_card_by_id(pc_id)
+    if not pc:
+        raise NotFoundError("人设卡不存在")
+
+    if (
+        pc.uploader_id != user_id
+        and not current_user.get("is_admin", False)
+        and not current_user.get("is_moderator", False)
+    ):
+        raise AuthorizationError("没有权限修改此人设卡")
+    
+    return pc
+
+
+def _prepare_persona_card_update_dict(update_data: PersonaCardUpdate, pc, current_user: dict) -> dict:
+    """准备人设卡更新字典并验证权限
+    
+    Args:
+        update_data: 更新数据
+        pc: 人设卡对象
+        current_user: 当前用户信息
+        
+    Returns:
+        处理后的更新字典
+        
+    Raises:
+        ValidationError: 没有提供要更新的字段
+        AuthorizationError: 权限不足
+    """
+    update_dict = update_data.model_dump(exclude_unset=True)
+    if not update_dict:
+        raise ValidationError("没有提供要更新的字段")
+
+    # 仅私有人设卡允许修改基础信息和文件；
+    # 公开或审核中的人设卡仅允许修改补充说明（content）
+    if pc.is_public or pc.is_pending:
+        _validate_public_persona_card_updates(update_dict)
+
+    # 移除不允许通过该接口修改的字段
+    update_dict.pop("copyright_owner", None)
+    update_dict.pop("name", None)
+
+    # 验证 is_public 修改权限
+    if not (pc.is_public or pc.is_pending):
+        _validate_persona_card_public_status_change(update_dict, current_user)
+
+    return update_dict
+
+
+def _validate_public_persona_card_updates(update_dict: dict) -> None:
+    """验证公开或审核中的人设卡更新
+    
+    Args:
+        update_dict: 更新字典
+        
+    Raises:
+        AuthorizationError: 尝试修改不允许的字段
+    """
+    allowed_fields = {"content"}
+    disallowed_fields = [key for key in update_dict.keys() if key not in allowed_fields]
+    if disallowed_fields:
+        raise AuthorizationError("公开或审核中的人设卡仅允许修改补充说明")
+
+
+def _validate_persona_card_public_status_change(update_dict: dict, current_user: dict) -> None:
+    """验证人设卡公开状态修改权限
+    
+    Args:
+        update_dict: 更新字典
+        current_user: 当前用户信息
+        
+    Raises:
+        AuthorizationError: 普通用户尝试直接修改公开状态
+    """
+    if "is_public" in update_dict and not (
+        current_user.get("is_admin", False) or current_user.get("is_moderator", False)
+    ):
+        raise AuthorizationError("只有管理员可以直接修改公开状态")
+
+
+def _execute_persona_card_update(
+    persona_service: PersonaService, pc_id: str, update_dict: dict, user_id: str, current_user: dict
+):
+    """执行人设卡更新
+    
+    Args:
+        persona_service: 人设卡服务实例
+        pc_id: 人设卡ID
+        update_dict: 更新字典
+        user_id: 用户ID
+        current_user: 当前用户信息
+        
+    Returns:
+        更新后的人设卡对象
+        
+    Raises:
+        AuthorizationError: 权限错误
+        NotFoundError: 人设卡不存在
+        DatabaseError: 数据库错误
+    """
+    success, message, updated_pc = persona_service.update_persona_card(
+        pc_id=pc_id,
+        update_data=update_dict,
+        user_id=user_id,
+        is_admin=current_user.get("is_admin", False),
+        is_moderator=current_user.get("is_moderator", False),
+    )
+
+    if not success:
+        if "权限" in message:
+            raise AuthorizationError(message)
+        elif "不存在" in message:
+            raise NotFoundError(message)
+        else:
+            raise DatabaseError(message)
+    
+    return updated_pc
+
+
 @router.put("/persona/{pc_id}")
 async def update_persona_card(
     pc_id: str,
@@ -294,58 +492,11 @@ async def update_persona_card(
     try:
         app_logger.info(f"Update persona card: pc_id={pc_id}, user_id={user_id}")
 
-        # 使用服务层
         persona_service = PersonaService(db)
-
-        pc = persona_service.get_persona_card_by_id(pc_id)
-        if not pc:
-            raise NotFoundError("人设卡不存在")
-
-        if (
-            pc.uploader_id != user_id
-            and not current_user.get("is_admin", False)
-            and not current_user.get("is_moderator", False)
-        ):
-            raise AuthorizationError("没有权限修改此人设卡")
-
-        update_dict = update_data.model_dump(exclude_unset=True)
-        if not update_dict:
-            raise ValidationError("没有提供要更新的字段")
-
-        if pc.is_public or pc.is_pending:
-            allowed_fields = {"content"}
-            disallowed_fields = [key for key in update_dict.keys() if key not in allowed_fields]
-            if disallowed_fields:
-                raise AuthorizationError("公开或审核中的人设卡仅允许修改补充说明")
-
-        if "copyright_owner" in update_dict:
-            update_dict.pop("copyright_owner", None)
-
-        if "name" in update_dict:
-            update_dict.pop("name", None)
-
-        if not (pc.is_public or pc.is_pending):
-            if "is_public" in update_dict and not (
-                current_user.get("is_admin", False) or current_user.get("is_moderator", False)
-            ):
-                raise AuthorizationError("只有管理员可以直接修改公开状态")
-
-        # Use the service method to update persona card
-        success, message, updated_pc = persona_service.update_persona_card(
-            pc_id=pc_id,
-            update_data=update_dict,
-            user_id=user_id,
-            is_admin=current_user.get("is_admin", False),
-            is_moderator=current_user.get("is_moderator", False),
-        )
-
-        if not success:
-            if "权限" in message:
-                raise AuthorizationError(message)
-            elif "不存在" in message:
-                raise NotFoundError(message)
-            else:
-                raise DatabaseError(message)
+        pc = _validate_persona_card_for_update(persona_service, pc_id, user_id, current_user)
+        
+        update_dict = _prepare_persona_card_update_dict(update_data, pc, current_user)
+        updated_pc = _execute_persona_card_update(persona_service, pc_id, update_dict, user_id, current_user)
 
         log_database_operation(app_logger, "update", "persona_card", record_id=pc_id, user_id=user_id, success=True)
 

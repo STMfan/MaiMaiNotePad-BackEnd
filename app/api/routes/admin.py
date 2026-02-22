@@ -324,6 +324,102 @@ async def update_user_role(
         raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"更新用户角色失败: {str(e)}")
 
 
+def _parse_mute_duration(duration: str) -> datetime | None:
+    """解析禁言时长
+    
+    Args:
+        duration: 禁言时长字符串（1d, 7d, 30d, permanent）
+        
+    Returns:
+        禁言结束时间，永久禁言返回 None
+        
+    Raises:
+        ValidationError: 禁言时长无效
+    """
+    now = datetime.now()
+    if duration == "1d":
+        return now + timedelta(days=1)
+    elif duration == "7d":
+        return now + timedelta(days=7)
+    elif duration == "30d":
+        return now + timedelta(days=30)
+    elif duration == "permanent":
+        return None
+    else:
+        raise ValidationError("禁言时长无效")
+
+
+def _validate_mute_target(user: User, current_user: dict) -> None:
+    """验证禁言目标用户
+    
+    Args:
+        user: 目标用户对象
+        current_user: 当前用户信息
+        
+    Raises:
+        ValidationError: 不能禁言自己或管理员权限不足
+    """
+    if user.id == current_user.get("id"):
+        raise ValidationError("不能对自己进行禁言操作")
+
+    # 管理员不能操作其它管理员账号，仅超级管理员可以对管理员禁言
+    is_target_admin_like = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
+    if is_target_admin_like and not current_user.get("is_super_admin", False):
+        raise ValidationError("管理员不能对其它管理员或超级管理员进行禁言操作")
+
+
+def _apply_mute_to_user(user: User, muted_until: datetime | None, reason: str, db: Session) -> None:
+    """应用禁言到用户
+    
+    Args:
+        user: 用户对象
+        muted_until: 禁言结束时间
+        reason: 禁言原因
+        db: 数据库会话
+    """
+    user.is_muted = True
+    user.muted_until = muted_until
+    user.mute_reason = reason or None
+    db.commit()
+
+
+def _send_mute_notification(
+    user_id: str, muted_until: datetime | None, reason: str, operator_id: str, db: Session
+) -> None:
+    """发送禁言通知站内信
+    
+    Args:
+        user_id: 用户ID
+        muted_until: 禁言结束时间
+        reason: 禁言原因
+        operator_id: 操作者ID
+        db: 数据库会话
+    """
+    try:
+        muted_until_text = "永久禁言" if muted_until is None else muted_until.strftime("%Y-%m-%d %H:%M")
+        reason_text = reason or "违反社区行为规范"
+        content = (
+            "你好，你的账号已被禁言。\n\n"
+            f"禁言时长：{muted_until_text}\n"
+            f"禁言原因：{reason_text}\n\n"
+            "在禁言期间，你将无法在站内发表评论和回复内容。\n"
+            "如有疑问，可以联系管理员。\n\n"
+            "—— 麦麦"
+        )
+        message = Message(
+            sender_id=str(operator_id),
+            recipient_id=str(user_id),
+            title="禁言通知",
+            content=content,
+            message_type="announcement",
+            summary=None,
+        )
+        db.add(message)
+        db.commit()
+    except Exception as e:
+        app_logger.warning(f"Failed to send mute notification message: {str(e)}")
+
+
 @router.post("/users/{user_id}/mute")
 async def mute_user(
     user_id: str, body: dict = Body(...), current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
@@ -340,60 +436,15 @@ async def mute_user(
             f"禁言用户: user_id={user_id}, duration={duration}, reason={reason}, operator={current_user.get('id')}"
         )
 
-        now = datetime.now()
-        if duration == "1d":
-            muted_until = now + timedelta(days=1)
-        elif duration == "7d":
-            muted_until = now + timedelta(days=7)
-        elif duration == "30d":
-            muted_until = now + timedelta(days=30)
-        elif duration == "permanent":
-            muted_until = None
-        else:
-            raise ValidationError("禁言时长无效")
+        muted_until = _parse_mute_duration(duration)
 
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise NotFoundError("用户不存在")
 
-        if user.id == current_user.get("id"):
-            raise ValidationError("不能对自己进行禁言操作")
-
-        # 管理员不能操作其它管理员账号，仅超级管理员可以对管理员禁言
-        is_target_admin_like = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
-        if is_target_admin_like and not current_user.get("is_super_admin", False):
-            raise ValidationError("管理员不能对其它管理员或超级管理员进行禁言操作")
-
-        user.is_muted = True
-        user.muted_until = muted_until
-        user.mute_reason = reason or None
-        db.commit()
-
-        # 发送禁言站内信（尽量不影响主流程）
-        try:
-            operator_id = current_user.get("id", "")
-            muted_until_text = "永久禁言" if muted_until is None else muted_until.strftime("%Y-%m-%d %H:%M")
-            reason_text = reason or "违反社区行为规范"
-            content = (
-                "你好，你的账号已被禁言。\n\n"
-                f"禁言时长：{muted_until_text}\n"
-                f"禁言原因：{reason_text}\n\n"
-                "在禁言期间，你将无法在站内发表评论和回复内容。\n"
-                "如有疑问，可以联系管理员。\n\n"
-                "—— 麦麦"
-            )
-            message = Message(
-                sender_id=str(operator_id),
-                recipient_id=str(user_id),
-                title="禁言通知",
-                content=content,
-                message_type="announcement",
-                summary=None,
-            )
-            db.add(message)
-            db.commit()
-        except Exception as e:
-            app_logger.warning(f"Failed to send mute notification message: {str(e)}")
+        _validate_mute_target(user, current_user)
+        _apply_mute_to_user(user, muted_until, reason, db)
+        _send_mute_notification(user_id, muted_until, reason, current_user.get("id", ""), db)
 
         return Success(
             message="用户禁言成功",
@@ -532,76 +583,15 @@ async def ban_user(
             f"Ban user: user_id={user_id}, duration={duration}, reason={reason}, operator={current_user.get('id')}"
         )
 
-        if user_id == current_user.get("id"):
-            raise ValidationError("不能封禁自己")
+        _validate_ban_request(user_id, current_user)
+        user = _get_user_for_ban(db, user_id)
+        _check_ban_permission(user, current_user)
 
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise NotFoundError("用户不存在")
+        locked_until = _calculate_ban_duration(duration)
+        _check_last_admin(db, user)
 
-        # 管理员不能封禁其它管理员账号，仅超级管理员可以封禁管理员
-        is_target_admin_like = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
-        if is_target_admin_like and not current_user.get("is_super_admin", False):
-            raise ValidationError("管理员不能封禁其它管理员或超级管理员账号")
-
-        # 计算封禁截止时间
-        now = datetime.now()
-        if duration == "1d":
-            locked_until = now + timedelta(days=1)
-        elif duration == "7d":
-            locked_until = now + timedelta(days=7)
-        elif duration == "30d":
-            locked_until = now + timedelta(days=30)
-        elif duration == "permanent":
-            locked_until = now + timedelta(days=365 * 100)
-        else:
-            raise ValidationError("封禁时长无效")
-
-        # 检查是否是最后一个管理员（只统计未被永久封禁的活跃管理员）
-        if user.is_admin:
-            admin_query = db.query(func.count(User.id)).filter(User.is_admin.is_(True), User.is_active.is_(True))
-            # 只统计未被永久封禁（locked_until 为空或已经过期）的管理员
-            admin_query = admin_query.filter((User.locked_until == None) | (User.locked_until <= now))  # noqa: E711
-            admin_count = admin_query.scalar() or 0
-            if admin_count <= 1:
-                raise ValidationError("不能封禁最后一个管理员")
-
-        user.locked_until = locked_until
-        user.ban_reason = reason or None
-        db.commit()
-
-        log_database_operation(
-            app_logger, "update", "user", record_id=user_id, user_id=current_user.get("id"), success=True
-        )
-
-        # 发送封禁站内信
-        try:
-            operator_id = current_user.get("id", "")
-            if duration == "permanent":
-                locked_text = "永久封禁"
-            else:
-                locked_text = locked_until.strftime("%Y-%m-%d %H:%M")
-            reason_text = reason or "违反社区行为规范"
-            content = (
-                "你好，你的账号已被封禁，暂时无法登录系统。\n\n"
-                f"封禁时长：{locked_text}\n"
-                f"封禁原因：{reason_text}\n\n"
-                "在封禁期间，你将无法登录并使用站内功能。\n"
-                "如有疑问，可以联系管理员。\n\n"
-                "—— 麦麦"
-            )
-            message = Message(
-                sender_id=str(operator_id),
-                recipient_id=str(user_id),
-                title="封禁通知",
-                content=content,
-                message_type="announcement",
-                summary=None,
-            )
-            db.add(message)
-            db.commit()
-        except Exception as e:
-            app_logger.warning(f"Failed to send ban notification message: {str(e)}")
+        _apply_ban(db, user, locked_until, reason)
+        _send_ban_notification(db, user_id, current_user.get("id", ""), duration, locked_until, reason)
 
         log_api_request(app_logger, "POST", f"/api/admin/users/{user_id}/ban", current_user.get("id"), status_code=200)
         return Success(
@@ -615,6 +605,98 @@ async def ban_user(
     except Exception as e:
         log_exception(app_logger, "Ban user error", exception=e)
         raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"封禁用户失败: {str(e)}")
+
+
+def _validate_ban_request(user_id: str, current_user: dict) -> None:
+    """验证封禁请求"""
+    if user_id == current_user.get("id"):
+        raise ValidationError("不能封禁自己")
+
+
+def _get_user_for_ban(db: Session, user_id: str) -> User:
+    """获取要封禁的用户"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise NotFoundError("用户不存在")
+    return user
+
+
+def _check_ban_permission(user: User, current_user: dict) -> None:
+    """检查封禁权限"""
+    is_target_admin_like = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
+    if is_target_admin_like and not current_user.get("is_super_admin", False):
+        raise ValidationError("管理员不能封禁其它管理员或超级管理员账号")
+
+
+def _calculate_ban_duration(duration: str) -> datetime:
+    """计算封禁截止时间"""
+    now = datetime.now()
+    duration_map = {
+        "1d": timedelta(days=1),
+        "7d": timedelta(days=7),
+        "30d": timedelta(days=30),
+        "permanent": timedelta(days=365 * 100),
+    }
+
+    if duration not in duration_map:
+        raise ValidationError("封禁时长无效")
+
+    return now + duration_map[duration]
+
+
+def _check_last_admin(db: Session, user: User) -> None:
+    """检查是否是最后一个管理员"""
+    if not user.is_admin:
+        return
+
+    now = datetime.now()
+    admin_query = db.query(func.count(User.id)).filter(User.is_admin.is_(True), User.is_active.is_(True))
+    admin_query = admin_query.filter((User.locked_until == None) | (User.locked_until <= now))  # noqa: E711
+    admin_count = admin_query.scalar() or 0
+
+    if admin_count <= 1:
+        raise ValidationError("不能封禁最后一个管理员")
+
+
+def _apply_ban(db: Session, user: User, locked_until: datetime, reason: str) -> None:
+    """应用封禁"""
+    user.locked_until = locked_until
+    user.ban_reason = reason or None
+    db.commit()
+
+    log_database_operation(app_logger, "update", "user", record_id=user.id, success=True)
+
+
+def _send_ban_notification(db: Session, user_id: str, operator_id: str, duration: str, locked_until: datetime, reason: str) -> None:
+    """发送封禁通知"""
+    try:
+        if duration == "permanent":
+            locked_text = "永久封禁"
+        else:
+            locked_text = locked_until.strftime("%Y-%m-%d %H:%M")
+
+        reason_text = reason or "违反社区行为规范"
+        content = (
+            "你好，你的账号已被封禁，暂时无法登录系统。\n\n"
+            f"封禁时长：{locked_text}\n"
+            f"封禁原因：{reason_text}\n\n"
+            "在封禁期间，你将无法登录并使用站内功能。\n"
+            "如有疑问，可以联系管理员。\n\n"
+            "—— 麦麦"
+        )
+
+        message = Message(
+            sender_id=str(operator_id),
+            recipient_id=str(user_id),
+            title="封禁通知",
+            content=content,
+            message_type="announcement",
+            summary=None,
+        )
+        db.add(message)
+        db.commit()
+    except Exception as e:
+        app_logger.warning(f"Failed to send ban notification message: {str(e)}")
 
 
 @router.post("/users/{user_id}/unban")
@@ -680,6 +762,122 @@ async def unban_user(user_id: str, current_user: dict = Depends(get_current_user
         raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"解封用户失败: {str(e)}")
 
 
+def _extract_user_creation_data(user_data: dict) -> tuple[str, str, str, str]:
+    """提取并清理用户创建数据
+    
+    Args:
+        user_data: 用户数据字典
+        
+    Returns:
+        (username, email, password, role) 元组
+    """
+    username = user_data.get("username", "").strip()
+    email = user_data.get("email", "").strip().lower()
+    password = user_data.get("password", "")
+    role = user_data.get("role", "user")
+    return username, email, password, role
+
+
+def _validate_user_creation_input(username: str, email: str, password: str, role: str) -> None:
+    """验证用户创建输入
+    
+    Args:
+        username: 用户名
+        email: 邮箱
+        password: 密码
+        role: 角色
+        
+    Raises:
+        ValidationError: 输入验证失败
+    """
+    if not username:
+        raise ValidationError("用户名不能为空")
+    if not email:
+        raise ValidationError("邮箱不能为空")
+    if not password:
+        raise ValidationError("密码不能为空")
+    if role not in ["user", "moderator", "admin"]:
+        raise ValidationError("角色必须是 user、moderator 或 admin")
+
+
+def _validate_admin_creation_permission(role: str, current_user: dict) -> None:
+    """验证创建管理员账号的权限
+    
+    Args:
+        role: 要创建的用户角色
+        current_user: 当前用户信息
+        
+    Raises:
+        ValidationError: 权限不足
+    """
+    if role == "admin" and not current_user.get("is_super_admin", False):
+        raise ValidationError("只有超级管理员可以创建管理员账号")
+
+
+def _validate_password_strength(password: str) -> None:
+    """验证密码强度
+    
+    Args:
+        password: 密码
+        
+    Raises:
+        ValidationError: 密码强度不足
+    """
+    if len(password) < 8:
+        raise ValidationError("密码长度至少8位")
+    if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
+        raise ValidationError("密码必须包含字母和数字")
+
+
+def _check_user_uniqueness(user_service: UserService, username: str, email: str) -> None:
+    """检查用户名和邮箱唯一性
+    
+    Args:
+        user_service: 用户服务实例
+        username: 用户名
+        email: 邮箱
+        
+    Raises:
+        ConflictError: 用户名或邮箱已存在
+    """
+    if user_service.get_user_by_username(username):
+        raise ConflictError("用户名已存在")
+    if user_service.get_user_by_email(email):
+        raise ConflictError("邮箱已存在")
+
+
+def _create_new_user(
+    user_service: UserService, username: str, email: str, password: str, role: str
+):
+    """创建新用户
+    
+    Args:
+        user_service: 用户服务实例
+        username: 用户名
+        email: 邮箱
+        password: 密码
+        role: 角色
+        
+    Returns:
+        创建的用户对象
+        
+    Raises:
+        DatabaseError: 创建用户失败
+    """
+    new_user = user_service.create_user(
+        username=username,
+        email=email,
+        password=password,
+        is_admin=(role == "admin"),
+        is_moderator=(role == "moderator"),
+    )
+    
+    if not new_user:
+        raise DatabaseError("创建用户失败")
+    
+    return new_user
+
+
 @router.post("/users")
 async def create_user_by_admin(
     user_data: dict = Body(...), current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
@@ -694,51 +892,16 @@ async def create_user_by_admin(
             f"Create user by admin: operator={current_user.get('id')}, username={user_data.get('username')}"
         )
 
-        username = user_data.get("username", "").strip()
-        email = user_data.get("email", "").strip().lower()
-        password = user_data.get("password", "")
-        role = user_data.get("role", "user")
+        username, email, password, role = _extract_user_creation_data(user_data)
+        
+        _validate_user_creation_input(username, email, password, role)
+        _validate_admin_creation_permission(role, current_user)
+        _validate_password_strength(password)
 
-        # 验证输入
-        if not username:
-            raise ValidationError("用户名不能为空")
-        if not email:
-            raise ValidationError("邮箱不能为空")
-        if not password:
-            raise ValidationError("密码不能为空")
-        if role not in ["user", "moderator", "admin"]:
-            raise ValidationError("角色必须是 user、moderator 或 admin")
-
-        # 只有超级管理员可以创建管理员账号
-        if role == "admin" and not current_user.get("is_super_admin", False):
-            raise ValidationError("只有超级管理员可以创建管理员账号")
-
-        # 验证密码强度（至少8位，包含字母和数字）
-        if len(password) < 8:
-            raise ValidationError("密码长度至少8位")
-        if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
-            raise ValidationError("密码必须包含字母和数字")
-
-        # 使用 UserService 创建用户
         user_service = UserService(db)
-
-        # 检查用户名和邮箱唯一性
-        if user_service.get_user_by_username(username):
-            raise ConflictError("用户名已存在")
-        if user_service.get_user_by_email(email):
-            raise ConflictError("邮箱已存在")
-
-        # 创建用户
-        new_user = user_service.create_user(
-            username=username,
-            email=email,
-            password=password,
-            is_admin=(role == "admin"),
-            is_moderator=(role == "moderator"),
-        )
-
-        if not new_user:
-            raise DatabaseError("创建用户失败")
+        _check_user_uniqueness(user_service, username, email)
+        
+        new_user = _create_new_user(user_service, username, email, password, role)
 
         log_database_operation(
             app_logger, "create", "user", record_id=new_user.id, user_id=current_user.get("id"), success=True

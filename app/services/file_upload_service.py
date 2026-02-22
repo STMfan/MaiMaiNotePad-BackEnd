@@ -160,44 +160,132 @@ class FileUploadService:
         return len(content) <= self.MAX_PERSONA_TOML_SIZE
 
     def _extract_version_from_toml(self, data: Dict[str, Any]) -> Optional[str]:
+        """从TOML数据中提取版本号
+
+        Args:
+            data: TOML数据字典
+
+        Returns:
+            Optional[str]: 版本号，如果未找到则返回None
+        """
         if not isinstance(data, dict):
             return None
-        for key in ["version", "Version", "schema_version", "card_version"]:
+        
+        # 尝试从顶层提取版本
+        version = self._extract_version_from_top_level(data)
+        if version:
+            return version
+        
+        # 尝试从meta/card字段提取版本
+        version = self._extract_version_from_meta_fields(data)
+        if version:
+            return version
+        
+        # 深度搜索版本字段
+        return self._deep_search_version(data)
+    
+    def _extract_version_from_top_level(self, data: dict) -> Optional[str]:
+        """从顶层字段提取版本号
+        
+        Args:
+            data: TOML数据字典
+            
+        Returns:
+            版本号或None
+        """
+        version_keys = ["version", "Version", "schema_version", "card_version"]
+        for key in version_keys:
             value = data.get(key)
             if isinstance(value, (str, int, float)):
                 return str(value)
-        meta_candidates = []
-        for meta_key in ["meta", "Meta", "card", "Card"]:
+        return None
+    
+    def _extract_version_from_meta_fields(self, data: dict) -> Optional[str]:
+        """从meta或card字段中提取版本号
+        
+        Args:
+            data: TOML数据字典
+            
+        Returns:
+            版本号或None
+        """
+        meta_keys = ["meta", "Meta", "card", "Card"]
+        version_keys = ["version", "Version", "schema_version", "card_version"]
+        
+        for meta_key in meta_keys:
             meta_value = data.get(meta_key)
             if isinstance(meta_value, dict):
-                meta_candidates.append(meta_value)
-        for meta in meta_candidates:
-            for key in ["version", "Version", "schema_version", "card_version"]:
-                value = meta.get(key)
-                if isinstance(value, (str, int, float)):
-                    return str(value)
+                for version_key in version_keys:
+                    value = meta_value.get(version_key)
+                    if isinstance(value, (str, int, float)):
+                        return str(value)
+        return None
+    
+    def _deep_search_version(self, data: dict) -> Optional[str]:
+        """深度搜索版本字段
+        
+        Args:
+            data: TOML数据字典
+            
+        Returns:
+            版本号或None
+        """
         visited = set()
         stack: List[Any] = [data]
+        
         while stack:
             current = stack.pop()
+            
+            # 避免循环引用
             if id(current) in visited:
                 continue
             visited.add(id(current))
+            
+            # 处理字典
             if isinstance(current, dict):
-                for k, v in current.items():
-                    if isinstance(k, str) and k.lower() == "version" and isinstance(v, (str, int, float)):
-                        return str(v)
-                    if isinstance(v, dict):
-                        stack.append(v)
-                    elif isinstance(v, list):
-                        for item in v:
-                            if isinstance(item, (dict, list)):
-                                stack.append(item)
+                version = self._search_version_in_dict(current, stack)
+                if version:
+                    return version
+            
+            # 处理列表
             elif isinstance(current, list):
-                for v in current:
-                    if isinstance(v, (dict, list)):
-                        stack.append(v)
+                self._add_list_items_to_stack(current, stack)
+        
         return None
+    
+    def _search_version_in_dict(self, data: dict, stack: list) -> Optional[str]:
+        """在字典中搜索版本字段
+        
+        Args:
+            data: 字典数据
+            stack: 搜索栈
+            
+        Returns:
+            版本号或None
+        """
+        for k, v in data.items():
+            # 找到version键
+            if isinstance(k, str) and k.lower() == "version" and isinstance(v, (str, int, float)):
+                return str(v)
+            
+            # 将嵌套结构加入栈
+            if isinstance(v, dict):
+                stack.append(v)
+            elif isinstance(v, list):
+                self._add_list_items_to_stack(v, stack)
+        
+        return None
+    
+    def _add_list_items_to_stack(self, items: list, stack: list) -> None:
+        """将列表中的字典和列表项加入搜索栈
+        
+        Args:
+            items: 列表项
+            stack: 搜索栈
+        """
+        for item in items:
+            if isinstance(item, (dict, list)):
+                stack.append(item)
 
     def _create_metadata_file(self, metadata: Dict[str, Any], target_dir: str, prefix: str) -> str:
         """创建元数据文件"""
@@ -313,114 +401,187 @@ class FileUploadService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"知识库保存失败: {str(e)}")
 
     async def upload_persona_card(
-        self,
-        files: List[UploadFile],
-        name: str,
-        description: str,
-        uploader_id: str,
-        copyright_owner: str,
-        content: Optional[str] = None,
-        tags: Optional[str] = None,
-    ) -> PersonaCard:
-        """上传人设卡 - 处理文件操作并保存到数据库"""
-        # 验证文件数量
+            self,
+            files: List[UploadFile],
+            name: str,
+            description: str,
+            uploader_id: str,
+            copyright_owner: str,
+            content: Optional[str] = None,
+            tags: Optional[str] = None,
+        ) -> PersonaCard:
+            """上传人设卡 - 处理文件操作并保存到数据库"""
+            self._validate_persona_files(files)
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            pc_dir = os.path.join(self.persona_dir, f"{uploader_id}_{timestamp}")
+            os.makedirs(pc_dir, exist_ok=True)
+
+            try:
+                persona_version = await self._process_persona_files(files, pc_dir)
+                pc = self._create_persona_card_object(
+                    name, description, uploader_id, copyright_owner, content, tags, pc_dir, persona_version
+                )
+                return pc
+            except Exception as e:
+                if os.path.exists(pc_dir):
+                    shutil.rmtree(pc_dir)
+                raise e
+
+    def _validate_persona_files(self, files: List[UploadFile]) -> None:
+        """验证人设卡文件
+        
+        Args:
+            files: 上传的文件列表
+            
+        Raises:
+            ValidationError: 文件验证失败
+        """
         if len(files) != 1:
             raise ValidationError(
                 message="人设卡配置错误：必须且仅包含一个 bot_config.toml 文件",
                 details={"code": "PERSONA_FILE_COUNT_INVALID"},
             )
 
-        # 验证文件类型、名称和大小
         for file in files:
-            if file.filename != "bot_config.toml":
-                raise ValidationError(
-                    message="人设卡配置错误：配置文件名必须为 bot_config.toml",
-                    details={"code": "PERSONA_FILE_NAME_INVALID", "filename": file.filename},
-                )
+            self._validate_single_persona_file(file)
 
-            if not self._validate_file_type(file, self.ALLOWED_PERSONA_TYPES):
-                raise ValidationError(
-                    message=f"人设卡配置错误：不支持的文件类型 {file.filename}，仅支持{', '.join(self.ALLOWED_PERSONA_TYPES)} 文件",
-                    details={"code": "PERSONA_FILE_TYPE_INVALID", "filename": file.filename},
-                )
+    def _validate_single_persona_file(self, file: UploadFile) -> None:
+        """验证单个人设卡文件
+        
+        Args:
+            file: 上传的文件
+            
+        Raises:
+            ValidationError: 文件验证失败
+        """
+        if file.filename != "bot_config.toml":
+            raise ValidationError(
+                message="人设卡配置错误：配置文件名必须为 bot_config.toml",
+                details={"code": "PERSONA_FILE_NAME_INVALID", "filename": file.filename},
+            )
 
-            if not self._validate_persona_toml_size(file):
-                raise ValidationError(
-                    message=f"人设卡配置错误：文件过大 {file.filename}，单个文件最大允许{self.MAX_PERSONA_TOML_SIZE // (1024*1024)}MB",
-                    details={"code": "PERSONA_FILE_SIZE_EXCEEDED", "filename": file.filename},
-                )
+        if not self._validate_file_type(file, self.ALLOWED_PERSONA_TYPES):
+            raise ValidationError(
+                message=f"人设卡配置错误：不支持的文件类型 {file.filename}，仅支持{', '.join(self.ALLOWED_PERSONA_TYPES)} 文件",
+                details={"code": "PERSONA_FILE_TYPE_INVALID", "filename": file.filename},
+            )
 
-            # 验证实际文件内容大小
+        if not self._validate_persona_toml_size(file):
+            raise ValidationError(
+                message=f"人设卡配置错误：文件过大 {file.filename}，单个文件最大允许{self.MAX_PERSONA_TOML_SIZE // (1024*1024)}MB",
+                details={"code": "PERSONA_FILE_SIZE_EXCEEDED", "filename": file.filename},
+            )
+
+    async def _process_persona_files(self, files: List[UploadFile], pc_dir: str) -> str:
+        """处理人设卡文件并提取版本号
+        
+        Args:
+            files: 上传的文件列表
+            pc_dir: 人设卡目录
+            
+        Returns:
+            人设卡版本号
+            
+        Raises:
+            ValidationError: 文件处理失败或版本号缺失
+        """
+        persona_version: Optional[str] = None
+
+        for file in files:
             if not await self._validate_persona_toml_content(file):
                 raise ValidationError(
                     message=f"人设卡配置错误：文件内容过大 {file.filename}，单个文件最大允许{self.MAX_PERSONA_TOML_SIZE // (1024*1024)}MB",
                     details={"code": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED", "filename": file.filename},
                 )
 
-        # 创建人设卡目录
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        pc_dir = os.path.join(self.persona_dir, f"{uploader_id}_{timestamp}")
-        os.makedirs(pc_dir, exist_ok=True)
+            file_path, file_size_b = await self._save_uploaded_file_with_size(file, pc_dir)
+            file_ext = os.path.splitext(file.filename)[1].lower()
 
-        try:
-            persona_version: Optional[str] = None
+            if file_ext == ".toml":
+                persona_version = self._extract_persona_version(file_path)
 
-            # 保存上传的文件并解析 TOML 版本号
-            for file in files:
-                file_path, file_size_b = await self._save_uploaded_file_with_size(file, pc_dir)
-                file_ext = os.path.splitext(file.filename)[1].lower()
-
-                if file_ext == ".toml":
-                    try:
-                        with open(file_path, "r", encoding="utf-8") as f:
-                            toml_data = toml.load(f)
-                        parsed_version = self._extract_version_from_toml(toml_data)
-                        if not parsed_version:
-                            raise ValidationError(
-                                message="人设卡配置错误：TOML 中未找到版本号字段，请在 bot_config.toml 中添加 version 等版本字段后重试",
-                                details={"code": "PERSONA_TOML_VERSION_MISSING"},
-                            )
-                        persona_version = parsed_version
-                    except HTTPException:
-                        raise
-                    except Exception:
-                        raise ValidationError(
-                            message="人设卡配置解析失败：TOML 语法错误，请检查 bot_config.toml 格式是否正确",
-                            details={"code": "PERSONA_TOML_PARSE_ERROR"},
-                        )
-
-            if not persona_version:
-                raise ValidationError(
-                    message="人设卡配置错误：未能从 TOML 中解析出版本号，请在 bot_config.toml 中添加 version 等版本字段后重试",
-                    details={"code": "PERSONA_TOML_VERSION_MISSING"},
-                )
-
-            # 创建 PersonaCard 对象（不保存到数据库，由调用者处理）
-            import uuid
-
-            pc = PersonaCard(
-                id=str(uuid.uuid4()),
-                name=name,
-                description=description,
-                uploader_id=uploader_id,
-                copyright_owner=copyright_owner,
-                content=content,
-                tags=tags,
-                base_path=pc_dir,
-                version=persona_version,
-                is_pending=True,
-                is_public=False,
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
+        if not persona_version:
+            raise ValidationError(
+                message="人设卡配置错误：未能从 TOML 中解析出版本号，请在 bot_config.toml 中添加 version 等版本字段后重试",
+                details={"code": "PERSONA_TOML_VERSION_MISSING"},
             )
 
-            return pc
-        except Exception as e:
-            # 发生任何错误时，清理已创建的目录
-            if os.path.exists(pc_dir):
-                shutil.rmtree(pc_dir)
-            # 重新抛出异常
-            raise e
+        return persona_version
+
+    def _extract_persona_version(self, file_path: str) -> Optional[str]:
+        """从 TOML 文件中提取版本号
+        
+        Args:
+            file_path: TOML 文件路径
+            
+        Returns:
+            版本号，如果未找到则返回 None
+            
+        Raises:
+            ValidationError: TOML 解析失败
+        """
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                toml_data = toml.load(f)
+            parsed_version = self._extract_version_from_toml(toml_data)
+            if not parsed_version:
+                raise ValidationError(
+                    message="人设卡配置错误：TOML 中未找到版本号字段，请在 bot_config.toml 中添加 version 等版本字段后重试",
+                    details={"code": "PERSONA_TOML_VERSION_MISSING"},
+                )
+            return parsed_version
+        except HTTPException:
+            raise
+        except Exception:
+            raise ValidationError(
+                message="人设卡配置解析失败：TOML 语法错误，请检查 bot_config.toml 格式是否正确",
+                details={"code": "PERSONA_TOML_PARSE_ERROR"},
+            )
+
+    def _create_persona_card_object(
+        self,
+        name: str,
+        description: str,
+        uploader_id: str,
+        copyright_owner: str,
+        content: Optional[str],
+        tags: Optional[str],
+        pc_dir: str,
+        persona_version: str,
+    ) -> PersonaCard:
+        """创建 PersonaCard 对象
+        
+        Args:
+            name: 人设卡名称
+            description: 人设卡描述
+            uploader_id: 上传者ID
+            copyright_owner: 版权所有者
+            content: 内容
+            tags: 标签
+            pc_dir: 人设卡目录
+            persona_version: 版本号
+            
+        Returns:
+            PersonaCard 对象
+        """
+        import uuid
+
+        return PersonaCard(
+            id=str(uuid.uuid4()),
+            name=name,
+            description=description,
+            uploader_id=uploader_id,
+            copyright_owner=copyright_owner,
+            content=content,
+            tags=tags,
+            base_path=pc_dir,
+            version=persona_version,
+            is_pending=True,
+            is_public=False,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
 
     def get_knowledge_base_content(self, kb_id: str) -> Dict[str, Any]:
         """获取知识库内容"""
@@ -728,124 +889,118 @@ class FileUploadService:
         return {"file_name": kb_file.original_name, "file_path": kb_file.file_path}
 
     async def add_files_to_persona_card(self, pc_id: str, files: List[UploadFile]) -> Optional[PersonaCard]:
-        """向人设卡添加文件"""
-        db = self._get_db()
+            """向人设卡添加文件"""
+            db = self._get_db()
+            pc = self._get_persona_card(db, pc_id)
+            if not pc:
+                return None
 
-        # 获取人设卡信息
-        pc = db.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
+            current_files = db.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == pc_id).all()
+            self._validate_persona_files(files)
 
-        if not pc:
-            return None
+            pc_dir = self._get_persona_card_directory(pc)
+            new_file = files[0]
 
-        # 获取当前人设卡的所有文件
-        current_files = db.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == pc_id).all()
+            try:
+                file_path, file_size_b, persona_version = await self._save_and_validate_persona_file(new_file, pc_dir)
+                pc_file = self._create_persona_file_record(new_file, file_path, file_size_b, pc_id)
 
-        # 只允许一次上传一个文件
-        if len(files) != 1:
+                db.add(pc_file)
+                db.flush()
+
+                self._remove_old_persona_files(db, current_files, pc_dir)
+                self._update_persona_card_metadata(pc, persona_version)
+
+                db.commit()
+                db.refresh(pc)
+                return pc
+
+            except HTTPException:
+                db.rollback()
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                raise
+            except Exception:
+                db.rollback()
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                raise ValidationError(
+                    message="人设卡配置解析失败：TOML 语法错误，请检查 bot_config.toml 格式是否正确",
+                    details={"code": "PERSONA_TOML_PARSE_ERROR"},
+                )
+
+    def _get_persona_card(self, db, pc_id: str) -> Optional[PersonaCard]:
+        """获取人设卡信息"""
+        return db.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
+
+    async def _validate_persona_file_content(self, file: UploadFile) -> None:
+        """验证人设卡文件内容大小"""
+        if not await self._validate_persona_toml_content(file):
             raise ValidationError(
-                message="人设卡配置错误：一次仅支持上传一个 bot_config.toml 文件",
-                details={"code": "PERSONA_FILE_COUNT_INVALID"},
+                message=f"人设卡配置错误：文件内容过大 {file.filename}，单个文件最大允许{self.MAX_PERSONA_TOML_SIZE // (1024*1024)}MB",
+                details={"code": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED", "filename": file.filename},
             )
 
-        # 验证文件类型、名称和大小
-        for file in files:
-            if file.filename != "bot_config.toml":
-                raise ValidationError(
-                    message=f"人设卡配置错误：文件名必须为 bot_config.toml，当前为 {file.filename}",
-                    details={"code": "PERSONA_FILE_NAME_INVALID", "filename": file.filename},
-                )
-
-            if not self._validate_file_type(file, self.ALLOWED_PERSONA_TYPES):
-                raise ValidationError(
-                    message=f"人设卡配置错误：不支持的文件类型 {file.filename}，仅支持{', '.join(self.ALLOWED_PERSONA_TYPES)} 文件",
-                    details={"code": "PERSONA_FILE_TYPE_INVALID", "filename": file.filename},
-                )
-
-            if not self._validate_persona_toml_size(file):
-                raise ValidationError(
-                    message=f"人设卡配置错误：文件过大 {file.filename}，单个文件最大允许{self.MAX_PERSONA_TOML_SIZE // (1024*1024)}MB",
-                    details={"code": "PERSONA_FILE_SIZE_EXCEEDED", "filename": file.filename},
-                )
-
-            # 验证实际文件内容大小
-            if not await self._validate_persona_toml_content(file):
-                raise ValidationError(
-                    message=f"人设卡配置错误：文件内容过大 {file.filename}，单个文件最大允许{self.MAX_PERSONA_TOML_SIZE // (1024*1024)}MB",
-                    details={"code": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED", "filename": file.filename},
-                )
-
-        # 获取人设卡目录
+    def _get_persona_card_directory(self, pc: PersonaCard) -> str:
+        """获取人设卡目录"""
         pc_dir = pc.base_path
         if not pc_dir or not os.path.exists(pc_dir):
             raise DatabaseError(message="人设卡目录不存在，请稍后重试或联系管理员")
+        return pc_dir
 
-        # 保存新文件并创建文件记录，同时校验 TOML 版本号
-        new_file = files[0]
+    async def _save_and_validate_persona_file(self, file: UploadFile, pc_dir: str) -> tuple:
+        """保存并验证人设卡文件，返回 (file_path, file_size, version)"""
+        await self._validate_persona_file_content(file)
+
+        file_path, file_size_b = await self._save_uploaded_file_with_size(file, pc_dir)
+        file_ext = os.path.splitext(file.filename)[1].lower()
         persona_version: Optional[str] = None
-        file_path, file_size_b = await self._save_uploaded_file_with_size(new_file, pc_dir)
-        file_ext = os.path.splitext(new_file.filename)[1].lower()
 
-        try:
-            if file_ext == ".toml":
-                with open(file_path, "r", encoding="utf-8") as f:
-                    toml_data = toml.load(f)
-                parsed_version = self._extract_version_from_toml(toml_data)
-                if not parsed_version:
-                    raise ValidationError(
-                        message="人设卡配置错误：TOML 中未找到版本号字段，请在 bot_config.toml 中添加 version 等版本字段后重试",
-                        details={"code": "PERSONA_TOML_VERSION_MISSING"},
-                    )
-                persona_version = parsed_version
+        if file_ext == ".toml":
+            with open(file_path, "r", encoding="utf-8") as f:
+                toml_data = toml.load(f)
+            parsed_version = self._extract_version_from_toml(toml_data)
+            if not parsed_version:
+                raise ValidationError(
+                    message="人设卡配置错误：TOML 中未找到版本号字段，请在 bot_config.toml 中添加 version 等版本字段后重试",
+                    details={"code": "PERSONA_TOML_VERSION_MISSING"},
+                )
+            persona_version = parsed_version
 
-            # 创建新文件记录
-            import uuid
+        return file_path, file_size_b, persona_version
 
-            pc_file = PersonaCardFile(
-                id=str(uuid.uuid4()),
-                persona_card_id=pc_id,
-                file_name=new_file.filename,
-                original_name=new_file.filename,
-                file_path=os.path.basename(file_path),
-                file_type=file_ext,
-                file_size=file_size_b,
-                created_at=datetime.now(),
-            )
-            db.add(pc_file)
-            db.flush()
+    def _create_persona_file_record(self, file: UploadFile, file_path: str, file_size: int, pc_id: str) -> PersonaCardFile:
+        """创建人设卡文件记录"""
+        import uuid
 
-            # 新文件保存成功后，删除旧文件及记录（实现"替换"）
-            for old_file in current_files:
-                try:
-                    old_full_path = os.path.join(pc_dir, old_file.file_path)
-                    if os.path.exists(old_full_path):
-                        os.remove(old_full_path)
-                    db.delete(old_file)
-                except Exception as e:
-                    raise DatabaseError(message=f"删除旧人设卡文件失败：{old_file.original_name}，错误：{str(e)}")
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        return PersonaCardFile(
+            id=str(uuid.uuid4()),
+            persona_card_id=pc_id,
+            file_name=file.filename,
+            original_name=file.filename,
+            file_path=os.path.basename(file_path),
+            file_type=file_ext,
+            file_size=file_size,
+            created_at=datetime.now(),
+        )
 
-            # 更新人设卡时间戳和版本号
-            pc.updated_at = datetime.now()
-            if persona_version:
-                pc.version = persona_version
+    def _remove_old_persona_files(self, db, current_files: List[PersonaCardFile], pc_dir: str) -> None:
+        """删除旧的人设卡文件"""
+        for old_file in current_files:
+            try:
+                old_full_path = os.path.join(pc_dir, old_file.file_path)
+                if os.path.exists(old_full_path):
+                    os.remove(old_full_path)
+                db.delete(old_file)
+            except Exception as e:
+                raise DatabaseError(message=f"删除旧人设卡文件失败：{old_file.original_name}，错误：{str(e)}")
 
-            db.commit()
-            db.refresh(pc)
-            return pc
-
-        except HTTPException:
-            db.rollback()
-            # 删除新文件，保留旧文件不变
-            if os.path.exists(file_path):
-                os.remove(file_path)
-            raise
-        except Exception:
-            db.rollback()
-            if os.path.exists(file_path):
-                os.remove(file_path)
-            raise ValidationError(
-                message="人设卡配置解析失败：TOML 语法错误，请检查 bot_config.toml 格式是否正确",
-                details={"code": "PERSONA_TOML_PARSE_ERROR"},
-            )
+    def _update_persona_card_metadata(self, pc: PersonaCard, version: Optional[str]) -> None:
+        """更新人设卡元数据"""
+        pc.updated_at = datetime.now()
+        if version:
+            pc.version = version
 
     async def delete_files_from_persona_card(self, pc_id: str, file_id: str, user_id: str) -> bool:
         """从人设卡删除文件"""
