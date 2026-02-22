@@ -61,7 +61,7 @@ app/
 - **核心模块** (`app/core/`): 提供配置、安全、数据库等核心功能
 - **工具模块** (`app/utils/`): 提供通用工具函数
 
-详细的架构说明请参考 [架构文档](./ARCHITECTURE.md)。
+详细的架构说明请参考 [架构文档](../architecture/架构文档.md)。
 
 ---
 
@@ -1120,10 +1120,10 @@ Token 由登录接口返回，有效期为 24 小时。
 
 ## 相关文档
 
-- [架构文档](./ARCHITECTURE.md) - 系统架构设计
-- [数据库模型](./database/models.md) - 数据库表结构
-- [错误码说明](./README_ERROR_CODES.md) - 详细的错误码列表
-- [变更日志](./CHANGELOG.md) - API 变更历史
+- [架构文档](../architecture/架构文档.md) - 系统架构设计
+- [数据库模型](../database/数据模型.md) - 数据库表结构
+- [错误码说明](../development/错误码文档.md) - 详细的错误码列表
+- [更新日志](../guides/更新日志.md) - API 变更历史
 
 ---
 

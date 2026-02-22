@@ -116,8 +116,8 @@ python -m pytest tests/ -v
 
 ## 相关文档
 
-- [配置管理文档](../docs/配置管理文档.md) - 详细的配置管理说明
-- [架构文档](../docs/架构文档.md) - 项目架构说明
+- [配置管理文档](../docs/configuration/配置管理文档.md) - 详细的配置管理说明
+- [架构文档](../docs/architecture/架构文档.md) - 项目架构说明
 - [README.md](../README.md) - 项目主文档
 
 ## 注意事项

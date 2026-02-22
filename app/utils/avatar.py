@@ -133,51 +133,52 @@ def process_avatar_image(content: bytes) -> Tuple[bytes, bytes]:
 
 
 def generate_initial_avatar(username: str, size: int = 200) -> bytes:
-    """
-    生成首字母头像
-    
-    根据用户名的首字母生成彩色头像图片。
-    颜色基于首字母的哈希值确定，确保同一字母颜色一致。
-    
-    Args:
-        username: 用户名
-        size: 头像尺寸（默认200x200像素）
-    
-    Returns:
-        bytes: 头像图片的字节数据（PNG格式）
-    
-    Example:
-        >>> avatar_bytes = generate_initial_avatar("Alice", size=200)
-        >>> with open("avatar.png", "wb") as f:
-        ...     f.write(avatar_bytes)
-    """
-    # 获取首字母（支持中文和英文）
     if username:
         initial = username[0].upper()
     else:
         initial = "?"
     
-    # 根据首字母生成颜色（使用哈希确保同一字母颜色一致）
-    hash_value = int(hashlib.md5(initial.encode('utf-8')).hexdigest(), 16)
+    base_hash = int(hashlib.md5(initial.encode('utf-8')).hexdigest(), 16)
     colors = [
-        (52, 152, 219),   # 蓝色
-        (46, 204, 113),   # 绿色
-        (241, 196, 15),   # 黄色
-        (231, 76, 60),    # 红色
-        (155, 89, 182),   # 紫色
-        (26, 188, 156),   # 青色
-        (230, 126, 34),   # 橙色
-        (149, 165, 166),  # 灰色
+        (52, 152, 219),
+        (46, 204, 113),
+        (241, 196, 15),
+        (231, 76, 60),
+        (155, 89, 182),
+        (26, 188, 156),
+        (230, 126, 34),
+        (149, 165, 166),
     ]
-    bg_color = colors[hash_value % len(colors)]
+    bg_color = colors[base_hash % len(colors)]
     
-    # 创建图片
     img = Image.new('RGB', (size, size), bg_color)
     draw = ImageDraw.Draw(img)
     
-    # 尝试加载字体（如果系统有的话）
+    pattern_seed = username or initial
+    pattern_hash = hashlib.md5(pattern_seed.encode('utf-8')).hexdigest()
+    grid_size = 5
+    margin = int(size * 0.15)
+    cell_size = (size - margin * 2) // grid_size if grid_size > 0 else size
+    pattern_color = tuple(min(255, int(c * 1.2)) for c in bg_color)
+    index = 0
+    for col in range((grid_size + 1) // 2):
+        for row in range(grid_size):
+            bit = int(pattern_hash[index % len(pattern_hash)], 16)
+            index += 1
+            if bit % 2 == 0:
+                continue
+            x0 = margin + col * cell_size
+            y0 = margin + row * cell_size
+            x1 = x0 + cell_size
+            y1 = y0 + cell_size
+            draw.rectangle((x0, y0, x1, y1), fill=pattern_color)
+            mirror_col = grid_size - 1 - col
+            if mirror_col != col:
+                mx0 = margin + mirror_col * cell_size
+                mx1 = mx0 + cell_size
+                draw.rectangle((mx0, y0, mx1, y1), fill=pattern_color)
+    
     try:
-        # Windows字体路径
         if os.name == 'nt':
             font_path = "C:/Windows/Fonts/arial.ttf"
             if os.path.exists(font_path):
@@ -185,22 +186,17 @@ def generate_initial_avatar(username: str, size: int = 200) -> bytes:
             else:
                 font = ImageFont.load_default()
         else:
-            # Linux/Mac字体路径
             font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size=int(size * 0.5))
     except:
-        # 如果加载字体失败，使用默认字体
         font = ImageFont.load_default()
     
-    # 计算文字位置（居中）
     bbox = draw.textbbox((0, 0), initial, font=font)
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
     position = ((size - text_width) // 2, (size - text_height) // 2)
     
-    # 绘制文字（白色）
     draw.text(position, initial, fill=(255, 255, 255), font=font)
     
-    # 转换为字节
     buffer = io.BytesIO()
     img.save(buffer, format='PNG')
     return buffer.getvalue()

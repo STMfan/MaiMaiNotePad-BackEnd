@@ -39,8 +39,16 @@ class EmailService:
 
         smtp = None
         try:
-            # 创建 SMTP 连接，设置超时
-            smtp = smtplib.SMTP_SSL(self.mail_host, self.mail_port, timeout=self.mail_timeout)
+            # 根据端口选择连接方式
+            if self.mail_port == 465:
+                # 端口 465: 使用 SSL
+                smtp = smtplib.SMTP_SSL(self.mail_host, self.mail_port, timeout=self.mail_timeout)
+            else:
+                # 端口 25/587: 使用标准 SMTP（可选 STARTTLS）
+                smtp = smtplib.SMTP(self.mail_host, self.mail_port, timeout=self.mail_timeout)
+                # 如果是端口 587，尝试使用 STARTTLS
+                if self.mail_port == 587:
+                    smtp.starttls()
 
             # 登录
             smtp.login(self.mail_user, self.mail_pwd)

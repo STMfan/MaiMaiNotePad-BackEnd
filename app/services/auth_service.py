@@ -379,8 +379,22 @@ class AuthService:
             if code_id:
                 # 发送验证码邮件
                 from app.services.email_service import send_email
-                subject = "MaiMaiNotePad 注册验证码"
-                body = f"您的验证码是: {code}\n\n验证码将在2分钟后过期。"
+                subject = "【MaiMaiNotePad】注册验证码"
+                body = f"""您好！
+
+感谢您注册 MaiMaiNotePad！
+
+您的验证码是：
+
+    {code}
+
+请在 2 分钟内完成验证，验证码过期后将失效。
+
+如果这不是您本人的操作，请忽略此邮件。
+
+---
+MaiMaiNotePad 团队
+此邮件由系统自动发送，请勿回复。"""
                 send_email(email, subject, body)
                 
             return code_id
@@ -405,8 +419,22 @@ class AuthService:
             if code_id:
                 # 发送验证码邮件
                 from app.services.email_service import send_email
-                subject = "MaiMaiNotePad 重置密码验证码"
-                body = f"您的重置密码验证码是: {code}\n\n验证码将在2分钟后过期。"
+                subject = "【MaiMaiNotePad】重置密码验证码"
+                body = f"""您好！
+
+您正在重置 MaiMaiNotePad 账户密码。
+
+您的验证码是：
+
+    {code}
+
+请在 2 分钟内完成验证，验证码过期后将失效。
+
+如果这不是您本人的操作，请立即修改密码以保护账户安全。
+
+---
+MaiMaiNotePad 团队
+此邮件由系统自动发送，请勿回复。"""
                 send_email(email, subject, body)
                 
             return code_id

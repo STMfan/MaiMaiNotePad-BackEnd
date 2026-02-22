@@ -6,9 +6,9 @@
 
 import jwt
 import os
+import bcrypt
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
-from passlib.context import CryptContext
 import secrets
 import warnings
 
@@ -16,14 +16,9 @@ from app.core.config import settings
 from app.core.config_manager import config_manager
 
 
-# 密码哈希上下文
-# 在测试环境中使用更少的 rounds 来加速测试（通过 PASSLIB_BCRYPT_ROUNDS 环境变量）
-bcrypt_rounds = int(os.getenv("PASSLIB_BCRYPT_ROUNDS") or config_manager.get_int("security.bcrypt_rounds", 12))
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-    bcrypt__rounds=bcrypt_rounds
-)
+# bcrypt 配置
+# 在测试环境中使用更少的 rounds 来加速测试（通过 BCRYPT_ROUNDS 环境变量）
+BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS") or config_manager.get_int("security.bcrypt_rounds", 12))
 
 
 # JWT 配置及校验

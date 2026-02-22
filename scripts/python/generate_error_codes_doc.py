@@ -2,7 +2,7 @@
 """
 自动生成错误码文档脚本
 
-从 app/error_messages.json 自动生成 docs/错误码文档.md
+从 app/error_messages.json 自动生成 docs/development/错误码文档.md
 使用方法: python scripts/python/generate_error_codes_doc.py
 """
 
@@ -140,7 +140,7 @@ def main():
     
     # 定义文件路径
     json_path = project_root / "app" / "error_messages.json"
-    doc_path = project_root / "docs" / "错误码文档.md"
+    doc_path = project_root / "docs" / "development" / "错误码文档.md"
     
     # 检查输入文件是否存在
     if not json_path.exists():
