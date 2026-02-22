@@ -326,314 +326,351 @@ class BoundaryValueGenerator:
             >>> assert any(tc["param_value"] == 149 for tc in test_cases)
             >>> assert any(tc["param_value"] == 151 for tc in test_cases)
         """
-        test_cases = []
-
         if param_type == "string":
-            max_length = max_value if max_value is not None else self._max_string_length
-
-            # 最大长度字符串
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": "a" * max_length,
-                    "description": f"{function.__name__}({param_name}=max_length_string[{max_length}])",
-                    "expected_behavior": "handle_gracefully",
-                    "category": "max",
-                    "test_type": "at_max",
-                }
-            )
-
-            # 刚好低于最大长度
-            if max_length > 0:
-                test_cases.append(
-                    {
-                        "function": function,
-                        "param_name": param_name,
-                        "param_value": "a" * (max_length - 1),
-                        "description": f"{function.__name__}({param_name}=below_max_string[{max_length - 1}])",
-                        "expected_behavior": "handle_gracefully",
-                        "category": "max",
-                        "test_type": "below_max",
-                    }
-                )
-
-            # 刚好超过最大长度
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": "a" * (max_length + 1),
-                    "description": f"{function.__name__}({param_name}=above_max_string[{max_length + 1}])",
-                    "expected_behavior": "raise_exception",
-                    "category": "extreme",
-                    "test_type": "above_max",
-                }
-            )
-
-            # 远超最大长度
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": "a" * (max_length * 2),
-                    "description": f"{function.__name__}({param_name}=far_above_max_string[{max_length * 2}])",
-                    "expected_behavior": "raise_exception",
-                    "category": "extreme",
-                    "test_type": "far_above_max",
-                }
-            )
-
+            return self._generate_string_max_cases(function, param_name, max_value)
         elif param_type == "integer":
-            max_int = max_value if max_value is not None else sys.maxsize
-
-            # 最大值
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": max_int,
-                    "description": f"{function.__name__}({param_name}=max_value[{max_int}])",
-                    "expected_behavior": "handle_gracefully",
-                    "category": "max",
-                    "test_type": "at_max",
-                }
-            )
-
-            # 刚好低于最大值
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": max_int - 1,
-                    "description": f"{function.__name__}({param_name}=below_max[{max_int - 1}])",
-                    "expected_behavior": "handle_gracefully",
-                    "category": "max",
-                    "test_type": "below_max",
-                }
-            )
-
-            # 刚好超过最大值
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": max_int + 1,
-                    "description": f"{function.__name__}({param_name}=above_max[{max_int + 1}])",
-                    "expected_behavior": "raise_exception",
-                    "category": "extreme",
-                    "test_type": "above_max",
-                }
-            )
-
-            # 系统最大值（如果不同于指定最大值）
-            if max_value is not None and max_value != sys.maxsize:
-                test_cases.append(
-                    {
-                        "function": function,
-                        "param_name": param_name,
-                        "param_value": sys.maxsize,
-                        "description": f"{function.__name__}({param_name}=sys_max[{sys.maxsize}])",
-                        "expected_behavior": "raise_exception",
-                        "category": "extreme",
-                        "test_type": "system_max",
-                    }
-                )
-
+            return self._generate_integer_max_cases(function, param_name, max_value)
         elif param_type == "float":
-            max_float = max_value if max_value is not None else sys.float_info.max
-
-            # 最大值
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": max_float,
-                    "description": f"{function.__name__}({param_name}=max_value[{max_float}])",
-                    "expected_behavior": "handle_gracefully",
-                    "category": "max",
-                    "test_type": "at_max",
-                }
-            )
-
-            # 刚好低于最大值
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": max_float - 0.1,
-                    "description": f"{function.__name__}({param_name}=below_max[{max_float - 0.1}])",
-                    "expected_behavior": "handle_gracefully",
-                    "category": "max",
-                    "test_type": "below_max",
-                }
-            )
-
-            # 刚好超过最大值
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": max_float + 0.1,
-                    "description": f"{function.__name__}({param_name}=above_max[{max_float + 0.1}])",
-                    "expected_behavior": "raise_exception",
-                    "category": "extreme",
-                    "test_type": "above_max",
-                }
-            )
-
-            # 正无穷大
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": float("inf"),
-                    "description": f"{function.__name__}({param_name}=positive_infinity)",
-                    "expected_behavior": "raise_exception",
-                    "category": "extreme",
-                    "test_type": "infinity",
-                }
-            )
-
-            # 系统最大值（如果不同于指定最大值）
-            if max_value is not None and max_value != sys.float_info.max:
-                test_cases.append(
-                    {
-                        "function": function,
-                        "param_name": param_name,
-                        "param_value": sys.float_info.max,
-                        "description": f"{function.__name__}({param_name}=sys_max[{sys.float_info.max}])",
-                        "expected_behavior": "raise_exception",
-                        "category": "extreme",
-                        "test_type": "system_max",
-                    }
-                )
-
+            return self._generate_float_max_cases(function, param_name, max_value)
         elif param_type == "list":
-            max_length = max_value if max_value is not None else self._max_list_length
-            element_type = kwargs.get("element_type", str)
-
-            # 根据元素类型生成示例元素
-            if element_type == str:
-                sample_element = "test"
-            elif element_type == int:
-                sample_element = 1
-            elif element_type == float:
-                sample_element = 1.0
-            else:
-                sample_element = "test"
-
-            # 最大长度列表
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": [sample_element] * max_length,
-                    "description": f"{function.__name__}({param_name}=max_length_list[{max_length}])",
-                    "expected_behavior": "handle_gracefully",
-                    "category": "max",
-                    "test_type": "at_max",
-                }
-            )
-
-            # 刚好低于最大长度
-            if max_length > 0:
-                test_cases.append(
-                    {
-                        "function": function,
-                        "param_name": param_name,
-                        "param_value": [sample_element] * (max_length - 1),
-                        "description": f"{function.__name__}({param_name}=below_max_list[{max_length - 1}])",
-                        "expected_behavior": "handle_gracefully",
-                        "category": "max",
-                        "test_type": "below_max",
-                    }
-                )
-
-            # 刚好超过最大长度
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": [sample_element] * (max_length + 1),
-                    "description": f"{function.__name__}({param_name}=above_max_list[{max_length + 1}])",
-                    "expected_behavior": "raise_exception",
-                    "category": "extreme",
-                    "test_type": "above_max",
-                }
-            )
-
-            # 远超最大长度
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": [sample_element] * (max_length * 2),
-                    "description": f"{function.__name__}({param_name}=far_above_max_list[{max_length * 2}])",
-                    "expected_behavior": "raise_exception",
-                    "category": "extreme",
-                    "test_type": "far_above_max",
-                }
-            )
-
+            return self._generate_list_max_cases(function, param_name, max_value, **kwargs)
         elif param_type == "dict":
-            max_keys = max_value if max_value is not None else 1000
-
-            # 最大键数字典
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": {f"key_{i}": f"value_{i}" for i in range(max_keys)},
-                    "description": f"{function.__name__}({param_name}=max_keys_dict[{max_keys}])",
-                    "expected_behavior": "handle_gracefully",
-                    "category": "max",
-                    "test_type": "at_max",
-                }
-            )
-
-            # 刚好低于最大键数
-            if max_keys > 0:
-                test_cases.append(
-                    {
-                        "function": function,
-                        "param_name": param_name,
-                        "param_value": {f"key_{i}": f"value_{i}" for i in range(max_keys - 1)},
-                        "description": f"{function.__name__}({param_name}=below_max_dict[{max_keys - 1}])",
-                        "expected_behavior": "handle_gracefully",
-                        "category": "max",
-                        "test_type": "below_max",
-                    }
-                )
-
-            # 刚好超过最大键数
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": {f"key_{i}": f"value_{i}" for i in range(max_keys + 1)},
-                    "description": f"{function.__name__}({param_name}=above_max_dict[{max_keys + 1}])",
-                    "expected_behavior": "raise_exception",
-                    "category": "extreme",
-                    "test_type": "above_max",
-                }
-            )
-
-            # 远超最大键数
-            test_cases.append(
-                {
-                    "function": function,
-                    "param_name": param_name,
-                    "param_value": {f"key_{i}": f"value_{i}" for i in range(max_keys * 2)},
-                    "description": f"{function.__name__}({param_name}=far_above_max_dict[{max_keys * 2}])",
-                    "expected_behavior": "raise_exception",
-                    "category": "extreme",
-                    "test_type": "far_above_max",
-                }
-            )
-
+            return self._generate_dict_max_cases(function, param_name, max_value)
         else:
             raise ValueError(f"Unsupported parameter type for max value generation: {param_type}")
+
+    def _generate_string_max_cases(
+        self, function: Callable, param_name: str, max_value: Optional[int]
+    ) -> List[Dict[str, Any]]:
+        """生成字符串类型的最大值测试用例"""
+        max_length = max_value if max_value is not None else self._max_string_length
+        test_cases = []
+
+        # 最大长度字符串
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": "a" * max_length,
+                "description": f"{function.__name__}({param_name}=max_length_string[{max_length}])",
+                "expected_behavior": "handle_gracefully",
+                "category": "max",
+                "test_type": "at_max",
+            }
+        )
+
+        # 刚好低于最大长度
+        if max_length > 0:
+            test_cases.append(
+                {
+                    "function": function,
+                    "param_name": param_name,
+                    "param_value": "a" * (max_length - 1),
+                    "description": f"{function.__name__}({param_name}=below_max_string[{max_length - 1}])",
+                    "expected_behavior": "handle_gracefully",
+                    "category": "max",
+                    "test_type": "below_max",
+                }
+            )
+
+        # 刚好超过最大长度
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": "a" * (max_length + 1),
+                "description": f"{function.__name__}({param_name}=above_max_string[{max_length + 1}])",
+                "expected_behavior": "raise_exception",
+                "category": "extreme",
+                "test_type": "above_max",
+            }
+        )
+
+        # 远超最大长度
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": "a" * (max_length * 2),
+                "description": f"{function.__name__}({param_name}=far_above_max_string[{max_length * 2}])",
+                "expected_behavior": "raise_exception",
+                "category": "extreme",
+                "test_type": "far_above_max",
+            }
+        )
+
+        return test_cases
+
+    def _generate_integer_max_cases(
+        self, function: Callable, param_name: str, max_value: Optional[int]
+    ) -> List[Dict[str, Any]]:
+        """生成整数类型的最大值测试用例"""
+        max_int = max_value if max_value is not None else sys.maxsize
+        test_cases = []
+
+        # 最大值
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": max_int,
+                "description": f"{function.__name__}({param_name}=max_value[{max_int}])",
+                "expected_behavior": "handle_gracefully",
+                "category": "max",
+                "test_type": "at_max",
+            }
+        )
+
+        # 刚好低于最大值
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": max_int - 1,
+                "description": f"{function.__name__}({param_name}=below_max[{max_int - 1}])",
+                "expected_behavior": "handle_gracefully",
+                "category": "max",
+                "test_type": "below_max",
+            }
+        )
+
+        # 刚好超过最大值
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": max_int + 1,
+                "description": f"{function.__name__}({param_name}=above_max[{max_int + 1}])",
+                "expected_behavior": "raise_exception",
+                "category": "extreme",
+                "test_type": "above_max",
+            }
+        )
+
+        # 系统最大值（如果不同于指定最大值）
+        if max_value is not None and max_value != sys.maxsize:
+            test_cases.append(
+                {
+                    "function": function,
+                    "param_name": param_name,
+                    "param_value": sys.maxsize,
+                    "description": f"{function.__name__}({param_name}=sys_max[{sys.maxsize}])",
+                    "expected_behavior": "raise_exception",
+                    "category": "extreme",
+                    "test_type": "system_max",
+                }
+            )
+
+        return test_cases
+
+    def _generate_float_max_cases(
+        self, function: Callable, param_name: str, max_value: Optional[float]
+    ) -> List[Dict[str, Any]]:
+        """生成浮点数类型的最大值测试用例"""
+        max_float = max_value if max_value is not None else sys.float_info.max
+        test_cases = []
+
+        # 最大值
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": max_float,
+                "description": f"{function.__name__}({param_name}=max_value[{max_float}])",
+                "expected_behavior": "handle_gracefully",
+                "category": "max",
+                "test_type": "at_max",
+            }
+        )
+
+        # 刚好低于最大值
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": max_float - 0.1,
+                "description": f"{function.__name__}({param_name}=below_max[{max_float - 0.1}])",
+                "expected_behavior": "handle_gracefully",
+                "category": "max",
+                "test_type": "below_max",
+            }
+        )
+
+        # 刚好超过最大值
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": max_float + 0.1,
+                "description": f"{function.__name__}({param_name}=above_max[{max_float + 0.1}])",
+                "expected_behavior": "raise_exception",
+                "category": "extreme",
+                "test_type": "above_max",
+            }
+        )
+
+        # 正无穷大
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": float("inf"),
+                "description": f"{function.__name__}({param_name}=positive_infinity)",
+                "expected_behavior": "raise_exception",
+                "category": "extreme",
+                "test_type": "infinity",
+            }
+        )
+
+        # 系统最大值（如果不同于指定最大值）
+        if max_value is not None and max_value != sys.float_info.max:
+            test_cases.append(
+                {
+                    "function": function,
+                    "param_name": param_name,
+                    "param_value": sys.float_info.max,
+                    "description": f"{function.__name__}({param_name}=sys_max[{sys.float_info.max}])",
+                    "expected_behavior": "raise_exception",
+                    "category": "extreme",
+                    "test_type": "system_max",
+                }
+            )
+
+        return test_cases
+
+    def _generate_list_max_cases(
+        self, function: Callable, param_name: str, max_value: Optional[int], **kwargs
+    ) -> List[Dict[str, Any]]:
+        """生成列表类型的最大值测试用例"""
+        max_length = max_value if max_value is not None else self._max_list_length
+        element_type = kwargs.get("element_type", str)
+
+        # 根据元素类型生成示例元素
+        if element_type == str:
+            sample_element = "test"
+        elif element_type == int:
+            sample_element = 1
+        elif element_type == float:
+            sample_element = 1.0
+        else:
+            sample_element = "test"
+
+        test_cases = []
+
+        # 最大长度列表
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": [sample_element] * max_length,
+                "description": f"{function.__name__}({param_name}=max_length_list[{max_length}])",
+                "expected_behavior": "handle_gracefully",
+                "category": "max",
+                "test_type": "at_max",
+            }
+        )
+
+        # 刚好低于最大长度
+        if max_length > 0:
+            test_cases.append(
+                {
+                    "function": function,
+                    "param_name": param_name,
+                    "param_value": [sample_element] * (max_length - 1),
+                    "description": f"{function.__name__}({param_name}=below_max_list[{max_length - 1}])",
+                    "expected_behavior": "handle_gracefully",
+                    "category": "max",
+                    "test_type": "below_max",
+                }
+            )
+
+        # 刚好超过最大长度
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": [sample_element] * (max_length + 1),
+                "description": f"{function.__name__}({param_name}=above_max_list[{max_length + 1}])",
+                "expected_behavior": "raise_exception",
+                "category": "extreme",
+                "test_type": "above_max",
+            }
+        )
+
+        # 远超最大长度
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": [sample_element] * (max_length * 2),
+                "description": f"{function.__name__}({param_name}=far_above_max_list[{max_length * 2}])",
+                "expected_behavior": "raise_exception",
+                "category": "extreme",
+                "test_type": "far_above_max",
+            }
+        )
+
+        return test_cases
+
+    def _generate_dict_max_cases(
+        self, function: Callable, param_name: str, max_value: Optional[int]
+    ) -> List[Dict[str, Any]]:
+        """生成字典类型的最大值测试用例"""
+        max_keys = max_value if max_value is not None else 1000
+        test_cases = []
+
+        # 最大键数字典
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": {f"key_{i}": f"value_{i}" for i in range(max_keys)},
+                "description": f"{function.__name__}({param_name}=max_keys_dict[{max_keys}])",
+                "expected_behavior": "handle_gracefully",
+                "category": "max",
+                "test_type": "at_max",
+            }
+        )
+
+        # 刚好低于最大键数
+        if max_keys > 0:
+            test_cases.append(
+                {
+                    "function": function,
+                    "param_name": param_name,
+                    "param_value": {f"key_{i}": f"value_{i}" for i in range(max_keys - 1)},
+                    "description": f"{function.__name__}({param_name}=below_max_dict[{max_keys - 1}])",
+                    "expected_behavior": "handle_gracefully",
+                    "category": "max",
+                    "test_type": "below_max",
+                }
+            )
+
+        # 刚好超过最大键数
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": {f"key_{i}": f"value_{i}" for i in range(max_keys + 1)},
+                "description": f"{function.__name__}({param_name}=above_max_dict[{max_keys + 1}])",
+                "expected_behavior": "raise_exception",
+                "category": "extreme",
+                "test_type": "above_max",
+            }
+        )
+
+        # 远超最大键数
+        test_cases.append(
+            {
+                "function": function,
+                "param_name": param_name,
+                "param_value": {f"key_{i}": f"value_{i}" for i in range(max_keys * 2)},
+                "description": f"{function.__name__}({param_name}=far_above_max_dict[{max_keys * 2}])",
+                "expected_behavior": "raise_exception",
+                "category": "extreme",
+                "test_type": "far_above_max",
+            }
+        )
 
         return test_cases
 
@@ -1440,29 +1477,36 @@ class BoundaryValueGenerator:
             >>> assert len(test_cases) > 0
             >>> assert all("param_value" in tc for tc in test_cases)
         """
-        # 根据参数类型生成边界值
+        boundaries = self._get_boundaries_by_type(param_type, **kwargs)
+        return self._convert_boundaries_to_test_cases(boundaries, function, param_name)
+
+    def _get_boundaries_by_type(self, param_type: str, **kwargs) -> List[BoundaryValue]:
+        """根据参数类型获取边界值列表"""
         if param_type == "string":
-            boundaries = self.generate_string_boundaries(**kwargs)
+            return self.generate_string_boundaries(**kwargs)
         elif param_type == "integer":
-            boundaries = self.generate_integer_boundaries(**kwargs)
+            return self.generate_integer_boundaries(**kwargs)
         elif param_type == "float":
-            boundaries = self.generate_float_boundaries(**kwargs)
+            return self.generate_float_boundaries(**kwargs)
         elif param_type == "list":
-            boundaries = self.generate_list_boundaries(**kwargs)
+            return self.generate_list_boundaries(**kwargs)
         elif param_type == "dict":
-            boundaries = self.generate_dict_boundaries(**kwargs)
+            return self.generate_dict_boundaries(**kwargs)
         elif param_type == "datetime":
-            boundaries = self.generate_datetime_boundaries()
+            return self.generate_datetime_boundaries()
         elif param_type == "boolean":
-            boundaries = self.generate_boolean_boundaries()
+            return self.generate_boolean_boundaries()
         elif param_type == "uuid":
-            boundaries = self.generate_uuid_boundaries()
+            return self.generate_uuid_boundaries()
         elif param_type == "null":
-            boundaries = self.generate_null_values()
+            return self.generate_null_values()
         else:
             raise ValueError(f"Unsupported parameter type: {param_type}")
 
-        # 将边界值转换为测试用例
+    def _convert_boundaries_to_test_cases(
+        self, boundaries: List[BoundaryValue], function: Callable, param_name: str
+    ) -> List[Dict[str, Any]]:
+        """将边界值列表转换为测试用例列表"""
         test_cases = []
         for boundary in boundaries:
             test_case = {
@@ -1474,5 +1518,4 @@ class BoundaryValueGenerator:
                 "category": boundary.category,
             }
             test_cases.append(test_case)
-
         return test_cases

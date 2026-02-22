@@ -147,49 +147,110 @@ class PersonaService:
         try:
             pcs = self.db.query(PersonaCard).filter(PersonaCard.uploader_id == user_id).all()
 
-            def match_status(pc):
-                if status == "pending":
-                    return pc.is_pending
-                if status == "approved":
-                    return not pc.is_pending and pc.is_public
-                if status == "rejected":
-                    return not pc.is_pending and (not pc.is_public)
-                return True
+            # 应用筛选条件
+            filtered = self._filter_persona_cards(pcs, name, tag, status)
 
-            filtered = []
-            for pc in pcs:
-                if name and name.lower() not in pc.name.lower():
-                    continue
-                if tag:
-                    tag_list = []
-                    if pc.tags:
-                        tag_list = pc.tags.split(",") if isinstance(pc.tags, str) else pc.tags
-                    if not any(tag.lower() in t.lower() for t in tag_list):
-                        continue
-                if not match_status(pc):
-                    continue
-                filtered.append(pc)
+            # 排序
+            sorted_pcs = self._sort_persona_cards(filtered, sort_by, sort_order)
 
-            sort_field_map = {
-                "created_at": lambda pc: pc.created_at,
-                "updated_at": lambda pc: pc.updated_at,
-                "name": lambda pc: pc.name.lower(),
-                "downloads": lambda pc: pc.downloads or 0,
-                "star_count": lambda pc: pc.star_count or 0,
-            }
-            key_func = sort_field_map.get(sort_by, sort_field_map["created_at"])
-            reverse = sort_order.lower() != "asc"
-            filtered.sort(key=key_func, reverse=reverse)
-
-            total = len(filtered)
-            start = (page - 1) * page_size
-            end = start + page_size
-            page_items = filtered[start:end]
+            # 分页
+            total = len(sorted_pcs)
+            page_items = self._paginate_items(sorted_pcs, page, page_size)
 
             return page_items, total
         except Exception as e:
             logger.error(f"获取用户 {user_id} 的人设卡列表失败: {str(e)}")
             return [], 0
+
+    def _filter_persona_cards(
+        self, pcs: List[PersonaCard], name: Optional[str], tag: Optional[str], status: str
+    ) -> List[PersonaCard]:
+        """
+        根据条件筛选人设卡列表。
+
+        Args:
+            pcs: 人设卡列表
+            name: 按名称搜索（可选）
+            tag: 按标签搜索（可选）
+            status: 状态筛选（all/pending/approved/rejected）
+
+        Returns:
+            筛选后的人设卡列表
+        """
+        filtered = []
+        for pc in pcs:
+            if not self._match_name_filter(pc, name):
+                continue
+            if not self._match_tag_filter(pc, tag):
+                continue
+            if not self._match_status_filter(pc, status):
+                continue
+            filtered.append(pc)
+        return filtered
+
+    def _match_name_filter(self, pc: PersonaCard, name: Optional[str]) -> bool:
+        """检查人设卡是否匹配名称筛选条件"""
+        if name and name.lower() not in pc.name.lower():
+            return False
+        return True
+
+    def _match_tag_filter(self, pc: PersonaCard, tag: Optional[str]) -> bool:
+        """检查人设卡是否匹配标签筛选条件"""
+        if not tag:
+            return True
+        tag_list = []
+        if pc.tags:
+            tag_list = pc.tags.split(",") if isinstance(pc.tags, str) else pc.tags
+        return any(tag.lower() in t.lower() for t in tag_list)
+
+    def _match_status_filter(self, pc: PersonaCard, status: str) -> bool:
+        """检查人设卡是否匹配状态筛选条件"""
+        if status == "pending":
+            return pc.is_pending
+        if status == "approved":
+            return not pc.is_pending and pc.is_public
+        if status == "rejected":
+            return not pc.is_pending and (not pc.is_public)
+        return True
+
+    def _sort_persona_cards(self, pcs: List[PersonaCard], sort_by: str, sort_order: str) -> List[PersonaCard]:
+        """
+        对人设卡列表进行排序。
+
+        Args:
+            pcs: 人设卡列表
+            sort_by: 排序字段
+            sort_order: 排序方向
+
+        Returns:
+            排序后的人设卡列表
+        """
+        sort_field_map = {
+            "created_at": lambda pc: pc.created_at,
+            "updated_at": lambda pc: pc.updated_at,
+            "name": lambda pc: pc.name.lower(),
+            "downloads": lambda pc: pc.downloads or 0,
+            "star_count": lambda pc: pc.star_count or 0,
+        }
+        key_func = sort_field_map.get(sort_by, sort_field_map["created_at"])
+        reverse = sort_order.lower() != "asc"
+        return sorted(pcs, key=key_func, reverse=reverse)
+
+    def _paginate_items(self, items: List[Any], page: int, page_size: int) -> List[Any]:
+        """
+        对列表进行分页。
+
+        Args:
+            items: 待分页的列表
+            page: 页码（从 1 开始）
+            page_size: 每页数量
+
+        Returns:
+            当前页的项目列表
+        """
+        start = (page - 1) * page_size
+        end = start + page_size
+        return items[start:end]
 
     def save_persona_card(self, pc_data: Dict[str, Any]) -> Optional[PersonaCard]:
         """
@@ -247,28 +308,23 @@ class PersonaService:
             if not pc:
                 return False, "人设卡不存在", None
 
-            if pc.uploader_id != user_id and not is_admin and not is_moderator:
+            # 权限检查
+            if not self._check_update_permission(pc, user_id, is_admin, is_moderator):
                 return False, "没有权限修改此人设卡", None
 
-            if pc.is_public or pc.is_pending:
-                allowed_fields = {"content"}
-                disallowed_fields = [key for key in update_data.keys() if key not in allowed_fields]
-                if disallowed_fields:
-                    return False, "公开或审核中的人设卡仅允许修改补充说明", None
+            # 公开或审核中的人设卡限制修改范围
+            if not self._validate_public_pc_update(pc, update_data):
+                return False, "公开或审核中的人设卡仅允许修改补充说明", None
 
-            update_data.pop("copyright_owner", None)
-            update_data.pop("name", None)
+            # 清理受保护字段
+            self._remove_protected_fields(update_data)
 
-            if not (pc.is_public or pc.is_pending):
-                if "is_public" in update_data and not (is_admin or is_moderator):
-                    return False, "只有管理员可以直接修改公开状态", None
+            # 检查公开状态修改权限
+            if not self._validate_public_status_change(pc, update_data, is_admin, is_moderator):
+                return False, "只有管理员可以直接修改公开状态", None
 
-            for key, value in update_data.items():
-                if hasattr(pc, key):
-                    setattr(pc, key, value)
-
-            if any(field != "content" for field in update_data.keys()):
-                pc.updated_at = datetime.now()
+            # 应用更新
+            self._apply_updates(pc, update_data)
 
             self.db.commit()
             self.db.refresh(pc)
@@ -279,6 +335,47 @@ class PersonaService:
             self.db.rollback()
             logger.error(f"更新人设卡 {pc_id} 失败: {str(e)}")
             return False, "修改人设卡失败", None
+
+    def _check_update_permission(self, pc: PersonaCard, user_id: str, is_admin: bool, is_moderator: bool) -> bool:
+        """检查用户是否有权限更新人设卡"""
+        return pc.uploader_id == user_id or is_admin or is_moderator
+
+    def _validate_public_pc_update(self, pc: PersonaCard, update_data: Dict[str, Any]) -> bool:
+        """验证公开或审核中的人设卡更新是否合法"""
+        if not (pc.is_public or pc.is_pending):
+            return True
+        allowed_fields = {"content"}
+        disallowed_fields = [key for key in update_data.keys() if key not in allowed_fields]
+        return len(disallowed_fields) == 0
+
+    def _remove_protected_fields(self, update_data: Dict[str, Any]) -> None:
+        """移除受保护的字段"""
+        update_data.pop("copyright_owner", None)
+        update_data.pop("name", None)
+
+    def _validate_public_status_change(
+        self, pc: PersonaCard, update_data: Dict[str, Any], is_admin: bool, is_moderator: bool
+    ) -> bool:
+        """验证公开状态修改权限"""
+        if pc.is_public or pc.is_pending:
+            return True
+        if "is_public" in update_data and not (is_admin or is_moderator):
+            return False
+        return True
+
+    def _apply_updates(self, pc: PersonaCard, update_data: Dict[str, Any]) -> None:
+        """应用更新到人设卡对象"""
+        for key, value in update_data.items():
+            if hasattr(pc, key):
+                setattr(pc, key, value)
+
+        # 非内容字段变更时更新时间戳
+        if any(field != "content" for field in update_data.keys()):
+            pc.updated_at = datetime.now()
+
+            # 非内容字段变更时更新时间戳
+            if any(field != "content" for field in update_data.keys()):
+                pc.updated_at = datetime.now()
 
     def delete_persona_card(self, pc_id: str) -> bool:
         """

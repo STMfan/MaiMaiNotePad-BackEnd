@@ -143,26 +143,26 @@ class FileService:
         """
         if not isinstance(data, dict):
             return None
-        
+
         # 尝试从顶层提取版本
         version = self._extract_version_from_top_level(data)
         if version:
             return version
-        
+
         # 尝试从meta/card字段提取版本
         version = self._extract_version_from_meta_fields(data)
         if version:
             return version
-        
+
         # 深度搜索版本字段
         return self._deep_search_version(data)
-    
+
     def _extract_version_from_top_level(self, data: dict) -> Optional[str]:
         """从顶层字段提取版本号
-        
+
         Args:
             data: TOML数据字典
-            
+
         Returns:
             版本号或None
         """
@@ -172,19 +172,19 @@ class FileService:
             if isinstance(value, (str, int, float)):
                 return str(value)
         return None
-    
+
     def _extract_version_from_meta_fields(self, data: dict) -> Optional[str]:
         """从meta或card字段中提取版本号
-        
+
         Args:
             data: TOML数据字典
-            
+
         Returns:
             版本号或None
         """
         meta_keys = ["meta", "Meta", "card", "Card"]
         version_keys = ["version", "Version", "schema_version", "card_version"]
-        
+
         for meta_key in meta_keys:
             meta_value = data.get(meta_key)
             if isinstance(meta_value, dict):
@@ -193,46 +193,46 @@ class FileService:
                     if isinstance(value, (str, int, float)):
                         return str(value)
         return None
-    
+
     def _deep_search_version(self, data: dict) -> Optional[str]:
         """深度搜索版本字段
-        
+
         Args:
             data: TOML数据字典
-            
+
         Returns:
             版本号或None
         """
         visited = set()
         stack: List[Any] = [data]
-        
+
         while stack:
             current = stack.pop()
-            
+
             # 避免循环引用
             if id(current) in visited:
                 continue
             visited.add(id(current))
-            
+
             # 处理字典
             if isinstance(current, dict):
                 version = self._search_version_in_dict(current, stack)
                 if version:
                     return version
-            
+
             # 处理列表
             elif isinstance(current, list):
                 self._add_list_items_to_stack(current, stack)
-        
+
         return None
-    
+
     def _search_version_in_dict(self, data: dict, stack: list) -> Optional[str]:
         """在字典中搜索版本字段
-        
+
         Args:
             data: 字典数据
             stack: 搜索栈
-            
+
         Returns:
             版本号或None
         """
@@ -240,18 +240,18 @@ class FileService:
             # 找到version键
             if isinstance(k, str) and k.lower() == "version" and isinstance(v, (str, int, float)):
                 return str(v)
-            
+
             # 将嵌套结构加入栈
             if isinstance(v, dict):
                 stack.append(v)
             elif isinstance(v, list):
                 self._add_list_items_to_stack(v, stack)
-        
+
         return None
-    
+
     def _add_list_items_to_stack(self, items: list, stack: list) -> None:
         """将列表中的字典和列表项加入搜索栈
-        
+
         Args:
             items: 列表项
             stack: 搜索栈
@@ -375,13 +375,44 @@ class FileService:
         Returns:
             PersonaCard: 创建的人设卡对象
         """
-        # 验证文件数量
+        filename, file_content = self._validate_persona_card_files(files)
+        pc_dir = self._create_persona_card_directory(uploader_id)
+
+        try:
+            file_path, file_size, persona_version = self._process_persona_card_file(file_content, filename, pc_dir)
+            pc = self._create_persona_card_record(
+                name, description, uploader_id, copyright_owner, content, tags, pc_dir, persona_version
+            )
+            self._create_persona_card_file_record(pc.id, filename, file_path, file_size)
+
+            self.db.commit()
+            self.db.refresh(pc)
+            return pc
+
+        except Exception as e:
+            self.db.rollback()
+            self._cleanup_persona_card_directory(pc_dir)
+            if isinstance(e, (FileValidationError, FileDatabaseError)):
+                raise
+            raise FileDatabaseError(f"人设卡保存失败: {str(e)}")
+
+    def _validate_persona_card_files(self, files: List[tuple[str, bytes]]) -> tuple[str, bytes]:
+        """验证人设卡文件
+
+        Args:
+            files: 文件列表
+
+        Returns:
+            (文件名, 文件内容) 元组
+
+        Raises:
+            FileValidationError: 文件验证失败
+        """
         if len(files) != 1:
             raise FileValidationError(
                 "人设卡配置错误：必须且仅包含一个 bot_config.toml 文件", code="PERSONA_FILE_COUNT_INVALID"
             )
 
-        # 验证文件
         filename, file_content = files[0]
 
         if filename != "bot_config.toml":
@@ -405,75 +436,149 @@ class FileService:
                 details={"filename": filename},
             )
 
-        # 创建人设卡目录
+        return filename, file_content
+
+    def _create_persona_card_directory(self, uploader_id: str) -> str:
+        """创建人设卡目录
+
+        Args:
+            uploader_id: 上传者ID
+
+        Returns:
+            目录路径
+        """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         pc_dir = os.path.join(self.persona_dir, f"{uploader_id}_{timestamp}")
         os.makedirs(pc_dir, exist_ok=True)
+        return pc_dir
 
+    def _process_persona_card_file(
+        self, file_content: bytes, filename: str, pc_dir: str
+    ) -> tuple[str, int, Optional[str]]:
+        """处理人设卡文件
+
+        Args:
+            file_content: 文件内容
+            filename: 文件名
+            pc_dir: 人设卡目录
+
+        Returns:
+            (文件路径, 文件大小, 版本号) 元组
+
+        Raises:
+            FileValidationError: 文件处理失败
+        """
+        file_path, file_size = self._save_file(file_content, filename, pc_dir)
+        file_ext = os.path.splitext(filename)[1].lower()
+
+        persona_version = None
+        if file_ext == ".toml":
+            persona_version = self._parse_persona_card_version(file_path)
+
+        return file_path, file_size, persona_version
+
+    def _parse_persona_card_version(self, file_path: str) -> str:
+        """解析人设卡版本号
+
+        Args:
+            file_path: TOML 文件路径
+
+        Returns:
+            版本号
+
+        Raises:
+            FileValidationError: 解析失败
+        """
         try:
-            # 保存文件
-            file_path, file_size = self._save_file(file_content, filename, pc_dir)
-            file_ext = os.path.splitext(filename)[1].lower()
-
-            # 解析TOML获取版本号
-            persona_version = None
-            if file_ext == ".toml":
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        toml_data = toml.load(f)
-                    persona_version = self._extract_version_from_toml(toml_data)
-                    if not persona_version:
-                        raise FileValidationError(
-                            "人设卡配置错误：TOML 中未找到版本号字段，请在 bot_config.toml 中添加 version 等版本字段后重试",
-                            code="PERSONA_TOML_VERSION_MISSING",
-                        )
-                except FileValidationError:
-                    raise
-                except Exception:
-                    raise FileValidationError(
-                        "人设卡配置解析失败：TOML 语法错误，请检查 bot_config.toml 格式是否正确",
-                        code="PERSONA_TOML_PARSE_ERROR",
-                    )
-
-            # 创建人设卡记录
-            pc = PersonaCard(
-                name=name,
-                description=description,
-                uploader_id=uploader_id,
-                copyright_owner=copyright_owner,
-                content=content,
-                tags=tags,
-                base_path=pc_dir,
-                version=persona_version,
-                is_pending=True,
-                is_public=False,
+            with open(file_path, "r", encoding="utf-8") as f:
+                toml_data = toml.load(f)
+            persona_version = self._extract_version_from_toml(toml_data)
+            if not persona_version:
+                raise FileValidationError(
+                    "人设卡配置错误：TOML 中未找到版本号字段，请在 bot_config.toml 中添加 version 等版本字段后重试",
+                    code="PERSONA_TOML_VERSION_MISSING",
+                )
+            return persona_version
+        except FileValidationError:
+            raise
+        except Exception:
+            raise FileValidationError(
+                "人设卡配置解析失败：TOML 语法错误，请检查 bot_config.toml 格式是否正确",
+                code="PERSONA_TOML_PARSE_ERROR",
             )
-            self.db.add(pc)
-            self.db.flush()
 
-            # 创建文件记录
-            pc_file = PersonaCardFile(
-                persona_card_id=pc.id,
-                file_name=filename,
-                original_name=filename,
-                file_path=os.path.basename(file_path),
-                file_type=file_ext,
-                file_size=file_size,
-            )
-            self.db.add(pc_file)
+    def _create_persona_card_record(
+        self,
+        name: str,
+        description: str,
+        uploader_id: str,
+        copyright_owner: str,
+        content: Optional[str],
+        tags: Optional[str],
+        base_path: str,
+        version: Optional[str],
+    ) -> PersonaCard:
+        """创建人设卡数据库记录
 
-            self.db.commit()
-            self.db.refresh(pc)
-            return pc
+        Args:
+            name: 名称
+            description: 描述
+            uploader_id: 上传者ID
+            copyright_owner: 版权所有者
+            content: 内容
+            tags: 标签
+            base_path: 基础路径
+            version: 版本号
 
-        except Exception as e:
-            self.db.rollback()
-            # 清理已创建的目录
-            if os.path.exists(pc_dir):
-                shutil.rmtree(pc_dir)
-            if isinstance(e, (FileValidationError, FileDatabaseError)):
-                raise
-            raise FileDatabaseError(f"人设卡保存失败: {str(e)}")
+        Returns:
+            人设卡对象
+        """
+        pc = PersonaCard(
+            name=name,
+            description=description,
+            uploader_id=uploader_id,
+            copyright_owner=copyright_owner,
+            content=content,
+            tags=tags,
+            base_path=base_path,
+            version=version,
+            is_pending=True,
+            is_public=False,
+        )
+        self.db.add(pc)
+        self.db.flush()
+        return pc
+
+    def _create_persona_card_file_record(
+        self, persona_card_id: str, filename: str, file_path: str, file_size: int
+    ) -> None:
+        """创建人设卡文件记录
+
+        Args:
+            persona_card_id: 人设卡ID
+            filename: 文件名
+            file_path: 文件路径
+            file_size: 文件大小
+        """
+        file_ext = os.path.splitext(filename)[1].lower()
+        pc_file = PersonaCardFile(
+            persona_card_id=persona_card_id,
+            file_name=filename,
+            original_name=filename,
+            file_path=os.path.basename(file_path),
+            file_type=file_ext,
+            file_size=file_size,
+        )
+        self.db.add(pc_file)
+
+    def _cleanup_persona_card_directory(self, pc_dir: str) -> None:
+        """清理人设卡目录
+
+        Args:
+            pc_dir: 目录路径
+        """
+        if os.path.exists(pc_dir):
+            shutil.rmtree(pc_dir)
 
     def get_knowledge_base_content(self, kb_id: str) -> Dict[str, Any]:
         """获取知识库内容
@@ -567,29 +672,107 @@ class FileService:
         Returns:
             KnowledgeBase: 更新后的知识库对象
         """
-        # 获取知识库
+        kb = self._get_knowledge_base_for_file_addition(kb_id)
+        current_files = self._get_current_knowledge_base_files(kb_id)
+
+        self._validate_knowledge_base_file_addition(files, current_files)
+        kb_dir = self._get_knowledge_base_directory(kb)
+
+        try:
+            self._save_knowledge_base_files(kb_id, files, kb_dir)
+            kb.updated_at = datetime.now()
+            self.db.commit()
+            self.db.refresh(kb)
+            return kb
+
+        except Exception as e:
+            self.db.rollback()
+            if isinstance(e, (FileValidationError, FileDatabaseError)):
+                raise
+            raise FileDatabaseError(f"添加文件失败: {str(e)}")
+
+    def _get_knowledge_base_for_file_addition(self, kb_id: str) -> KnowledgeBase:
+        """获取知识库用于文件添加
+
+        Args:
+            kb_id: 知识库ID
+
+        Returns:
+            知识库对象
+
+        Raises:
+            FileValidationError: 知识库不存在
+        """
         kb = self.db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
         if not kb:
             raise FileValidationError("知识库不存在", code="KB_NOT_FOUND")
+        return kb
 
-        # 获取现有文件
-        current_files = self.db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == kb_id).all()
-        current_file_count = len(current_files)
+    def _get_current_knowledge_base_files(self, kb_id: str) -> List:
+        """获取知识库当前文件列表
 
-        # 检查文件数量限制
-        if current_file_count + len(files) > self.MAX_KNOWLEDGE_FILES:
+        Args:
+            kb_id: 知识库ID
+
+        Returns:
+            文件列表
+        """
+        return self.db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == kb_id).all()
+
+    def _validate_knowledge_base_file_addition(self, files: List[tuple[str, bytes]], current_files: List) -> None:
+        """验证知识库文件添加
+
+        Args:
+            files: 要添加的文件列表
+            current_files: 当前文件列表
+
+        Raises:
+            FileValidationError: 验证失败
+        """
+        self._check_knowledge_base_file_count_limit(len(files), len(current_files))
+        self._check_knowledge_base_duplicate_filenames(files, current_files)
+        self._validate_knowledge_base_files_type_and_size(files)
+
+    def _check_knowledge_base_file_count_limit(self, new_file_count: int, current_file_count: int) -> None:
+        """检查知识库文件数量限制
+
+        Args:
+            new_file_count: 新文件数量
+            current_file_count: 当前文件数量
+
+        Raises:
+            FileValidationError: 超过限制
+        """
+        if current_file_count + new_file_count > self.MAX_KNOWLEDGE_FILES:
             raise FileValidationError(
                 f"文件数量超过限制，当前{current_file_count}个文件，最多允许{self.MAX_KNOWLEDGE_FILES}个文件",
                 code="FILE_COUNT_EXCEEDED",
             )
 
-        # 检查同名文件
+    def _check_knowledge_base_duplicate_filenames(self, files: List[tuple[str, bytes]], current_files: List) -> None:
+        """检查知识库重复文件名
+
+        Args:
+            files: 要添加的文件列表
+            current_files: 当前文件列表
+
+        Raises:
+            FileValidationError: 存在重复文件名
+        """
         existing_file_names = {file.original_name for file in current_files}
         for filename, _ in files:
             if filename in existing_file_names:
                 raise FileValidationError(f"文件名已存在: {filename}", code="DUPLICATE_FILENAME")
 
-        # 验证文件类型和大小
+    def _validate_knowledge_base_files_type_and_size(self, files: List[tuple[str, bytes]]) -> None:
+        """验证知识库文件类型和大小
+
+        Args:
+            files: 文件列表
+
+        Raises:
+            FileValidationError: 验证失败
+        """
         for filename, file_content in files:
             if not self._validate_file_type(filename, self.ALLOWED_KNOWLEDGE_TYPES):
                 raise FileValidationError(
@@ -602,39 +785,44 @@ class FileService:
                     f"文件过大: {filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB", code="FILE_SIZE_EXCEEDED"
                 )
 
-        # 获取知识库目录
+    def _get_knowledge_base_directory(self, kb: KnowledgeBase) -> str:
+        """获取知识库目录
+
+        Args:
+            kb: 知识库对象
+
+        Returns:
+            目录路径
+
+        Raises:
+            FileDatabaseError: 目录不存在
+        """
         kb_dir = kb.base_path
         if not kb_dir or not os.path.exists(kb_dir):
             raise FileDatabaseError("知识库目录不存在")
+        return kb_dir
 
-        try:
-            # 保存新文件
-            for filename, file_content in files:
-                file_path, file_size = self._save_file(file_content, filename, kb_dir)
-                file_ext = os.path.splitext(filename)[1].lower()
+    def _save_knowledge_base_files(self, kb_id: str, files: List[tuple[str, bytes]], kb_dir: str) -> None:
+        """保存知识库文件
 
-                # 创建文件记录
-                kb_file = KnowledgeBaseFile(
-                    knowledge_base_id=kb_id,
-                    file_name=filename,
-                    original_name=filename,
-                    file_path=os.path.basename(file_path),
-                    file_type=file_ext,
-                    file_size=file_size,
-                )
-                self.db.add(kb_file)
+        Args:
+            kb_id: 知识库ID
+            files: 文件列表
+            kb_dir: 知识库目录
+        """
+        for filename, file_content in files:
+            file_path, file_size = self._save_file(file_content, filename, kb_dir)
+            file_ext = os.path.splitext(filename)[1].lower()
 
-            # 更新知识库时间戳
-            kb.updated_at = datetime.now()
-            self.db.commit()
-            self.db.refresh(kb)
-            return kb
-
-        except Exception as e:
-            self.db.rollback()
-            if isinstance(e, (FileValidationError, FileDatabaseError)):
-                raise
-            raise FileDatabaseError(f"添加文件失败: {str(e)}")
+            kb_file = KnowledgeBaseFile(
+                knowledge_base_id=kb_id,
+                file_name=filename,
+                original_name=filename,
+                file_path=os.path.basename(file_path),
+                file_type=file_ext,
+                file_size=file_size,
+            )
+            self.db.add(kb_file)
 
     def delete_file_from_knowledge_base(self, kb_id: str, file_id: str, user_id: str) -> bool:
         """从知识库删除文件

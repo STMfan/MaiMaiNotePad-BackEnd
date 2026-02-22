@@ -33,40 +33,36 @@ router = APIRouter()
 # 消息相关路由（发送、查询、标记已读、删除等）
 def _validate_message_input(title: str, content: str) -> tuple[str, str]:
     """验证消息输入
-    
+
     Args:
         title: 消息标题
         content: 消息内容
-        
+
     Returns:
         清理后的标题和内容元组
-        
+
     Raises:
         ValidationError: 输入验证失败
     """
     title = (title or "").strip()
     content = (content or "").strip()
-    
+
     if not title:
         raise ValidationError("消息标题不能为空")
     if not content:
         raise ValidationError("消息内容不能为空")
-    
+
     return title, content
 
 
-def _validate_broadcast_permissions(
-    message_type: str,
-    broadcast_scope: Optional[str],
-    user_role: str
-) -> None:
+def _validate_broadcast_permissions(message_type: str, broadcast_scope: Optional[str], user_role: str) -> None:
     """验证广播权限
-    
+
     Args:
         message_type: 消息类型
         broadcast_scope: 广播范围
         user_role: 用户角色
-        
+
     Raises:
         ValidationError: 广播类型不匹配
         AuthorizationError: 权限不足
@@ -74,7 +70,7 @@ def _validate_broadcast_permissions(
     # 只有announcement类型可以使用broadcast_scope
     if broadcast_scope and message_type != "announcement":
         raise ValidationError("只有公告类型消息可以使用广播功能")
-    
+
     # 发送全用户广播需要管理员或审核员权限
     if broadcast_scope == "all_users":
         is_admin_or_moderator = user_role in ["admin", "moderator", "super_admin"]
@@ -88,10 +84,10 @@ def _collect_recipient_ids(
     recipient_ids: Optional[List[str]],
     message_type: str,
     broadcast_scope: Optional[str],
-    sender_id: str
+    sender_id: str,
 ) -> set:
     """收集接收者ID
-    
+
     Args:
         message_service: 消息服务实例
         recipient_id: 单个接收者ID
@@ -99,57 +95,50 @@ def _collect_recipient_ids(
         message_type: 消息类型
         broadcast_scope: 广播范围
         sender_id: 发送者ID
-        
+
     Returns:
         接收者ID集合
-        
+
     Raises:
         ValidationError: 接收者为空
     """
     recipients = set()
-    
+
     # 收集指定的接收者
     if recipient_id:
         recipients.add(recipient_id)
     if recipient_ids:
         recipients.update(recipient_ids)
-    
+
     # 处理全用户广播
     if broadcast_scope == "all_users":
         all_users = message_service.get_all_users()
         recipients.update(user.id for user in all_users if user.id)
-    
+
     # 移除发送者自身（仅限全用户广播公告）
-    if (
-        sender_id in recipients
-        and message_type == "announcement"
-        and broadcast_scope == "all_users"
-    ):
+    if sender_id in recipients and message_type == "announcement" and broadcast_scope == "all_users":
         recipients.discard(sender_id)
-    
+
     # 验证接收者
     if message_type == "direct" and not recipients:
         raise ValidationError("接收者ID不能为空")
-    
+
     if not recipients:
         raise ValidationError("没有有效的接收者")
-    
+
     return recipients
 
 
-def _validate_and_deduplicate_recipients(
-    message_service: MessageService,
-    recipient_ids: set
-) -> dict:
+def _validate_and_deduplicate_recipients(message_service: MessageService, recipient_ids: set) -> dict:
     """验证并去重接收者
-    
+
     Args:
         message_service: 消息服务实例
         recipient_ids: 接收者ID集合
-        
+
     Returns:
         去重后的接收者字典 {user_id: user_object}
-        
+
     Raises:
         NotFoundError: 接收者不存在
     """
@@ -157,16 +146,16 @@ def _validate_and_deduplicate_recipients(
     recipient_objects = message_service.get_users_by_ids(list(recipient_ids))
     found_ids = {user.id for user in recipient_objects}
     missing = recipient_ids - found_ids
-    
+
     if missing:
         raise NotFoundError(f"接收者不存在: {', '.join(missing)}")
-    
+
     # 按用户ID去重，确保每个用户只创建一条消息
     unique_recipients = {}
     for user in recipient_objects:
         if user.id and user.id not in unique_recipients:
             unique_recipients[user.id] = user
-    
+
     return unique_recipients
 
 
@@ -176,26 +165,22 @@ async def send_message(
 ):
     """发送消息"""
     sender_id = current_user.get("id", "")
-    
+
     try:
         app_logger.info(
             f"Send message: sender={sender_id}, type={message.message_type}, "
             f"recipient={message.recipient_id}, broadcast_scope={message.broadcast_scope}"
         )
-        
+
         # 验证输入
         title, content = _validate_message_input(message.title, message.content)
-        
+
         # 验证广播权限
-        _validate_broadcast_permissions(
-            message.message_type,
-            message.broadcast_scope,
-            current_user.get("role", "user")
-        )
-        
+        _validate_broadcast_permissions(message.message_type, message.broadcast_scope, current_user.get("role", "user"))
+
         # 使用服务层
         message_service = MessageService(db)
-        
+
         # 收集接收者ID
         recipient_ids = _collect_recipient_ids(
             message_service,
@@ -203,20 +188,17 @@ async def send_message(
             message.recipient_ids,
             message.message_type,
             message.broadcast_scope,
-            sender_id
+            sender_id,
         )
-        
+
         # 验证并去重接收者
-        unique_recipients = _validate_and_deduplicate_recipients(
-            message_service,
-            recipient_ids
-        )
-        
+        unique_recipients = _validate_and_deduplicate_recipients(message_service, recipient_ids)
+
         # 生成摘要
         summary = message.summary
         if not summary and content:
             summary = message_service.generate_summary(content)
-        
+
         # 创建消息
         created_messages = message_service.create_messages(
             sender_id=sender_id,
@@ -227,17 +209,17 @@ async def send_message(
             message_type=message.message_type,
             broadcast_scope=message.broadcast_scope,
         )
-        
+
         if not created_messages:
             raise DatabaseError("消息创建失败")
-        
+
         # 记录数据库操作成功
         for msg in created_messages:
             log_database_operation(app_logger, "create", "message", record_id=msg.id, user_id=sender_id, success=True)
-        
+
         # 广播WebSocket更新
         await message_ws_manager.broadcast_user_update(set(unique_recipients.keys()))
-        
+
         return Success(
             message="消息发送成功",
             data={
@@ -246,7 +228,7 @@ async def send_message(
                 "count": len(created_messages),
             },
         )
-    
+
     except (ValidationError, NotFoundError, DatabaseError):
         raise
     except Exception as e:
@@ -509,29 +491,13 @@ async def delete_message(
             raise NotFoundError("消息不存在")
 
         # 验证权限
-        recipient_id = str(message.recipient_id) if message.recipient_id else ""
-        sender_id = str(message.sender_id) if message.sender_id else ""
-        user_id_str = str(user_id) if user_id else ""
+        if not _check_message_delete_permission(message, user_id, current_user):
+            recipient_id = str(message.recipient_id) if message.recipient_id else ""
+            sender_id = str(message.sender_id) if message.sender_id else ""
+            user_id_str = str(user_id) if user_id else ""
+            is_admin = current_user.get("is_admin", False)
+            is_moderator = current_user.get("is_moderator", False)
 
-        is_admin = current_user.get("is_admin", False)
-        is_moderator = current_user.get("is_moderator", False)
-        is_admin_or_moderator = is_admin or is_moderator
-
-        # 权限检查：
-        # 1. 接收者可以删除任何消息
-        # 2. 管理员/审核员可以删除公告类型的消息（作为发送者）
-        can_delete = False
-        if recipient_id == user_id_str:
-            can_delete = True
-        elif (
-            is_admin_or_moderator
-            and message.message_type == "announcement"
-            and message.broadcast_scope == "all_users"
-            and sender_id == user_id_str
-        ):
-            can_delete = True
-
-        if not can_delete:
             app_logger.warning(
                 f"Unauthorized delete attempt: user={user_id_str} (admin={is_admin}, moderator={is_moderator}) "
                 f"trying to delete message={message_id} (type={message.message_type}, "
@@ -540,15 +506,13 @@ async def delete_message(
             raise AuthorizationError("没有权限删除此消息")
 
         # 删除消息
-        # 只有当管理员是发送者且不是接收者时，才使用批量删除
-        # 如果管理员是接收者（即使他也是发送者），只删除单条消息
-        if (
-            recipient_id != user_id_str  # 不是作为接收者删除
-            and is_admin_or_moderator
-            and message.message_type == "announcement"
-            and message.broadcast_scope == "all_users"
-            and sender_id == user_id_str
-        ):
+        recipient_id = str(message.recipient_id) if message.recipient_id else ""
+        sender_id = str(message.sender_id) if message.sender_id else ""
+        is_admin = current_user.get("is_admin", False)
+        is_moderator = current_user.get("is_moderator", False)
+        is_admin_or_moderator = is_admin or is_moderator
+
+        if _should_batch_delete(message, user_id, recipient_id, sender_id, is_admin_or_moderator):
             # 管理员作为发送者删除公告，批量删除所有相关消息
             deleted_count = message_service.delete_broadcast_messages(message_id, user_id)
             if deleted_count == 0:
@@ -575,6 +539,66 @@ async def delete_message(
         raise APIError("删除消息失败")
 
 
+def _check_message_delete_permission(message: Any, user_id: str, current_user: dict) -> bool:
+    """检查消息删除权限
+
+    Args:
+        message: 消息对象
+        user_id: 当前用户ID
+        current_user: 当前用户信息
+
+    Returns:
+        是否有删除权限
+    """
+    recipient_id = str(message.recipient_id) if message.recipient_id else ""
+    sender_id = str(message.sender_id) if message.sender_id else ""
+    user_id_str = str(user_id) if user_id else ""
+
+    is_admin = current_user.get("is_admin", False)
+    is_moderator = current_user.get("is_moderator", False)
+    is_admin_or_moderator = is_admin or is_moderator
+
+    # 接收者可以删除任何消息
+    if recipient_id == user_id_str:
+        return True
+
+    # 管理员/审核员可以删除公告类型的消息（作为发送者）
+    if (
+        is_admin_or_moderator
+        and message.message_type == "announcement"
+        and message.broadcast_scope == "all_users"
+        and sender_id == user_id_str
+    ):
+        return True
+
+    return False
+
+
+def _should_batch_delete(
+    message: Any, user_id: str, recipient_id: str, sender_id: str, is_admin_or_moderator: bool
+) -> bool:
+    """判断是否应该批量删除
+
+    Args:
+        message: 消息对象
+        user_id: 当前用户ID
+        recipient_id: 接收者ID
+        sender_id: 发送者ID
+        is_admin_or_moderator: 是否是管理员或审核员
+
+    Returns:
+        是否应该批量删除
+    """
+    user_id_str = str(user_id) if user_id else ""
+    return (
+        recipient_id != user_id_str  # 不是作为接收者删除
+        and is_admin_or_moderator
+        and message.message_type == "announcement"
+        and message.broadcast_scope == "all_users"
+        and sender_id == user_id_str
+    )
+
+
 @router.put("/messages/{message_id}")
 async def update_message(
     message_id: str,
@@ -592,12 +616,7 @@ async def update_message(
             raise AuthorizationError("用户ID无效")
 
         # 验证更新数据
-        title = update_data.title.strip() if update_data.title and update_data.title.strip() else None
-        content = update_data.content.strip() if update_data.content and update_data.content.strip() else None
-        summary = update_data.summary.strip() if update_data.summary and update_data.summary.strip() else None
-
-        if not title and not content and summary is None:
-            raise ValidationError("至少需要提供标题、内容或简介之一")
+        title, content, summary = _validate_message_update_data(update_data)
 
         # 使用服务层
         message_service = MessageService(db)
@@ -608,29 +627,13 @@ async def update_message(
             raise NotFoundError("消息不存在")
 
         # 验证权限
-        recipient_id = str(message.recipient_id) if message.recipient_id else ""
-        sender_id = str(message.sender_id) if message.sender_id else ""
-        user_id_str = str(user_id) if user_id else ""
+        if not _check_message_update_permission(message, user_id, current_user):
+            recipient_id = str(message.recipient_id) if message.recipient_id else ""
+            sender_id = str(message.sender_id) if message.sender_id else ""
+            user_id_str = str(user_id) if user_id else ""
+            is_admin = current_user.get("is_admin", False)
+            is_moderator = current_user.get("is_moderator", False)
 
-        is_admin = current_user.get("is_admin", False)
-        is_moderator = current_user.get("is_moderator", False)
-        is_admin_or_moderator = is_admin or is_moderator
-
-        # 权限检查：
-        # 1. 接收者可以修改任何消息
-        # 2. 管理员/审核员可以修改公告类型的消息（作为发送者）
-        can_update = False
-        if recipient_id == user_id_str:
-            can_update = True
-        elif (
-            is_admin_or_moderator
-            and message.message_type == "announcement"
-            and message.broadcast_scope == "all_users"
-            and sender_id == user_id_str
-        ):
-            can_update = True
-
-        if not can_update:
             app_logger.warning(
                 f"Unauthorized update attempt: user={user_id_str} (admin={is_admin}, moderator={is_moderator}) "
                 f"trying to update message={message_id} (type={message.message_type}, "
@@ -639,12 +642,10 @@ async def update_message(
             raise AuthorizationError("没有权限修改此消息")
 
         # 更新消息
-        # 如果是公告，使用批量更新方法
-        if (
-            message.message_type == "announcement"
-            and message.broadcast_scope == "all_users"
-            and sender_id == user_id_str
-        ):
+        sender_id = str(message.sender_id) if message.sender_id else ""
+
+        if _should_batch_update(message, sender_id, user_id):
+            # 公告，使用批量更新方法
             updated_count = message_service.update_broadcast_messages(
                 message_id, user_id, title=title, content=content, summary=summary
             )
@@ -670,6 +671,80 @@ async def update_message(
             app_logger, "update", "message", record_id=message_id, user_id=user_id, success=False, error_message=str(e)
         )
         raise APIError("更新消息失败")
+
+
+def _validate_message_update_data(update_data: Any) -> tuple[str, str, str]:
+    """验证消息更新数据
+
+    Args:
+        update_data: 更新数据对象
+
+    Returns:
+        (title, content, summary) 元组
+
+    Raises:
+        ValidationError: 验证失败
+    """
+    title = update_data.title.strip() if update_data.title and update_data.title.strip() else None
+    content = update_data.content.strip() if update_data.content and update_data.content.strip() else None
+    summary = update_data.summary.strip() if update_data.summary and update_data.summary.strip() else None
+
+    if not title and not content and summary is None:
+        raise ValidationError("至少需要提供标题、内容或简介之一")
+
+    return title, content, summary
+
+
+def _check_message_update_permission(message: Any, user_id: str, current_user: dict) -> bool:
+    """检查消息更新权限
+
+    Args:
+        message: 消息对象
+        user_id: 当前用户ID
+        current_user: 当前用户信息
+
+    Returns:
+        是否有更新权限
+    """
+    recipient_id = str(message.recipient_id) if message.recipient_id else ""
+    sender_id = str(message.sender_id) if message.sender_id else ""
+    user_id_str = str(user_id) if user_id else ""
+
+    is_admin = current_user.get("is_admin", False)
+    is_moderator = current_user.get("is_moderator", False)
+    is_admin_or_moderator = is_admin or is_moderator
+
+    # 接收者可以修改任何消息
+    if recipient_id == user_id_str:
+        return True
+
+    # 管理员/审核员可以修改公告类型的消息（作为发送者）
+    if (
+        is_admin_or_moderator
+        and message.message_type == "announcement"
+        and message.broadcast_scope == "all_users"
+        and sender_id == user_id_str
+    ):
+        return True
+
+    return False
+
+
+def _should_batch_update(message: Any, sender_id: str, user_id: str) -> bool:
+    """判断是否应该批量更新
+
+    Args:
+        message: 消息对象
+        sender_id: 发送者ID
+        user_id: 当前用户ID
+
+    Returns:
+        是否应该批量更新
+    """
+    user_id_str = str(user_id) if user_id else ""
+    return (
+        message.message_type == "announcement" and message.broadcast_scope == "all_users" and sender_id == user_id_str
+    )
 
 
 @router.get("/admin/broadcast-messages", response_model=PageResponse[dict])

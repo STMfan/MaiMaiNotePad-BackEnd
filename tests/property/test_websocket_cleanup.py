@@ -10,6 +10,10 @@ import pytest
 import asyncio
 from hypothesis import given, strategies as st, assume, settings, HealthCheck
 import gc
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
 
 # Mark all tests in this file as serial
 pytestmark = pytest.mark.serial
@@ -271,7 +275,6 @@ class TestMemoryLeakPrevention:
         await asyncio.sleep(0.3)
         message_ws_manager.connections.clear()
 
-    @pytest.mark.asyncio
     async def test_no_memory_leak_after_connections(self, test_user):
         """
         测试：连接关闭后不应该有内存泄漏
@@ -294,6 +297,25 @@ class TestMemoryLeakPrevention:
         token = create_access_token({"sub": test_user.id, "username": test_user.username})
         client = TestClient(app)
 
+        await self._warmup_connection(client, token)
+        await self._force_garbage_collection()
+
+        # 获取基线对象数量
+        baseline_objects = len(gc.get_objects())
+
+        # 创建和关闭多个连接
+        await self._create_test_connections(client, token)
+        await self._force_garbage_collection()
+
+        # 获取最终对象数量
+        final_objects = len(gc.get_objects())
+
+        # 检查内存增长
+        max_allowed_growth = 2000
+        self._check_memory_growth(baseline_objects, final_objects, max_allowed_growth)
+
+    async def _warmup_connection(self, client: "TestClient", token: str) -> None:
+        """预热连接以稳定对象数量"""
         try:
             with client.websocket_connect(f"/api/ws/{token}") as websocket:
                 try:
@@ -302,19 +324,17 @@ class TestMemoryLeakPrevention:
                     pass
         except Exception:
             pass
-
         await asyncio.sleep(0.2)
 
-        # 多次强制垃圾回收以稳定状态
-        for _ in range(3):
+    async def _force_garbage_collection(self, times: int = 3) -> None:
+        """多次强制垃圾回收以稳定状态"""
+        for _ in range(times):
             gc.collect()
             await asyncio.sleep(0.1)
 
-        # 获取基线对象数量
-        baseline_objects = len(gc.get_objects())
-
-        # 创建和关闭多个连接
-        for _ in range(5):
+    async def _create_test_connections(self, client: "TestClient", token: str, count: int = 5) -> None:
+        """创建和关闭多个测试连接"""
+        for _ in range(count):
             try:
                 with client.websocket_connect(f"/api/ws/{token}") as websocket:
                     try:
@@ -323,27 +343,13 @@ class TestMemoryLeakPrevention:
                         pass
             except Exception:
                 pass
-
             await asyncio.sleep(0.1)
 
-        # 多次强制垃圾回收
-        for _ in range(3):
-            gc.collect()
-            await asyncio.sleep(0.1)
-
-        # 获取最终对象数量
-        final_objects = len(gc.get_objects())
-
-        # 计算增长
-        object_growth = final_objects - baseline_objects
-
-        # 使用更宽松的阈值：允许最多 2000 个新对象
-        # 这考虑到了测试环境的波动和 Python 的内部对象
-        max_allowed_growth = 2000
-
-        assert object_growth < max_allowed_growth, (
-            f"对象数量增长过多：从 {baseline_objects} 增长到 {final_objects}，"
-            f"增长了 {object_growth} 个对象（阈值：{max_allowed_growth}）"
+    def _check_memory_growth(self, baseline: int, final: int, max_allowed: int) -> None:
+        """检查内存增长是否在允许范围内"""
+        object_growth = final - baseline
+        assert object_growth < max_allowed, (
+            f"对象数量增长过多：从 {baseline} 增长到 {final}，" f"增长了 {object_growth} 个对象（阈值：{max_allowed}）"
         )
 
     @pytest.mark.asyncio

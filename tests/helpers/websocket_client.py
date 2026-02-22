@@ -418,32 +418,20 @@ class WebSocketTestClient:
         try:
             # 自动检测消息类型
             if message_type is None:
-                if isinstance(message, dict):
-                    message_type = MessageType.JSON
-                elif isinstance(message, bytes):
-                    message_type = MessageType.BINARY
-                else:
-                    message_type = MessageType.TEXT
+                message_type = self._detect_message_type(message)
 
             # 根据消息类型发送
             if message_type == MessageType.JSON:
-                if isinstance(message, dict):
-                    self.websocket.send_json(message)
-                else:
-                    # 尝试将字符串解析为JSON
-                    json_data = json.loads(message) if isinstance(message, str) else message
-                    self.websocket.send_json(json_data)
+                self._send_json_type(message)
             elif message_type == MessageType.TEXT:
-                text_message = message if isinstance(message, str) else str(message)
-                self.websocket.send_text(text_message)
+                self._send_text_type(message)
             elif message_type == MessageType.BINARY:
-                binary_message = message if isinstance(message, bytes) else message.encode()
-                self.websocket.send_bytes(binary_message)
+                self._send_binary_type(message)
             else:
                 raise ValueError(f"Unsupported message type: {message_type}")
 
             # 记录发送的消息
-            self._sent_messages.append({"type": message_type.value, "data": message, "timestamp": time.time()})
+            self._record_sent_message(message_type, message)
 
             logger.debug(f"Sent {message_type.value} message: {message}")
             return True
@@ -454,6 +442,37 @@ class WebSocketTestClient:
         except Exception as e:
             logger.error(f"Error sending message: {e}")
             return False
+
+    def _detect_message_type(self, message: Union[str, Dict[str, Any], bytes]) -> MessageType:
+        """自动检测消息类型"""
+        if isinstance(message, dict):
+            return MessageType.JSON
+        elif isinstance(message, bytes):
+            return MessageType.BINARY
+        else:
+            return MessageType.TEXT
+
+    def _send_json_type(self, message: Union[str, Dict[str, Any]]) -> None:
+        """发送JSON类型消息"""
+        if isinstance(message, dict):
+            self.websocket.send_json(message)
+        else:
+            json_data = json.loads(message) if isinstance(message, str) else message
+            self.websocket.send_json(json_data)
+
+    def _send_text_type(self, message: Union[str, Dict[str, Any], bytes]) -> None:
+        """发送文本类型消息"""
+        text_message = message if isinstance(message, str) else str(message)
+        self.websocket.send_text(text_message)
+
+    def _send_binary_type(self, message: Union[str, bytes]) -> None:
+        """发送二进制类型消息"""
+        binary_message = message if isinstance(message, bytes) else message.encode()
+        self.websocket.send_bytes(binary_message)
+
+    def _record_sent_message(self, message_type: MessageType, message: Union[str, Dict[str, Any], bytes]) -> None:
+        """记录已发送的消息"""
+        self._sent_messages.append({"type": message_type.value, "data": message, "timestamp": time.time()})
 
     def send_json_message(self, data: Dict[str, Any]) -> bool:
         """

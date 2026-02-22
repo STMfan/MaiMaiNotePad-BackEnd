@@ -1,7 +1,7 @@
 """用户路由模块 - 处理用户信息、头像、收藏、上传历史等用户相关的API端点"""
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Body, Query
-from typing import Optional
+from typing import Optional, Any
 import os
 from datetime import datetime
 
@@ -448,11 +448,8 @@ async def get_my_upload_history(
             f"Get user upload history: user_id={user_id}, page={page}, page_size={page_size}, status={status}"
         )
 
-        # 限制参数范围
-        if page_size < 1 or page_size > 100:
-            page_size = 20
-        if page < 1:
-            page = 1
+        # 规范化分页参数
+        page, page_size = _normalize_pagination_params(page, page_size)
 
         user_service = UserService(db)
         upload_records = user_service.get_upload_records_by_uploader(
@@ -460,50 +457,7 @@ async def get_my_upload_history(
         )
 
         # 构建返回数据
-        history_list = []
-        for record in upload_records:
-            # 确定状态文本（映射到前端期望的状态）
-            status_text = "processing"  # 默认处理中
-            if record.status == "approved":
-                status_text = "success"
-            elif record.status == "rejected":
-                status_text = "failed"
-            elif record.status == "pending":
-                status_text = "processing"
-
-            # 检查目标（知识库/人设卡）是否存在
-            target_exists = False
-            if record.target_type == "knowledge":
-                kb = user_service.get_knowledge_base_by_id(record.target_id)
-                target_exists = kb is not None
-            elif record.target_type == "persona":
-                pc = user_service.get_persona_card_by_id(record.target_id)
-                target_exists = pc is not None
-
-            # 获取文件大小
-            total_file_size = user_service.get_total_file_size_by_target(record.target_id, record.target_type)
-            has_files = total_file_size > 0
-
-            # 构建记录信息
-            history_list.append(
-                {
-                    "id": record.id,
-                    "target_id": record.target_id,
-                    "type": record.target_type,
-                    "name": record.name,
-                    "description": record.description,
-                    "status": status_text,
-                    "created_at": record.created_at.isoformat() if record.created_at else None,
-                    "updated_at": record.updated_at.isoformat() if record.updated_at else None,
-                    "target_exists": target_exists,
-                    "has_files": has_files,
-                    # 前端期望的字段
-                    "fileType": record.target_type,
-                    "fileName": record.name,
-                    "fileSize": total_file_size,
-                    "uploadedAt": record.created_at.isoformat() if record.created_at else None,
-                }
-            )
+        history_list = [_build_upload_history_item(record, user_service) for record in upload_records]
 
         # 获取总数量
         total_count = user_service.get_upload_records_count_by_uploader(user_id, status=status)
@@ -526,6 +480,95 @@ async def get_my_upload_history(
             app_logger, "read", "upload_record", user_id=current_user.get("id", ""), success=False, error_message=str(e)
         )
         raise APIError("获取上传历史失败")
+
+
+def _normalize_pagination_params(page: int, page_size: int) -> tuple[int, int]:
+    """规范化分页参数
+
+    Args:
+        page: 页码
+        page_size: 每页条数
+
+    Returns:
+        (page, page_size) 元组
+    """
+    if page_size < 1 or page_size > 100:
+        page_size = 20
+    if page < 1:
+        page = 1
+    return page, page_size
+
+
+def _map_upload_status(status: str) -> str:
+    """映射上传状态到前端期望的状态
+
+    Args:
+        status: 数据库中的状态
+
+    Returns:
+        前端期望的状态文本
+    """
+    if status == "approved":
+        return "success"
+    elif status == "rejected":
+        return "failed"
+    elif status == "pending":
+        return "processing"
+    return "processing"
+
+
+def _check_target_exists(user_service: Any, target_id: str, target_type: str) -> bool:
+    """检查目标（知识库/人设卡）是否存在
+
+    Args:
+        user_service: 用户服务
+        target_id: 目标ID
+        target_type: 目标类型
+
+    Returns:
+        目标是否存在
+    """
+    if target_type == "knowledge":
+        kb = user_service.get_knowledge_base_by_id(target_id)
+        return kb is not None
+    elif target_type == "persona":
+        pc = user_service.get_persona_card_by_id(target_id)
+        return pc is not None
+    return False
+
+
+def _build_upload_history_item(record: Any, user_service: Any) -> dict:
+    """构建上传历史记录项
+
+    Args:
+        record: 上传记录对象
+        user_service: 用户服务
+
+    Returns:
+        历史记录字典
+    """
+    status_text = _map_upload_status(record.status)
+    target_exists = _check_target_exists(user_service, record.target_id, record.target_type)
+    total_file_size = user_service.get_total_file_size_by_target(record.target_id, record.target_type)
+    has_files = total_file_size > 0
+
+    return {
+        "id": record.id,
+        "target_id": record.target_id,
+        "type": record.target_type,
+        "name": record.name,
+        "description": record.description,
+        "status": status_text,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+        "target_exists": target_exists,
+        "has_files": has_files,
+        # 前端期望的字段
+        "fileType": record.target_type,
+        "fileName": record.name,
+        "fileSize": total_file_size,
+        "uploadedAt": record.created_at.isoformat() if record.created_at else None,
+    }
 
 
 @router.get("/me/upload-stats", response_model=BaseResponse[dict])

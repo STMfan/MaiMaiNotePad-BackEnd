@@ -93,23 +93,15 @@ async def upload_knowledge_base(
         app_logger.info(f"Upload knowledge base: user_id={user_id}, name={name}")
 
         # 验证输入参数
-        if not name or not description:
-            raise ValidationError("名称和描述不能为空")
-
-        if not files:
-            raise ValidationError("至少需要上传一个文件")
+        _validate_upload_params(name, description, files)
 
         # 使用服务层检查重名
         knowledge_service = KnowledgeService(db)
         if knowledge_service.check_duplicate_name(name, user_id):
             raise ValidationError("您已经创建过同名的知识库")
 
-        # 准备文件数据 - 读取文件内容
-        file_data: List[tuple[str, bytes]] = []
-        for file in files:
-            content_bytes = await file.read()
-            file_data.append((file.filename, content_bytes))
-            await file.seek(0)  # 重置文件指针以防后续使用
+        # 准备文件数据
+        file_data = await _prepare_file_data(files)
 
         # 使用 FileService 上传知识库
         file_service = FileService(db)
@@ -123,27 +115,8 @@ async def upload_knowledge_base(
             tags=tags,
         )
 
-        # 根据是否公开调整状态：
-        # - 私有：直接可用，不进入审核（is_public=False, is_pending=False）
-        # - 申请公开：进入审核列表（is_public=False, is_pending=True）
-        try:
-            if is_public:
-                kb.is_public = False
-                kb.is_pending = True
-            else:
-                kb.is_public = False
-                kb.is_pending = False
-
-            # 提交更改
-            db.commit()
-            db.refresh(kb)
-        except Exception as e:
-            db.rollback()
-            log_exception(app_logger, "Update knowledge base visibility after upload error", exception=e)
-            raise DatabaseError("更新知识库可见性状态失败")
-
-        # 创建上传记录 (暂时跳过,因为没有对应的服务方法)
-        # TODO: 创建 UploadRecordService 来处理上传记录
+        # 设置知识库可见性状态
+        _set_kb_visibility(kb, is_public, db)
 
         # 记录文件操作成功
         log_file_operation(app_logger, "upload", f"knowledge_base/{kb.id}", user_id=user_id, success=True)
@@ -165,6 +138,72 @@ async def upload_knowledge_base(
             app_logger, "upload", f"knowledge_base/{name}", user_id=user_id, success=False, error_message=str(e)
         )
         raise APIError("上传知识库失败")
+
+
+def _validate_upload_params(name: str, description: str, files: List[UploadFile]) -> None:
+    """验证上传参数
+
+    Args:
+        name: 知识库名称
+        description: 知识库描述
+        files: 上传的文件列表
+
+    Raises:
+        ValidationError: 参数验证失败
+    """
+    if not name or not description:
+        raise ValidationError("名称和描述不能为空")
+
+    if not files:
+        raise ValidationError("至少需要上传一个文件")
+
+
+async def _prepare_file_data(files: List[UploadFile]) -> List[tuple[str, bytes]]:
+    """准备文件数据
+
+    Args:
+        files: 上传的文件列表
+
+    Returns:
+        文件数据列表，每个元素为 (文件名, 文件内容) 元组
+    """
+    file_data: List[tuple[str, bytes]] = []
+    for file in files:
+        content_bytes = await file.read()
+        file_data.append((file.filename, content_bytes))
+        await file.seek(0)  # 重置文件指针以防后续使用
+    return file_data
+
+
+def _set_kb_visibility(kb: KnowledgeBase, is_public: bool, db: Session) -> None:
+    """设置知识库可见性状态
+
+    根据是否公开调整状态：
+    - 私有：直接可用，不进入审核（is_public=False, is_pending=False）
+    - 申请公开：进入审核列表（is_public=False, is_pending=True）
+
+    Args:
+        kb: 知识库对象
+        is_public: 是否申请公开
+        db: 数据库会话
+
+    Raises:
+        DatabaseError: 数据库操作失败
+    """
+    try:
+        if is_public:
+            kb.is_public = False
+            kb.is_pending = True
+        else:
+            kb.is_public = False
+            kb.is_pending = False
+
+        db.commit()
+        db.refresh(kb)
+    except Exception as e:
+        db.rollback()
+        log_exception(app_logger, "Update knowledge base visibility after upload error", exception=e)
+        raise DatabaseError("更新知识库可见性状态失败")
 
 
 @router.get("/public")
@@ -464,9 +503,7 @@ def _validate_kb_for_update(
     return kb
 
 
-def _prepare_update_dict(
-    update_data: KnowledgeBaseUpdate, kb: KnowledgeBase, current_user: dict
-) -> dict:
+def _prepare_update_dict(update_data: KnowledgeBaseUpdate, kb: KnowledgeBase, current_user: dict) -> dict:
     """准备更新字典并验证权限
 
     Args:
@@ -562,38 +599,22 @@ async def add_files_to_knowledge_base(
     user_id = current_user.get("id", "")
     try:
         app_logger.info(f"Add files to knowledge base: kb_id={kb_id}, user_id={user_id}")
+
+        # 验证文件列表
         if not files:
             raise ValidationError("至少需要上传一个文件")
 
-        # 使用服务层
+        # 使用服务层检查知识库是否存在
         knowledge_service = KnowledgeService(db)
-
-        # 检查知识库是否存在
         kb = knowledge_service.get_knowledge_base_by_id(kb_id)
         if not kb:
             raise NotFoundError("知识库不存在")
 
-        # 验证权限：只有上传者和管理员可以添加文件
-        if (
-            kb.uploader_id != user_id
-            and not current_user.get("is_admin", False)
-            and not current_user.get("is_moderator", False)
-        ):
-            raise AuthorizationError("是你的知识库吗你就加")
+        # 验证权限和状态
+        _validate_kb_for_file_addition(kb, user_id, current_user)
 
-        # 仅私有知识库允许追加文件，公开或审核中的知识库不允许修改文件
-        if kb.is_public or kb.is_pending:
-            raise AuthorizationError("公开或审核中的知识库不允许修改文件")
-
-        if not files:
-            raise ValidationError("至少需要上传一个文件")
-
-        # 准备文件数据 - 读取文件内容
-        file_data = []
-        for file in files:
-            file_content = await file.read()
-            file_data.append((file.filename, file_content))
-            await file.seek(0)  # 重置文件指针
+        # 准备文件数据
+        file_data = await _prepare_file_data(files)
 
         # 使用 FileService 添加文件
         file_service = FileService(db)
@@ -608,9 +629,7 @@ async def add_files_to_knowledge_base(
         # 记录数据库操作成功
         log_database_operation(app_logger, "update", "knowledge_base", record_id=kb_id, user_id=user_id, success=True)
 
-        return Success(
-            message="文件添加成功",
-        )
+        return Success(message="文件添加成功")
 
     except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError):
         raise
@@ -626,6 +645,30 @@ async def add_files_to_knowledge_base(
         raise APIError("添加文件失败")
 
 
+def _validate_kb_for_file_addition(kb: KnowledgeBase, user_id: str, current_user: dict) -> None:
+    """验证知识库是否允许添加文件
+
+    Args:
+        kb: 知识库对象
+        user_id: 当前用户ID
+        current_user: 当前用户信息
+
+    Raises:
+        AuthorizationError: 权限验证失败
+    """
+    # 验证权限：只有上传者和管理员可以添加文件
+    if (
+        kb.uploader_id != user_id
+        and not current_user.get("is_admin", False)
+        and not current_user.get("is_moderator", False)
+    ):
+        raise AuthorizationError("是你的知识库吗你就加")
+
+    # 仅私有知识库允许追加文件，公开或审核中的知识库不允许修改文件
+    if kb.is_public or kb.is_pending:
+        raise AuthorizationError("公开或审核中的知识库不允许修改文件")
+
+
 @router.delete("/{kb_id}/{file_id}")
 async def delete_files_from_knowledge_base(
     kb_id: str, file_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
@@ -636,7 +679,7 @@ async def delete_files_from_knowledge_base(
         app_logger.info(f"Delete files from knowledge base: kb_id={kb_id}, user_id={user_id}")
 
         knowledge_service = KnowledgeService(db)
-        kb = _validate_kb_for_file_deletion(knowledge_service, kb_id, user_id, current_user)
+        _ = _validate_kb_for_file_deletion(knowledge_service, kb_id, user_id, current_user)
 
         if not file_id:
             return Success(message="文件删除成功")
@@ -769,9 +812,7 @@ def _log_file_deletion_success(kb_id: str, user_id: str, knowledge_deleted: bool
 
     if knowledge_deleted:
         log_file_operation(app_logger, "delete", f"knowledge_base/{kb_id}", user_id=user_id, success=True)
-        log_database_operation(
-            app_logger, "delete", "knowledge_base", record_id=kb_id, user_id=user_id, success=True
-        )
+        log_database_operation(app_logger, "delete", "knowledge_base", record_id=kb_id, user_id=user_id, success=True)
 
 
 @router.get("/{kb_id}/download")
@@ -878,34 +919,18 @@ async def delete_knowledge_base(
     try:
         app_logger.info(f"Delete knowledge base: kb_id={kb_id}, user_id={user_id}")
 
-        # 使用服务层
+        # 使用服务层检查知识库是否存在
         knowledge_service = KnowledgeService(db)
-
-        # 检查知识库是否存在
         kb = knowledge_service.get_knowledge_base_by_id(kb_id)
         if not kb:
             raise NotFoundError("知识库不存在")
 
-        # 验证权限：只有上传者和管理员可以删除知识库
-        if kb.uploader_id != user_id and not current_user.get("is_admin", False):
-            raise AuthorizationError("没有权限删除此知识库")
+        # 验证删除权限
+        _validate_kb_deletion_permission(kb, user_id, current_user)
 
-        # 使用 FileService 删除知识库文件和目录
+        # 删除文件和数据库记录
         file_service = FileService(db)
-        success = file_service.delete_knowledge_base(kb_id, user_id)
-
-        if not success:
-            raise FileOperationError("删除知识库文件失败")
-
-        # 删除数据库记录
-        if not knowledge_service.delete_knowledge_base(kb_id):
-            raise DatabaseError("删除知识库记录失败")
-
-        # 删除相关的上传记录
-        try:
-            knowledge_service.delete_upload_records_by_target(kb_id)
-        except Exception as e:
-            app_logger.warning(f"删除知识库上传记录失败: {str(e)}")
+        _delete_kb_files_and_records(kb_id, user_id, file_service, knowledge_service)
 
         # 记录文件操作成功
         log_file_operation(app_logger, "delete", f"knowledge_base/{kb_id}", user_id=user_id, success=True)
@@ -927,3 +952,49 @@ async def delete_knowledge_base(
             app_logger, "delete", f"knowledge_base/{kb_id}", user_id=user_id, success=False, error_message=str(e)
         )
         raise APIError("删除知识库失败")
+
+
+def _validate_kb_deletion_permission(kb: KnowledgeBase, user_id: str, current_user: dict) -> None:
+    """验证知识库删除权限
+
+    Args:
+        kb: 知识库对象
+        user_id: 当前用户ID
+        current_user: 当前用户信息
+
+    Raises:
+        AuthorizationError: 权限验证失败
+    """
+    if kb.uploader_id != user_id and not current_user.get("is_admin", False):
+        raise AuthorizationError("没有权限删除此知识库")
+
+
+def _delete_kb_files_and_records(
+    kb_id: str, user_id: str, file_service: FileService, knowledge_service: KnowledgeService
+) -> None:
+    """删除知识库文件和数据库记录
+
+    Args:
+        kb_id: 知识库ID
+        user_id: 用户ID
+        file_service: 文件服务
+        knowledge_service: 知识库服务
+
+    Raises:
+        FileOperationError: 文件删除失败
+        DatabaseError: 数据库删除失败
+    """
+    # 删除知识库文件和目录
+    success = file_service.delete_knowledge_base(kb_id, user_id)
+    if not success:
+        raise FileOperationError("删除知识库文件失败")
+
+    # 删除数据库记录
+    if not knowledge_service.delete_knowledge_base(kb_id):
+        raise DatabaseError("删除知识库记录失败")
+
+    # 删除相关的上传记录
+    try:
+        knowledge_service.delete_upload_records_by_target(kb_id)
+    except Exception as e:
+        app_logger.warning(f"删除知识库上传记录失败: {str(e)}")

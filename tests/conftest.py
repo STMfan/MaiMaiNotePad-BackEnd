@@ -104,124 +104,158 @@ def pytest_collection_modifyitems(config, items):
 
 def pytest_sessionfinish(session, exitstatus):
     """测试会话结束后清理所有测试相关文件"""
-    import glob
-    import time
-    import shutil
-
     worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
 
-    def safe_remove_file(file_path: str, max_retries: int = 3, retry_delay: float = 0.1) -> bool:
-        """
-        安全删除文件，带重试逻辑和文件存在性检查
-
-        Args:
-            file_path: 要删除的文件路径
-            max_retries: 最大重试次数
-            retry_delay: 重试间隔（秒）
-
-        Returns:
-            bool: 删除成功返回 True，失败返回 False
-        """
-        path = Path(file_path)
-
-        # 检查文件是否存在
-        if not path.exists():
-            return True  # 文件不存在，视为成功
-
-        # 尝试删除文件，带重试逻辑
-        for attempt in range(max_retries):
-            try:
-                # 检查文件是否仍在使用（通过尝试打开文件）
-                try:
-                    with open(path, "a"):
-                        pass  # 文件可以打开，说明没有被独占锁定
-                except (IOError, OSError):
-                    # 文件被锁定，等待后重试
-                    if attempt < max_retries - 1:
-                        time.sleep(retry_delay)
-                        continue
-                    else:
-                        print(f"  ⚠ File still in use, skipping: {file_path}")
-                        return False
-
-                # 删除文件
-                path.unlink()
-                return True
-
-            except FileNotFoundError:
-                # 文件在检查后被其他进程删除，视为成功
-                return True
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-                else:
-                    print(f"  ✗ Failed to remove {file_path} after {max_retries} attempts: {e}")
-                    return False
-
-        return False
-
-    # 清理当前 worker 的数据库文件（在 tests 目录内）
-    # 非 master worker 只清理自己的数据库文件
     if worker_id != "master":
-        db_patterns = [
-            f"./tests/test_{worker_id}.db",
-            f"./tests/test_{worker_id}.db-shm",
-            f"./tests/test_{worker_id}.db-wal",
-        ]
+        _cleanup_worker_files(worker_id)
+    else:
+        _cleanup_master_files()
+        _cleanup_test_artifacts()
+        _cleanup_upload_directory()
 
-        for pattern in db_patterns:
-            for file_path in glob.glob(pattern):
-                if safe_remove_file(file_path):
-                    print(f"✓ Worker {worker_id} cleaned up: {file_path}")
 
-    # 如果是主进程（master），清理所有遗留的测试文件
-    # Master worker 负责清理全局文件和所有 worker 的数据库文件
-    if worker_id == "master":
-        # 先清理自己的数据库文件
-        master_db_patterns = [
-            "./tests/test_master.db",
-            "./tests/test_master.db-shm",
-            "./tests/test_master.db-wal",
-        ]
+def _safe_remove_file(file_path: str, max_retries: int = 3, retry_delay: float = 0.1) -> bool:
+    """
+    安全删除文件，带重试逻辑和文件存在性检查
 
-        for pattern in master_db_patterns:
-            for file_path in glob.glob(pattern):
-                if safe_remove_file(file_path):
-                    print(f"✓ Master cleaned up: {file_path}")
+    Args:
+        file_path: 要删除的文件路径
+        max_retries: 最大重试次数
+        retry_delay: 重试间隔（秒）
 
-        # 清理所有遗留的测试文件（包括其他 worker 的数据库文件）
-        cleanup_patterns = [
-            "./tests/test_gw*.db",  # Worker 数据库文件
-            "./tests/test_gw*.db-shm",
-            "./tests/test_gw*.db-wal",
-            "./tests/.coverage.*",
-            "./tests/coverage.json",
-            "./tests/test_results_*.log",
-            "./tests/tests.log",
-        ]
+    Returns:
+        bool: 删除成功返回 True，失败返回 False
+    """
+    path = Path(file_path)
 
-        print("\n🧹 Master cleaning up test artifacts...")
-        cleaned_count = 0
+    # 检查文件是否存在
+    if not path.exists():
+        return True  # 文件不存在，视为成功
 
-        for pattern in cleanup_patterns:
-            for file_path in glob.glob(pattern):
-                if safe_remove_file(file_path):
-                    cleaned_count += 1
-                    print(f"  ✓ Removed: {file_path}")
+    # 尝试删除文件，带重试逻辑
+    for attempt in range(max_retries):
+        if _try_remove_file(path, attempt, max_retries, retry_delay, file_path):
+            return True
 
-        if cleaned_count > 0:
-            print(f"✨ Cleaned up {cleaned_count} test artifact(s)\n")
+    return False
+
+
+def _try_remove_file(path: Path, attempt: int, max_retries: int, retry_delay: float, file_path: str) -> bool:
+    """尝试删除单个文件"""
+    import time
+
+    try:
+        # 检查文件是否仍在使用
+        if not _check_file_available(path, attempt, max_retries, retry_delay, file_path):
+            return False
+
+        # 删除文件
+        path.unlink()
+        return True
+
+    except FileNotFoundError:
+        # 文件在检查后被其他进程删除，视为成功
+        return True
+    except Exception as e:
+        if attempt < max_retries - 1:
+            time.sleep(retry_delay)
         else:
-            print("✨ No test artifacts to clean up\n")
+            print(f"  ✗ Failed to remove {file_path} after {max_retries} attempts: {e}")
+            return False
 
-        # 清理测试上传目录
-        upload_dir = os.environ.get("UPLOAD_DIR", "test_uploads")
-        if os.path.exists(upload_dir):
-            try:
-                shutil.rmtree(upload_dir)
-                print(f"✨ Cleaned up test upload directory: {upload_dir}\n")
-            except Exception as e:
-                print(f"⚠ Failed to clean up upload directory {upload_dir}: {e}\n")
+    return False
+
+
+def _check_file_available(path: Path, attempt: int, max_retries: int, retry_delay: float, file_path: str) -> bool:
+    """检查文件是否可用（未被锁定）"""
+    import time
+
+    try:
+        with open(path, "a"):
+            pass  # 文件可以打开，说明没有被独占锁定
+        return True
+    except (IOError, OSError):
+        # 文件被锁定，等待后重试
+        if attempt < max_retries - 1:
+            time.sleep(retry_delay)
+            return False
+        else:
+            print(f"  ⚠ File still in use, skipping: {file_path}")
+            return False
+
+
+def _cleanup_worker_files(worker_id: str):
+    """清理 worker 的数据库文件"""
+    import glob
+
+    db_patterns = [
+        f"./tests/test_{worker_id}.db",
+        f"./tests/test_{worker_id}.db-shm",
+        f"./tests/test_{worker_id}.db-wal",
+    ]
+
+    for pattern in db_patterns:
+        for file_path in glob.glob(pattern):
+            if _safe_remove_file(file_path):
+                print(f"✓ Worker {worker_id} cleaned up: {file_path}")
+
+
+def _cleanup_master_files():
+    """清理 master 的数据库文件"""
+    import glob
+
+    master_db_patterns = [
+        "./tests/test_master.db",
+        "./tests/test_master.db-shm",
+        "./tests/test_master.db-wal",
+    ]
+
+    for pattern in master_db_patterns:
+        for file_path in glob.glob(pattern):
+            if _safe_remove_file(file_path):
+                print(f"✓ Master cleaned up: {file_path}")
+
+
+def _cleanup_test_artifacts():
+    """清理所有遗留的测试文件"""
+    import glob
+
+    cleanup_patterns = [
+        "./tests/test_gw*.db",  # Worker 数据库文件
+        "./tests/test_gw*.db-shm",
+        "./tests/test_gw*.db-wal",
+        "./tests/.coverage.*",
+        "./tests/coverage.json",
+        "./tests/test_results_*.log",
+        "./tests/tests.log",
+    ]
+
+    print("\n🧹 Master cleaning up test artifacts...")
+    cleaned_count = 0
+
+    for pattern in cleanup_patterns:
+        for file_path in glob.glob(pattern):
+            if _safe_remove_file(file_path):
+                cleaned_count += 1
+                print(f"  ✓ Removed: {file_path}")
+
+    if cleaned_count > 0:
+        print(f"✨ Cleaned up {cleaned_count} test artifact(s)\n")
+    else:
+        print("✨ No test artifacts to clean up\n")
+
+
+def _cleanup_upload_directory():
+    """清理测试上传目录"""
+    import shutil
+
+    upload_dir = os.environ.get("UPLOAD_DIR", "test_uploads")
+    if os.path.exists(upload_dir):
+        try:
+            shutil.rmtree(upload_dir)
+            print(f"✨ Cleaned up test upload directory: {upload_dir}\n")
+        except Exception as e:
+            print(f"⚠ Failed to clean up upload directory {upload_dir}: {e}\n")
 
 
 # ============================================================================
@@ -614,182 +648,138 @@ def super_admin_user(test_db: Session):
 
 
 # 仅在应用存在时导入（用于集成测试）
+# 仅在应用存在时导入（用于集成测试）
+_app_available = False
 try:
     from app.main import app
+
+    _app_available = True
+except ImportError:
+    # 应用不可用，跳过集成测试 fixtures
+    app = None
+
+
+def _setup_test_client_with_db_override():
+    """设置测试客户端并配置数据库依赖覆盖
+
+    Returns:
+        TestClient: 配置好的测试客户端
+    """
+    test_client = TestClient(app)
+    print("[client fixture] Setting dependency override for get_db")
+    print(f"[client fixture] get_db function: {get_db}")
+    print(f"[client fixture] override_get_db function: {override_get_db}")
+    app.dependency_overrides[get_db] = override_get_db
+    print(f"[client fixture] Dependency overrides: {app.dependency_overrides}")
+    return test_client
+
+
+def _cleanup_db_override():
+    """清理数据库依赖覆盖"""
+    if app is not None:
+        app.dependency_overrides.pop(get_db, None)
+
+
+def _extract_token_from_response(resp_data: dict) -> str:
+    """从响应数据中提取访问令牌
+
+    Args:
+        resp_data: 响应数据字典
+
+    Returns:
+        str: 访问令牌
+    """
+    if "data" in resp_data:
+        return resp_data["data"]["access_token"]
+    return resp_data["access_token"]
+
+
+def _authenticate_user(client: TestClient, username: str, password: str, role_name: str = "用户") -> str:
+    """用户认证并获取令牌
+
+    Args:
+        client: 测试客户端
+        username: 用户名
+        password: 密码
+        role_name: 角色名称（用于错误消息）
+
+    Returns:
+        str: 访问令牌
+
+    Raises:
+        Exception: 登录失败时抛出异常
+    """
+    response = client.post("/api/auth/token", data={"username": username, "password": password})
+
+    if response.status_code != 200:
+        raise Exception(f"{role_name}登录失败: {response.status_code} - {response.text}")
+
+    return _extract_token_from_response(response.json())
+
+
+if _app_available:  # noqa: C901
 
     @pytest.fixture(scope="function")
     def client():
         """创建未认证的测试客户端"""
-        # 为每个测试创建独立的客户端实例，避免并行测试中的状态共享问题
-        # 使用 with 语句确保依赖覆盖在测试结束后清理
         with TestClient(app) as test_client:
-            # 为这个客户端设置独立的依赖覆盖
-            print("[client fixture] Setting dependency override for get_db")
-            print(f"[client fixture] get_db function: {get_db}")
-            print(f"[client fixture] override_get_db function: {override_get_db}")
             app.dependency_overrides[get_db] = override_get_db
-            print(f"[client fixture] Dependency overrides: {app.dependency_overrides}")
             try:
                 yield test_client
             finally:
-                # 清理这个特定的依赖覆盖
-                app.dependency_overrides.pop(get_db, None)
+                _cleanup_db_override()
 
     @pytest.fixture(scope="function")
     def authenticated_client(test_user, test_db):
         """创建已认证的测试客户端"""
-        # 为每个测试创建独立的客户端实例
-        # 使用 with 语句确保依赖覆盖在测试结束后清理
         with TestClient(app) as client:
-            # 为这个客户端设置独立的依赖覆盖
             app.dependency_overrides[get_db] = override_get_db
-
             try:
-                # test_user fixture 已经提交到数据库，无需重复提交
                 test_db.refresh(test_user)
-
-                # 使用 test_user 的用户名登录以获取令牌
-                response = client.post(
-                    "/api/auth/token", data={"username": test_user.username, "password": "testpassword123"}
-                )
-
-                # 检查登录是否成功
-                if response.status_code != 200:
-                    raise Exception(f"登录失败: {response.status_code} - {response.text}")
-
-                resp_data = response.json()
-
-                # 处理两种响应格式（有和没有 "data" 包装器）
-                if "data" in resp_data:
-                    token = resp_data["data"]["access_token"]
-                else:
-                    token = resp_data["access_token"]
-
-                # 设置认证头
+                token = _authenticate_user(client, test_user.username, "testpassword123")
                 client.headers.update({"Authorization": f"Bearer {token}"})
-
                 yield client
             finally:
-                # 清理这个特定的依赖覆盖
-                app.dependency_overrides.pop(get_db, None)
+                _cleanup_db_override()
 
     @pytest.fixture(scope="function")
     def admin_client(admin_user, test_db):
         """创建已认证的管理员测试客户端"""
-        # 为每个测试创建独立的客户端实例
-        # 使用 with 语句确保依赖覆盖在测试结束后清理
         with TestClient(app) as client:
-            # 为这个客户端设置独立的依赖覆盖
             app.dependency_overrides[get_db] = override_get_db
-
             try:
-                # admin_user fixture 已经提交到数据库，无需重复提交
                 test_db.refresh(admin_user)
-
-                # 使用 admin_user 的用户名登录以获取令牌
-                response = client.post(
-                    "/api/auth/token", data={"username": admin_user.username, "password": "adminpassword123"}
-                )
-
-                # 检查登录是否成功
-                if response.status_code != 200:
-                    raise Exception(f"管理员登录失败: {response.status_code} - {response.text}")
-
-                resp_data = response.json()
-
-                # 处理两种响应格式（有和没有 "data" 包装器）
-                if "data" in resp_data:
-                    token = resp_data["data"]["access_token"]
-                else:
-                    token = resp_data["access_token"]
-
-                # 设置认证头
+                token = _authenticate_user(client, admin_user.username, "adminpassword123", "管理员")
                 client.headers.update({"Authorization": f"Bearer {token}"})
-
                 yield client
             finally:
-                # 清理这个特定的依赖覆盖
-                app.dependency_overrides.pop(get_db, None)
+                _cleanup_db_override()
 
     @pytest.fixture(scope="function")
     def moderator_client(moderator_user, test_db):
         """创建已认证的审核员测试客户端"""
-        # 为每个测试创建独立的客户端实例
-        # 使用 with 语句确保依赖覆盖在测试结束后清理
         with TestClient(app) as client:
-            # 为这个客户端设置独立的依赖覆盖
             app.dependency_overrides[get_db] = override_get_db
-
             try:
-                # moderator_user fixture 已经提交到数据库，无需重复提交
                 test_db.refresh(moderator_user)
-
-                # 使用 moderator_user 的用户名登录以获取令牌
-                response = client.post(
-                    "/api/auth/token", data={"username": moderator_user.username, "password": "moderatorpassword123"}
-                )
-
-                # 检查登录是否成功
-                if response.status_code != 200:
-                    raise Exception(f"审核员登录失败: {response.status_code} - {response.text}")
-
-                resp_data = response.json()
-
-                # 处理两种响应格式（有和没有 "data" 包装器）
-                if "data" in resp_data:
-                    token = resp_data["data"]["access_token"]
-                else:
-                    token = resp_data["access_token"]
-
-                # 设置认证头
+                token = _authenticate_user(client, moderator_user.username, "moderatorpassword123", "审核员")
                 client.headers.update({"Authorization": f"Bearer {token}"})
-
                 yield client
             finally:
-                # 清理这个特定的依赖覆盖
-                app.dependency_overrides.pop(get_db, None)
+                _cleanup_db_override()
 
     @pytest.fixture(scope="function")
     def super_admin_client(super_admin_user, test_db):
         """创建已认证的超级管理员测试客户端"""
-        # 为每个测试创建独立的客户端实例
-        # 使用 with 语句确保依赖覆盖在测试结束后清理
         with TestClient(app) as client:
-            # 为这个客户端设置独立的依赖覆盖
             app.dependency_overrides[get_db] = override_get_db
-
             try:
-                # super_admin_user fixture 已经提交到数据库，无需重复提交
                 test_db.refresh(super_admin_user)
-
-                # 登录以获取令牌（使用 super_admin_user 的实际用户名）
-                response = client.post(
-                    "/api/auth/token", data={"username": super_admin_user.username, "password": "superadminpassword123"}
-                )
-
-                # 检查登录是否成功
-                if response.status_code != 200:
-                    raise Exception(f"超级管理员登录失败: {response.status_code} - {response.text}")
-
-                resp_data = response.json()
-
-                # 处理两种响应格式（有和没有 "data" 包装器）
-                if "data" in resp_data:
-                    token = resp_data["data"]["access_token"]
-                else:
-                    token = resp_data["access_token"]
-
-                # 创建带认证头的客户端
+                token = _authenticate_user(client, super_admin_user.username, "superadminpassword123", "超级管理员")
                 client.headers.update({"Authorization": f"Bearer {token}"})
-
                 yield client
             finally:
-                # 清理这个特定的依赖覆盖
-                app.dependency_overrides.pop(get_db, None)
-
-except ImportError:
-    # 应用不可用，跳过集成测试 fixtures
-    pass
+                _cleanup_db_override()
 
 
 # 用于检查错误响应的辅助函数

@@ -34,6 +34,72 @@ from app.core.logging import app_logger
 router = APIRouter()
 
 
+def _check_review_permission(current_user: dict) -> None:
+    """检查审核权限
+
+    Args:
+        current_user: 当前用户信息
+
+    Raises:
+        HTTPException: 没有审核权限
+    """
+    is_admin = bool(current_user.get("is_admin"))
+    is_moderator = bool(current_user.get("is_moderator"))
+    role = current_user.get("role", "user")
+    if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="没有审核权限")
+
+
+def _update_upload_record_status(db: Session, target_id: str, target_type: str, status: str) -> None:
+    """更新上传记录状态
+
+    Args:
+        db: 数据库会话
+        target_id: 目标ID
+        target_type: 目标类型（knowledge 或 persona）
+        status: 状态（approved 或 rejected）
+    """
+    try:
+        upload_record = (
+            db.query(UploadRecord)
+            .filter(UploadRecord.target_id == target_id, UploadRecord.target_type == target_type)
+            .first()
+        )
+        if upload_record:
+            upload_record.status = status
+            db.commit()
+    except Exception as e:
+        app_logger.warning(f"Failed to update upload record status: {str(e)}")
+
+
+async def _send_review_notification(
+    db: Session, recipient_id: str, sender_id: str, title: str, content: str, target_id: str
+) -> None:
+    """发送审核通知
+
+    Args:
+        db: 数据库会话
+        recipient_id: 接收者ID
+        sender_id: 发送者ID
+        title: 通知标题
+        content: 通知内容
+        target_id: 目标ID
+    """
+    try:
+        if recipient_id:
+            message = Message(
+                recipient_id=recipient_id,
+                sender_id=sender_id,
+                title=title,
+                content=content,
+            )
+            db.add(message)
+            db.commit()
+            await message_ws_manager.broadcast_user_update({recipient_id})
+    except Exception as e:
+        app_logger.warning(f"Failed to send review notification for {target_id}: {str(e)}")
+
+
 # 审核相关路由（获取待审核内容、审核通过、审核拒绝等）
 @router.get("/review/knowledge/pending", response_model=PageResponse[dict])
 async def get_pending_knowledge_bases(
@@ -164,12 +230,7 @@ async def approve_knowledge_base(
     kb_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """审核通过知识库（需要admin或moderator权限）"""
-    # 验证权限：admin 或 moderator（包含 super_admin）
-    is_admin = bool(current_user.get("is_admin"))
-    is_moderator = bool(current_user.get("is_moderator"))
-    role = current_user.get("role", "user")
-    if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="没有审核权限")
+    _check_review_permission(current_user)
 
     try:
         service = KnowledgeService(db)
@@ -181,37 +242,19 @@ async def approve_knowledge_base(
         kb.is_public = True
         kb.is_pending = False
         kb.rejection_reason = None
-
         db.commit()
         db.refresh(kb)
 
-        # 更新上传记录状态
-        try:
-            upload_record = (
-                db.query(UploadRecord)
-                .filter(UploadRecord.target_id == kb_id, UploadRecord.target_type == "knowledge")
-                .first()
-            )
-            if upload_record:
-                upload_record.status = "approved"
-                db.commit()
-        except Exception as e:
-            app_logger.warning(f"Failed to update upload record status: {str(e)}")
+        _update_upload_record_status(db, kb_id, "knowledge", "approved")
 
-        # 发送审核通过通知并通过 WebSocket 推送
-        try:
-            if kb.uploader_id:
-                message = Message(
-                    recipient_id=kb.uploader_id,
-                    sender_id=current_user.get("id", ""),
-                    title="知识库审核通过",
-                    content=f"您上传的知识库《{kb.name}》已通过审核并公开至知识库广场。",
-                )
-                db.add(message)
-                db.commit()
-                await message_ws_manager.broadcast_user_update({kb.uploader_id})
-        except Exception as e:
-            app_logger.warning(f"Failed to send approve notification for knowledge base {kb_id}: {str(e)}")
+        await _send_review_notification(
+            db=db,
+            recipient_id=kb.uploader_id,
+            sender_id=current_user.get("id", ""),
+            title="知识库审核通过",
+            content=f"您上传的知识库《{kb.name}》已通过审核并公开至知识库广场。",
+            target_id=kb_id,
+        )
 
         return Success(message="审核通过，已发送通知")
     except HTTPException as e:
@@ -228,12 +271,7 @@ async def reject_knowledge_base(
     db: Session = Depends(get_db),
 ):
     """审核拒绝知识库（需要admin或moderator权限）"""
-    # 验证权限：admin 或 moderator（包含 super_admin）
-    is_admin = bool(current_user.get("is_admin"))
-    is_moderator = bool(current_user.get("is_moderator"))
-    role = current_user.get("role", "user")
-    if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="没有审核权限")
+    _check_review_permission(current_user)
 
     try:
         service = KnowledgeService(db)
@@ -245,40 +283,19 @@ async def reject_knowledge_base(
         kb.is_public = False
         kb.is_pending = False
         kb.rejection_reason = reason
-
         db.commit()
         db.refresh(kb)
 
-        # 更新上传记录状态
-        try:
-            upload_record = (
-                db.query(UploadRecord)
-                .filter(UploadRecord.target_id == kb_id, UploadRecord.target_type == "knowledge")
-                .first()
-            )
-            if upload_record:
-                upload_record.status = "rejected"
-                db.commit()
-        except Exception as e:
-            app_logger.warning(f"Failed to update upload record status: {str(e)}")
+        _update_upload_record_status(db, kb_id, "knowledge", "rejected")
 
-        # 发送拒绝通知
-        message = Message(
+        await _send_review_notification(
+            db=db,
             recipient_id=kb.uploader_id,
             sender_id=current_user.get("id", ""),
             title="知识库审核未通过",
             content=f"您上传的知识库《{kb.name}》未通过审核。\n\n拒绝原因：{reason}",
+            target_id=kb_id,
         )
-
-        db.add(message)
-        db.commit()
-
-        # 通过 WebSocket 推送最新消息状态
-        try:
-            if kb.uploader_id:
-                await message_ws_manager.broadcast_user_update({kb.uploader_id})
-        except Exception as e:
-            app_logger.warning(f"Failed to send reject notification for knowledge base {kb_id}: {str(e)}")
 
         return Success(message="审核拒绝，已发送通知")
     except HTTPException as e:
@@ -292,12 +309,7 @@ async def approve_persona_card(
     pc_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """审核通过人设卡（需要admin或moderator权限）"""
-    # 验证权限：admin 或 moderator（包含 super_admin）
-    is_admin = bool(current_user.get("is_admin"))
-    is_moderator = bool(current_user.get("is_moderator"))
-    role = current_user.get("role", "user")
-    if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="没有审核权限")
+    _check_review_permission(current_user)
 
     try:
         service = PersonaService(db)
@@ -314,32 +326,17 @@ async def approve_persona_card(
         db.refresh(pc)
 
         # 更新上传记录状态
-        try:
-            upload_record = (
-                db.query(UploadRecord)
-                .filter(UploadRecord.target_id == pc_id, UploadRecord.target_type == "persona")
-                .first()
-            )
-            if upload_record:
-                upload_record.status = "approved"
-                db.commit()
-        except Exception as e:
-            app_logger.warning(f"Failed to update upload record status: {str(e)}")
+        _update_upload_record_status(db, pc_id, "persona", "approved")
 
-        # 发送审核通过通知并通过 WebSocket 推送
-        try:
-            if pc.uploader_id:
-                message = Message(
-                    recipient_id=pc.uploader_id,
-                    sender_id=current_user.get("id", ""),
-                    title="人设卡审核通过",
-                    content=f"您上传的人设卡《{pc.name}》已通过审核并公开至人设广场。",
-                )
-                db.add(message)
-                db.commit()
-                await message_ws_manager.broadcast_user_update({pc.uploader_id})
-        except Exception as e:
-            app_logger.warning(f"Failed to send approve notification for persona card {pc_id}: {str(e)}")
+        # 发送审核通过通知
+        await _send_review_notification(
+            db=db,
+            recipient_id=pc.uploader_id,
+            sender_id=current_user.get("id", ""),
+            title="人设卡审核通过",
+            content=f"您上传的人设卡《{pc.name}》已通过审核并公开至人设广场。",
+            target_id=pc_id,
+        )
 
         return Success(message="审核通过，已发送通知")
     except HTTPException as e:
@@ -356,12 +353,7 @@ async def reject_persona_card(
     db: Session = Depends(get_db),
 ):
     """审核拒绝人设卡（需要admin或moderator权限）"""
-    # 验证权限：admin 或 moderator（包含 super_admin）
-    is_admin = bool(current_user.get("is_admin"))
-    is_moderator = bool(current_user.get("is_moderator"))
-    role = current_user.get("role", "user")
-    if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="没有审核权限")
+    _check_review_permission(current_user)
 
     try:
         service = PersonaService(db)
@@ -378,38 +370,20 @@ async def reject_persona_card(
         db.refresh(pc)
 
         # 更新上传记录状态
-        try:
-            upload_record = (
-                db.query(UploadRecord)
-                .filter(UploadRecord.target_id == pc_id, UploadRecord.target_type == "persona")
-                .first()
-            )
-            if upload_record:
-                upload_record.status = "rejected"
-                db.commit()
-        except Exception as e:
-            app_logger.warning(f"Failed to update upload record status: {str(e)}")
+        _update_upload_record_status(db, pc_id, "persona", "rejected")
 
         # 发送拒绝通知
-        message = Message(
+        await _send_review_notification(
+            db=db,
             recipient_id=pc.uploader_id,
             sender_id=current_user.get("id", ""),
             title="人设卡审核未通过",
             content=f"您上传的人设卡《{pc.name}》未通过审核。\n\n拒绝原因：{reason}",
+            target_id=pc_id,
         )
-
-        db.add(message)
-        db.commit()
-
-        # 通过 WebSocket 推送最新消息状态
-        try:
-            if pc.uploader_id:
-                await message_ws_manager.broadcast_user_update({pc.uploader_id})
-        except Exception as e:
-            app_logger.warning(f"Failed to send reject notification for persona card {pc_id}: {str(e)}")
 
         return Success(message="审核拒绝，已发送通知")
     except HTTPException as e:
         raise e
     except Exception as e:
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"审核人设卡失败: {str(e)}")
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"审核拒绝失败: {str(e)}")

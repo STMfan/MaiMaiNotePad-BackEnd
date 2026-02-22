@@ -11,7 +11,7 @@
 """
 
 import os
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status as HTTPStatus, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
@@ -32,7 +32,7 @@ from app.services.file_upload_service import FileUploadService
 
 # 导入错误处理和日志记录模块
 from app.core.logging import app_logger, log_exception, log_file_operation, log_database_operation
-from app.models.schemas import PersonaCardUpdate
+from app.models.schemas import PersonaCardUpdate, BaseResponse
 from app.api.deps import get_current_user, get_current_user_optional
 from app.core.database import get_db
 from app.services.persona_service import PersonaService
@@ -45,12 +45,12 @@ router = APIRouter()
 # 人设卡相关路由（上传、查询、编辑、删除等）
 def _validate_persona_card_upload_input(name: str, description: str, files: List[UploadFile]) -> None:
     """验证人设卡上传输入
-    
+
     Args:
         name: 人设卡名称
         description: 人设卡描述
         files: 上传的文件列表
-        
+
     Raises:
         ValidationError: 输入验证失败
     """
@@ -63,10 +63,10 @@ def _validate_persona_card_upload_input(name: str, description: str, files: List
 
 def _check_persona_card_uniqueness(persona_service: PersonaService) -> None:
     """检查系统中是否已存在人设卡
-    
+
     Args:
         persona_service: 人设卡服务实例
-        
+
     Raises:
         ValidationError: 系统已存在人设卡
     """
@@ -79,10 +79,10 @@ def _check_persona_card_uniqueness(persona_service: PersonaService) -> None:
 
 async def _prepare_persona_card_file_data(files: List[UploadFile]) -> List[tuple[str, bytes]]:
     """准备人设卡文件数据
-    
+
     Args:
         files: 上传的文件列表
-        
+
     Returns:
         文件数据列表，每个元素为 (文件名, 文件内容) 元组
     """
@@ -96,15 +96,15 @@ async def _prepare_persona_card_file_data(files: List[UploadFile]) -> List[tuple
 
 def _set_persona_card_visibility(pc, is_public: bool, db: Session) -> str:
     """设置人设卡可见性和审核状态
-    
+
     Args:
         pc: 人设卡对象
         is_public: 是否公开
         db: 数据库会话
-        
+
     Returns:
         上传状态（"pending" 或 "success"）
-        
+
     Raises:
         DatabaseError: 更新可见性状态失败
     """
@@ -131,7 +131,7 @@ def _create_persona_card_upload_record(
     persona_service: PersonaService, user_id: str, pc_id: str, name: str, description: str, upload_status: str
 ) -> None:
     """创建人设卡上传记录
-    
+
     Args:
         persona_service: 人设卡服务实例
         user_id: 用户ID
@@ -343,20 +343,18 @@ async def get_user_persona_cards(
         raise APIError("获取用户人设卡失败")
 
 
-def _validate_persona_card_for_update(
-    persona_service: PersonaService, pc_id: str, user_id: str, current_user: dict
-):
+def _validate_persona_card_for_update(persona_service: PersonaService, pc_id: str, user_id: str, current_user: dict):
     """验证人设卡是否可以更新
-    
+
     Args:
         persona_service: 人设卡服务实例
         pc_id: 人设卡ID
         user_id: 用户ID
         current_user: 当前用户信息
-        
+
     Returns:
         人设卡对象
-        
+
     Raises:
         NotFoundError: 人设卡不存在
         AuthorizationError: 无权限修改
@@ -371,21 +369,21 @@ def _validate_persona_card_for_update(
         and not current_user.get("is_moderator", False)
     ):
         raise AuthorizationError("没有权限修改此人设卡")
-    
+
     return pc
 
 
 def _prepare_persona_card_update_dict(update_data: PersonaCardUpdate, pc, current_user: dict) -> dict:
     """准备人设卡更新字典并验证权限
-    
+
     Args:
         update_data: 更新数据
         pc: 人设卡对象
         current_user: 当前用户信息
-        
+
     Returns:
         处理后的更新字典
-        
+
     Raises:
         ValidationError: 没有提供要更新的字段
         AuthorizationError: 权限不足
@@ -412,10 +410,10 @@ def _prepare_persona_card_update_dict(update_data: PersonaCardUpdate, pc, curren
 
 def _validate_public_persona_card_updates(update_dict: dict) -> None:
     """验证公开或审核中的人设卡更新
-    
+
     Args:
         update_dict: 更新字典
-        
+
     Raises:
         AuthorizationError: 尝试修改不允许的字段
     """
@@ -427,11 +425,11 @@ def _validate_public_persona_card_updates(update_dict: dict) -> None:
 
 def _validate_persona_card_public_status_change(update_dict: dict, current_user: dict) -> None:
     """验证人设卡公开状态修改权限
-    
+
     Args:
         update_dict: 更新字典
         current_user: 当前用户信息
-        
+
     Raises:
         AuthorizationError: 普通用户尝试直接修改公开状态
     """
@@ -445,17 +443,17 @@ def _execute_persona_card_update(
     persona_service: PersonaService, pc_id: str, update_dict: dict, user_id: str, current_user: dict
 ):
     """执行人设卡更新
-    
+
     Args:
         persona_service: 人设卡服务实例
         pc_id: 人设卡ID
         update_dict: 更新字典
         user_id: 用户ID
         current_user: 当前用户信息
-        
+
     Returns:
         更新后的人设卡对象
-        
+
     Raises:
         AuthorizationError: 权限错误
         NotFoundError: 人设卡不存在
@@ -476,7 +474,7 @@ def _execute_persona_card_update(
             raise NotFoundError(message)
         else:
             raise DatabaseError(message)
-    
+
     return updated_pc
 
 
@@ -494,7 +492,7 @@ async def update_persona_card(
 
         persona_service = PersonaService(db)
         pc = _validate_persona_card_for_update(persona_service, pc_id, user_id, current_user)
-        
+
         update_dict = _prepare_persona_card_update_dict(update_data, pc, current_user)
         updated_pc = _execute_persona_card_update(persona_service, pc_id, update_dict, user_id, current_user)
 
@@ -718,7 +716,7 @@ async def add_files_to_persona_card(
         raise APIError("添加文件失败")
 
 
-@router.delete("/persona/{pc_id}/{file_id}")
+@router.delete("/persona/{pc_id}/{file_id}", response_model=BaseResponse[dict])
 async def delete_files_from_persona_card(
     pc_id: str, file_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
@@ -735,15 +733,8 @@ async def delete_files_from_persona_card(
         if not pc:
             raise NotFoundError("人设卡不存在")
 
-        if (
-            pc.uploader_id != user_id
-            and not current_user.get("is_admin", False)
-            and not current_user.get("is_moderator", False)
-        ):
-            raise AuthorizationError("没有权限从此人设卡删除文件")
-
-        if pc.is_public or pc.is_pending:
-            raise AuthorizationError("公开或审核中的人设卡不允许修改文件")
+        # 验证权限
+        _validate_pc_file_deletion_permission(pc, user_id, current_user)
 
         # 删除文件
         file_upload_service = FileUploadService(db)
@@ -752,22 +743,8 @@ async def delete_files_from_persona_card(
         if not success:
             raise FileOperationError("删除文件失败")
 
-        persona_deleted = False
-
         # 检查是否还有剩余文件，没有则自动删除整个人设卡
-        remaining_files = persona_service.get_files_by_persona_card_id(pc_id)
-        if not remaining_files:
-            # 删除人设卡记录
-            if not persona_service.delete_persona_card(pc_id):
-                raise DatabaseError("删除人设卡记录失败")
-
-            # 删除相关的上传记录
-            try:
-                persona_service.delete_upload_records_by_target(pc_id)
-            except Exception as e:
-                app_logger.warning(f"删除人设卡上传记录失败: {str(e)}")
-
-            persona_deleted = True
+        persona_deleted = _cleanup_empty_pc_if_needed(persona_service, pc_id, user_id)
 
         # 记录文件操作成功
         log_file_operation(app_logger, "delete_files", f"persona_card/{pc_id}", user_id=user_id, success=True)
@@ -780,9 +757,7 @@ async def delete_files_from_persona_card(
             log_database_operation(app_logger, "delete", "persona_card", record_id=pc_id, user_id=user_id, success=True)
 
         message = "最后一个文件删除，人设卡已自动删除" if persona_deleted else "文件删除成功"
-        return Success(
-            message=message,
-        )
+        return Success(message=message)
 
     except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError):
         raise
@@ -794,7 +769,59 @@ async def delete_files_from_persona_card(
         raise APIError("删除文件失败")
 
 
-@router.get("/persona/{pc_id}/download")
+def _validate_pc_file_deletion_permission(pc: Any, user_id: str, current_user: dict) -> None:
+    """验证人设卡文件删除权限
+
+    Args:
+        pc: 人设卡对象
+        user_id: 当前用户ID
+        current_user: 当前用户信息
+
+    Raises:
+        AuthorizationError: 权限验证失败
+    """
+    if (
+        pc.uploader_id != user_id
+        and not current_user.get("is_admin", False)
+        and not current_user.get("is_moderator", False)
+    ):
+        raise AuthorizationError("没有权限从此人设卡删除文件")
+
+    if pc.is_public or pc.is_pending:
+        raise AuthorizationError("公开或审核中的人设卡不允许修改文件")
+
+
+def _cleanup_empty_pc_if_needed(persona_service: Any, pc_id: str, user_id: str) -> bool:
+    """如果人设卡没有剩余文件，则删除整个人设卡
+
+    Args:
+        persona_service: 人设卡服务
+        pc_id: 人设卡ID
+        user_id: 用户ID
+
+    Returns:
+        是否删除了人设卡
+
+    Raises:
+        DatabaseError: 数据库操作失败
+    """
+    remaining_files = persona_service.get_files_by_persona_card_id(pc_id)
+    if not remaining_files:
+        # 删除人设卡记录
+        if not persona_service.delete_persona_card(pc_id):
+            raise DatabaseError("删除人设卡记录失败")
+
+        # 删除相关的上传记录
+        try:
+            persona_service.delete_upload_records_by_target(pc_id)
+        except Exception as e:
+            app_logger.warning(f"删除人设卡上传记录失败: {str(e)}")
+
+        return True
+    return False
+
+
+@router.get("/persona/{pc_id}/download", response_class=FileResponse)
 async def download_persona_card_files(
     pc_id: str, current_user: Optional[dict] = Depends(get_current_user_optional), db: Session = Depends(get_db)
 ):
@@ -808,15 +835,8 @@ async def download_persona_card_files(
         if not pc:
             raise NotFoundError("人设卡不存在")
 
-        # 权限检查：公开人设卡任何人都可以下载，私有人设卡需要认证
-        if not pc.is_public:
-            if not current_user:
-                raise AuthenticationError("需要登录才能下载私有人设卡")
-            # 检查权限：只有上传者、管理员或版主可以下载私有人设卡
-            user_role = current_user.get("role", "user")
-            is_admin_or_moderator = user_role in ["admin", "moderator"]
-            if pc.uploader_id != current_user.get("id") and not is_admin_or_moderator:
-                raise AuthorizationError("没有权限下载此人设卡")
+        # 验证下载权限
+        _validate_pc_download_permission(pc, current_user)
 
         # 创建ZIP文件（使用文件服务）
         file_service = FileService(db)
@@ -841,6 +861,32 @@ async def download_persona_card_files(
         raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=e.message)
     except Exception as e:
         raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"下载失败: {str(e)}")
+
+
+def _validate_pc_download_permission(pc: Any, current_user: Optional[dict]) -> None:
+    """验证人设卡下载权限
+
+    Args:
+        pc: 人设卡对象
+        current_user: 当前用户信息（可选）
+
+    Raises:
+        AuthenticationError: 需要认证
+        AuthorizationError: 权限不足
+    """
+    # 公开人设卡任何人都可以下载
+    if pc.is_public:
+        return
+
+    # 私有人设卡需要认证
+    if not current_user:
+        raise AuthenticationError("需要登录才能下载私有人设卡")
+
+    # 检查权限：只有上传者、管理员或版主可以下载私有人设卡
+    user_role = current_user.get("role", "user")
+    is_admin_or_moderator = user_role in ["admin", "moderator"]
+    if pc.uploader_id != current_user.get("id") and not is_admin_or_moderator:
+        raise AuthorizationError("没有权限下载此人设卡")
 
 
 @router.get("/persona/{pc_id}/file/{file_id}")

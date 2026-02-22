@@ -137,52 +137,110 @@ class KnowledgeService:
         try:
             kbs = self.db.query(KnowledgeBase).filter(KnowledgeBase.uploader_id == user_id).all()
 
-            # 按状态筛选
-            def match_status(kb):
-                if status == "pending":
-                    return kb.is_pending
-                if status == "approved":
-                    return not kb.is_pending and kb.is_public
-                if status == "rejected":
-                    return not kb.is_pending and (not kb.is_public)
-                return True
-
             # 应用筛选条件
-            filtered = []
-            for kb in kbs:
-                if name and name.lower() not in kb.name.lower():
-                    continue
-                if tag:
-                    tag_list = []
-                    if kb.tags:
-                        tag_list = kb.tags.split(",") if isinstance(kb.tags, str) else kb.tags
-                    if not any(tag.lower() in t.lower() for t in tag_list):
-                        continue
-                if not match_status(kb):
-                    continue
-                filtered.append(kb)
+            filtered = self._filter_knowledge_bases(kbs, name, tag, status)
 
             # 排序
-            sort_field_map = {
-                "created_at": lambda kb: kb.created_at,
-                "updated_at": lambda kb: kb.updated_at,
-                "name": lambda kb: kb.name.lower(),
-                "downloads": lambda kb: kb.downloads or 0,
-                "star_count": lambda kb: kb.star_count or 0,
-            }
-            key_func = sort_field_map.get(sort_by, sort_field_map["created_at"])
-            reverse = sort_order.lower() != "asc"
-            filtered.sort(key=key_func, reverse=reverse)
+            sorted_kbs = self._sort_knowledge_bases(filtered, sort_by, sort_order)
 
-            total = len(filtered)
-            start = (page - 1) * page_size
-            end = start + page_size
-            page_items = filtered[start:end]
+            # 分页
+            total = len(sorted_kbs)
+            page_items = self._paginate_items(sorted_kbs, page, page_size)
 
             return page_items, total
         except Exception as e:
             logger.error(f"获取用户 {user_id} 的知识库列表失败: {str(e)}")
             return [], 0
+
+    def _filter_knowledge_bases(
+        self, kbs: List[KnowledgeBase], name: Optional[str], tag: Optional[str], status: str
+    ) -> List[KnowledgeBase]:
+        """
+        根据条件筛选知识库列表。
+
+        Args:
+            kbs: 知识库列表
+            name: 按名称搜索（可选）
+            tag: 按标签搜索（可选）
+            status: 状态筛选（all/pending/approved/rejected）
+
+        Returns:
+            筛选后的知识库列表
+        """
+        filtered = []
+        for kb in kbs:
+            if not self._match_name_filter(kb, name):
+                continue
+            if not self._match_tag_filter(kb, tag):
+                continue
+            if not self._match_status_filter(kb, status):
+                continue
+            filtered.append(kb)
+        return filtered
+
+    def _match_name_filter(self, kb: KnowledgeBase, name: Optional[str]) -> bool:
+        """检查知识库是否匹配名称筛选条件"""
+        if name and name.lower() not in kb.name.lower():
+            return False
+        return True
+
+    def _match_tag_filter(self, kb: KnowledgeBase, tag: Optional[str]) -> bool:
+        """检查知识库是否匹配标签筛选条件"""
+        if not tag:
+            return True
+        tag_list = []
+        if kb.tags:
+            tag_list = kb.tags.split(",") if isinstance(kb.tags, str) else kb.tags
+        return any(tag.lower() in t.lower() for t in tag_list)
+
+    def _match_status_filter(self, kb: KnowledgeBase, status: str) -> bool:
+        """检查知识库是否匹配状态筛选条件"""
+        if status == "pending":
+            return kb.is_pending
+        if status == "approved":
+            return not kb.is_pending and kb.is_public
+        if status == "rejected":
+            return not kb.is_pending and (not kb.is_public)
+        return True
+
+    def _sort_knowledge_bases(self, kbs: List[KnowledgeBase], sort_by: str, sort_order: str) -> List[KnowledgeBase]:
+        """
+        对知识库列表进行排序。
+
+        Args:
+            kbs: 知识库列表
+            sort_by: 排序字段
+            sort_order: 排序方向
+
+        Returns:
+            排序后的知识库列表
+        """
+        sort_field_map = {
+            "created_at": lambda kb: kb.created_at,
+            "updated_at": lambda kb: kb.updated_at,
+            "name": lambda kb: kb.name.lower(),
+            "downloads": lambda kb: kb.downloads or 0,
+            "star_count": lambda kb: kb.star_count or 0,
+        }
+        key_func = sort_field_map.get(sort_by, sort_field_map["created_at"])
+        reverse = sort_order.lower() != "asc"
+        return sorted(kbs, key=key_func, reverse=reverse)
+
+    def _paginate_items(self, items: List[Any], page: int, page_size: int) -> List[Any]:
+        """
+        对列表进行分页。
+
+        Args:
+            items: 待分页的列表
+            page: 页码（从 1 开始）
+            page_size: 每页数量
+
+        Returns:
+            当前页的项目列表
+        """
+        start = (page - 1) * page_size
+        end = start + page_size
+        return items[start:end]
 
     def save_knowledge_base(self, kb_data: Dict[str, Any]) -> Optional[KnowledgeBase]:
         """
@@ -268,33 +326,22 @@ class KnowledgeService:
                 return False, "知识库不存在", None
 
             # 权限检查
-            if kb.uploader_id != user_id and not is_admin and not is_moderator:
+            if not self._check_update_permission(kb, user_id, is_admin, is_moderator):
                 return False, "是你的知识库吗你就改", None
 
             # 公开或审核中的知识库限制修改范围
-            if kb.is_public or kb.is_pending:
-                allowed_fields = {"content"}
-                disallowed_fields = [key for key in update_data.keys() if key not in allowed_fields]
-                if disallowed_fields:
-                    return False, "公开或审核中的知识库仅允许修改补充说明", None
+            if not self._validate_public_kb_update(kb, update_data):
+                return False, "公开或审核中的知识库仅允许修改补充说明", None
 
-            # 移除受保护字段
-            update_data.pop("copyright_owner", None)
-            update_data.pop("name", None)
+            # 清理受保护字段
+            self._remove_protected_fields(update_data)
 
             # 检查公开状态修改权限
-            if not (kb.is_public or kb.is_pending):
-                if "is_public" in update_data and not (is_admin or is_moderator):
-                    return False, "只有管理员可以直接修改公开状态", None
+            if not self._validate_public_status_change(kb, update_data, is_admin, is_moderator):
+                return False, "只有管理员可以直接修改公开状态", None
 
             # 应用更新
-            for key, value in update_data.items():
-                if hasattr(kb, key):
-                    setattr(kb, key, value)
-
-            # 非内容字段变更时更新时间戳
-            if any(field != "content" for field in update_data.keys()):
-                kb.updated_at = datetime.now()
+            self._apply_updates(kb, update_data)
 
             self.db.commit()
             self.db.refresh(kb)
@@ -305,6 +352,43 @@ class KnowledgeService:
             self.db.rollback()
             logger.error(f"更新知识库 {kb_id} 失败: {str(e)}")
             return False, "修改知识库失败", None
+
+    def _check_update_permission(self, kb: KnowledgeBase, user_id: str, is_admin: bool, is_moderator: bool) -> bool:
+        """检查用户是否有权限更新知识库"""
+        return kb.uploader_id == user_id or is_admin or is_moderator
+
+    def _validate_public_kb_update(self, kb: KnowledgeBase, update_data: Dict[str, Any]) -> bool:
+        """验证公开或审核中的知识库更新是否合法"""
+        if not (kb.is_public or kb.is_pending):
+            return True
+        allowed_fields = {"content"}
+        disallowed_fields = [key for key in update_data.keys() if key not in allowed_fields]
+        return len(disallowed_fields) == 0
+
+    def _remove_protected_fields(self, update_data: Dict[str, Any]) -> None:
+        """移除受保护的字段"""
+        update_data.pop("copyright_owner", None)
+        update_data.pop("name", None)
+
+    def _validate_public_status_change(
+        self, kb: KnowledgeBase, update_data: Dict[str, Any], is_admin: bool, is_moderator: bool
+    ) -> bool:
+        """验证公开状态修改权限"""
+        if kb.is_public or kb.is_pending:
+            return True
+        if "is_public" in update_data and not (is_admin or is_moderator):
+            return False
+        return True
+
+    def _apply_updates(self, kb: KnowledgeBase, update_data: Dict[str, Any]) -> None:
+        """应用更新到知识库对象"""
+        for key, value in update_data.items():
+            if hasattr(kb, key):
+                setattr(kb, key, value)
+
+        # 非内容字段变更时更新时间戳
+        if any(field != "content" for field in update_data.keys()):
+            kb.updated_at = datetime.now()
 
     def delete_knowledge_base(self, kb_id: str) -> bool:
         """

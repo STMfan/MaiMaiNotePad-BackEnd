@@ -10,7 +10,7 @@
 """
 
 from datetime import datetime
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Union
 
 from fastapi import APIRouter, Depends, Query, Body
 
@@ -156,7 +156,7 @@ def _check_user_mute_status(user: User) -> None:
         )
 
 
-def _get_comment_target(db: Session, target_type: str, target_id: Any) -> Any:
+def _get_comment_target(db: Session, target_type: str, target_id: Any) -> Union[KnowledgeBase, PersonaCard]:
     """获取评论目标对象
 
     Args:
@@ -170,6 +170,7 @@ def _get_comment_target(db: Session, target_type: str, target_id: Any) -> Any:
     Raises:
         NotFoundError: 目标不存在
     """
+    target: Optional[Union[KnowledgeBase, PersonaCard]]
     if target_type == "knowledge":
         target = db.query(KnowledgeBase).filter(KnowledgeBase.id == target_id).first()
     else:
@@ -238,11 +239,7 @@ def _collect_notification_recipients(user: User, parent: Optional[Comment], targ
 
 
 def _send_comment_notifications(
-    db: Session,
-    user: User,
-    content: str,
-    parent: Optional[Comment],
-    recipients: set
+    db: Session, user: User, content: str, parent: Optional[Comment], recipients: set
 ) -> None:
     """发送评论通知消息
 
@@ -312,11 +309,7 @@ async def create_comment(
     """创建评论或回复（受禁言限制）"""
     try:
         # 验证输入
-        content = _validate_comment_input(
-            data.get("content"),
-            data.get("target_type"),
-            data.get("target_id")
-        )
+        content = _validate_comment_input(data.get("content"), data.get("target_type"), data.get("target_id"))
         target_type = data.get("target_type")
         target_id = data.get("target_id")
         parent_id = data.get("parent_id")
@@ -363,10 +356,7 @@ async def create_comment(
             await message_ws_manager.broadcast_user_update(recipients)
 
         # 返回响应
-        return Success(
-            message="发表评论成功",
-            data=_build_comment_response(comment, user)
-        )
+        return Success(message="发表评论成功", data=_build_comment_response(comment, user))
 
     except (ValidationError, AuthorizationError, NotFoundError):
         raise
@@ -411,12 +401,10 @@ async def react_comment(
         db.refresh(comment)
 
         my_reaction = _determine_my_reaction(action, after_type)
-        
+
         # 发送通知
         if _should_send_notification(after_type, before_type, user_id, comment.user_id):
-            await _send_reaction_notification(
-                db, user_id, comment, after_type, current_user.get("username", "")
-            )
+            await _send_reaction_notification(db, user_id, comment, after_type, current_user.get("username", ""))
 
         return Success(
             message="操作成功",
@@ -435,15 +423,10 @@ async def react_comment(
 
 
 def _process_reaction_action(
-    db: Session,
-    comment: Comment,
-    reaction: Optional[CommentReaction],
-    action: str,
-    user_id: Any,
-    comment_id: str
+    db: Session, comment: Comment, reaction: Optional[CommentReaction], action: str, user_id: Any, comment_id: str
 ) -> Optional[str]:
     """处理反应操作并返回操作后的反应类型
-    
+
     Args:
         db: 数据库会话
         comment: 评论对象
@@ -451,7 +434,7 @@ def _process_reaction_action(
         action: 操作类型（like/dislike/clear）
         user_id: 用户ID
         comment_id: 评论ID
-        
+
     Returns:
         操作后的反应类型，如果清除则返回 None
     """
@@ -464,46 +447,41 @@ def _process_reaction_action(
     return None
 
 
-def _handle_clear_reaction(
-    db: Session,
-    comment: Comment,
-    reaction: Optional[CommentReaction]
-) -> None:
+def _handle_clear_reaction(db: Session, comment: Comment, reaction: Optional[CommentReaction]) -> Optional[str]:
     """处理清除反应操作
-    
+
     Args:
         db: 数据库会话
         comment: 评论对象
         reaction: 现有反应对象
+
+    Returns:
+        None（表示清除反应）
     """
     if not reaction:
         return None
-    
+
     if reaction.reaction_type == "like":
         comment.like_count = max((comment.like_count or 0) - 1, 0)
     elif reaction.reaction_type == "dislike":
         comment.dislike_count = max((comment.dislike_count or 0) - 1, 0)
-    
+
     db.delete(reaction)
     return None
 
 
 def _handle_like_reaction(
-    db: Session,
-    comment: Comment,
-    reaction: Optional[CommentReaction],
-    user_id: Any,
-    comment_id: str
+    db: Session, comment: Comment, reaction: Optional[CommentReaction], user_id: Any, comment_id: str
 ) -> Optional[str]:
     """处理点赞操作
-    
+
     Args:
         db: 数据库会话
         comment: 评论对象
         reaction: 现有反应对象
         user_id: 用户ID
         comment_id: 评论ID
-        
+
     Returns:
         操作后的反应类型
     """
@@ -512,7 +490,7 @@ def _handle_like_reaction(
         comment.like_count = max((comment.like_count or 0) - 1, 0)
         db.delete(reaction)
         return None
-    
+
     # 如果之前是踩，则改为点赞
     if reaction and reaction.reaction_type == "dislike":
         comment.dislike_count = max((comment.dislike_count or 0) - 1, 0)
@@ -521,27 +499,23 @@ def _handle_like_reaction(
         # 新增点赞
         reaction = CommentReaction(user_id=user_id, comment_id=comment_id, reaction_type="like")
         db.add(reaction)
-    
+
     comment.like_count = (comment.like_count or 0) + 1
     return "like"
 
 
 def _handle_dislike_reaction(
-    db: Session,
-    comment: Comment,
-    reaction: Optional[CommentReaction],
-    user_id: Any,
-    comment_id: str
+    db: Session, comment: Comment, reaction: Optional[CommentReaction], user_id: Any, comment_id: str
 ) -> Optional[str]:
     """处理踩操作
-    
+
     Args:
         db: 数据库会话
         comment: 评论对象
         reaction: 现有反应对象
         user_id: 用户ID
         comment_id: 评论ID
-        
+
     Returns:
         操作后的反应类型
     """
@@ -550,7 +524,7 @@ def _handle_dislike_reaction(
         comment.dislike_count = max((comment.dislike_count or 0) - 1, 0)
         db.delete(reaction)
         return None
-    
+
     # 如果之前是点赞，则改为踩
     if reaction and reaction.reaction_type == "like":
         comment.like_count = max((comment.like_count or 0) - 1, 0)
@@ -559,63 +533,52 @@ def _handle_dislike_reaction(
         # 新增踩
         reaction = CommentReaction(user_id=user_id, comment_id=comment_id, reaction_type="dislike")
         db.add(reaction)
-    
+
     comment.dislike_count = (comment.dislike_count or 0) + 1
     return "dislike"
 
 
 def _determine_my_reaction(action: str, after_type: Optional[str]) -> Optional[str]:
     """确定用户当前的反应状态
-    
+
     Args:
         action: 操作类型
         after_type: 操作后的反应类型
-        
+
     Returns:
         用户当前的反应状态
     """
     if action == "clear":
         return None
-    
+
     if action in ["like", "dislike"] and after_type is None:
         return None
-    
+
     return after_type
 
 
 def _should_send_notification(
-    after_type: Optional[str],
-    before_type: Optional[str],
-    user_id: Any,
-    comment_user_id: Any
+    after_type: Optional[str], before_type: Optional[str], user_id: Any, comment_user_id: Any
 ) -> bool:
     """判断是否需要发送通知
-    
+
     Args:
         after_type: 操作后的反应类型
         before_type: 操作前的反应类型
         user_id: 当前用户ID
         comment_user_id: 评论作者ID
-        
+
     Returns:
         是否需要发送通知
     """
-    return (
-        after_type in ["like", "dislike"] 
-        and after_type != before_type 
-        and str(user_id) != str(comment_user_id)
-    )
+    return after_type in ["like", "dislike"] and after_type != before_type and str(user_id) != str(comment_user_id)
 
 
 async def _send_reaction_notification(
-    db: Session,
-    user_id: Any,
-    comment: Comment,
-    reaction_type: str,
-    sender_name: str
+    db: Session, user_id: Any, comment: Comment, reaction_type: str, sender_name: str
 ) -> None:
     """发送反应通知
-    
+
     Args:
         db: 数据库会话
         user_id: 当前用户ID
@@ -625,13 +588,13 @@ async def _send_reaction_notification(
     """
     recipient_id = str(comment.user_id)
     snippet = (comment.content or "")[:80]
-    
+
     title = "你的评论收到新的点赞" if reaction_type == "like" else "你的评论收到新的踩"
     body = f"{sender_name} 对你的评论进行了{'点赞' if reaction_type == 'like' else '踩'}：{snippet}"
-    
+
     try:
         from app.models.database import Message
-        
+
         message = Message(
             sender_id=str(user_id),
             recipient_id=recipient_id,
@@ -647,6 +610,101 @@ async def _send_reaction_notification(
         pass
 
 
+def _check_comment_owner_permission(comment: Comment, user_id: str) -> bool:
+    """检查是否是评论作者
+
+    Args:
+        comment: 评论对象
+        user_id: 用户ID
+
+    Returns:
+        是否有权限
+    """
+    return comment.user_id == user_id
+
+
+def _check_target_owner_permission(comment: Comment, user_id: str, db: Session) -> bool:
+    """检查是否是目标对象的所有者
+
+    Args:
+        comment: 评论对象
+        user_id: 用户ID
+        db: 数据库会话
+
+    Returns:
+        是否有权限
+    """
+    target_obj: Optional[Any] = None
+    if comment.target_type == "knowledge":
+        target_obj = db.query(KnowledgeBase).filter(KnowledgeBase.id == comment.target_id).first()
+    else:
+        target_obj = db.query(PersonaCard).filter(PersonaCard.id == comment.target_id).first()
+
+    if target_obj and str(getattr(target_obj, "uploader_id", "")) == str(user_id):
+        return True
+    return False
+
+
+def _check_admin_permission(current_user: dict) -> bool:
+    """检查是否是管理员或审核员
+
+    Args:
+        current_user: 当前用户信息
+
+    Returns:
+        是否有权限
+    """
+    is_admin = current_user.get("is_admin", False)
+    user_role = current_user.get("role", "user")
+    return is_admin or user_role in ["admin", "moderator"]
+
+
+def _validate_delete_comment_permission(comment: Comment, current_user: dict, db: Session) -> None:
+    """验证删除评论权限
+
+    Args:
+        comment: 评论对象
+        current_user: 当前用户信息
+        db: 数据库会话
+
+    Raises:
+        AuthorizationError: 没有权限删除此评论
+    """
+    user_id = current_user.get("id")
+
+    # 检查是否是评论作者
+    if _check_comment_owner_permission(comment, user_id):
+        return
+
+    # 检查是否是目标对象的所有者
+    if _check_target_owner_permission(comment, user_id, db):
+        return
+
+    # 检查是否是管理员或审核员
+    if _check_admin_permission(current_user):
+        return
+
+    raise AuthorizationError("没有权限删除此评论")
+
+
+def _soft_delete_comment_and_children(comment: Comment, db: Session) -> None:
+    """软删除评论及其子评论
+
+    Args:
+        comment: 评论对象
+        db: 数据库会话
+    """
+    comment.is_deleted = True
+
+    # 如果是一级评论，级联删除所有子评论
+    if comment.parent_id is None:
+        children = db.query(Comment).filter(Comment.parent_id == comment.id).all()
+        for child in children:
+            child.is_deleted = True
+
+    db.commit()
+
+
 @router.delete(
     "/comments/{comment_id}",
 )
@@ -659,37 +717,8 @@ async def delete_comment(
         if not comment:
             raise NotFoundError("评论不存在")
 
-        user_id = current_user.get("id")
-        user_role = current_user.get("role", "user")
-        is_admin = current_user.get("is_admin", False)
-
-        can_delete = False
-        if comment.user_id == user_id:
-            can_delete = True
-
-        if not can_delete:
-            target_obj: Optional[Any] = None
-            if comment.target_type == "knowledge":
-                target_obj = db.query(KnowledgeBase).filter(KnowledgeBase.id == comment.target_id).first()
-            else:
-                target_obj = db.query(PersonaCard).filter(PersonaCard.id == comment.target_id).first()
-            if target_obj and str(getattr(target_obj, "uploader_id", "")) == str(user_id):
-                can_delete = True
-
-        if not can_delete and (is_admin or user_role in ["admin", "moderator"]):
-            can_delete = True
-
-        if not can_delete:
-            raise AuthorizationError("没有权限删除此评论")
-
-        comment.is_deleted = True
-
-        if comment.parent_id is None:
-            children = db.query(Comment).filter(Comment.parent_id == comment.id).all()
-            for child in children:
-                child.is_deleted = True
-
-        db.commit()
+        _validate_delete_comment_permission(comment, current_user, db)
+        _soft_delete_comment_and_children(comment, db)
 
         return Success(message="删除评论成功", data={"id": comment.id})
     except (AuthorizationError, NotFoundError):
@@ -697,6 +726,52 @@ async def delete_comment(
     except Exception as e:
         log_exception(app_logger, "Delete comment error", exception=e)
         raise APIError("删除评论失败")
+
+
+def _validate_restore_comment_permission(comment: Comment, current_user: dict, db: Session) -> None:
+    """验证恢复评论权限
+
+    Args:
+        comment: 评论对象
+        current_user: 当前用户信息
+        db: 数据库会话
+
+    Raises:
+        AuthorizationError: 没有权限撤销此评论删除
+    """
+    user_id = current_user.get("id")
+
+    # 检查是否是评论作者
+    if _check_comment_owner_permission(comment, user_id):
+        return
+
+    # 检查是否是目标对象的所有者
+    if _check_target_owner_permission(comment, user_id, db):
+        return
+
+    # 检查是否是管理员或审核员
+    if _check_admin_permission(current_user):
+        return
+
+    raise AuthorizationError("没有权限撤销此评论删除")
+
+
+def _restore_comment_and_children(comment: Comment, db: Session) -> None:
+    """恢复评论及其子评论
+
+    Args:
+        comment: 评论对象
+        db: 数据库会话
+    """
+    comment.is_deleted = False
+
+    # 如果是一级评论，恢复所有子评论
+    if comment.parent_id is None:
+        children = db.query(Comment).filter(Comment.parent_id == comment.id).all()
+        for child in children:
+            child.is_deleted = False
+
+    db.commit()
 
 
 @router.post(
@@ -711,37 +786,8 @@ async def restore_comment(
         if not comment:
             raise NotFoundError("评论不存在")
 
-        user_id = current_user.get("id")
-        user_role = current_user.get("role", "user")
-        is_admin = current_user.get("is_admin", False)
-
-        can_restore = False
-        if comment.user_id == user_id:
-            can_restore = True
-
-        if not can_restore:
-            target_obj: Optional[Any] = None
-            if comment.target_type == "knowledge":
-                target_obj = db.query(KnowledgeBase).filter(KnowledgeBase.id == comment.target_id).first()
-            else:
-                target_obj = db.query(PersonaCard).filter(PersonaCard.id == comment.target_id).first()
-            if target_obj and str(getattr(target_obj, "uploader_id", "")) == str(user_id):
-                can_restore = True
-
-        if not can_restore and (is_admin or user_role in ["admin", "moderator"]):
-            can_restore = True
-
-        if not can_restore:
-            raise AuthorizationError("没有权限撤销此评论删除")
-
-        comment.is_deleted = False
-
-        if comment.parent_id is None:
-            children = db.query(Comment).filter(Comment.parent_id == comment.id).all()
-            for child in children:
-                child.is_deleted = False
-
-        db.commit()
+        _validate_restore_comment_permission(comment, current_user, db)
+        _restore_comment_and_children(comment, db)
 
         return Success(message="撤销删除评论成功", data={"id": comment.id})
     except (AuthorizationError, NotFoundError):

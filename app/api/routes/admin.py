@@ -141,6 +141,120 @@ async def get_recent_users(
         raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取最近用户失败: {str(e)}")
 
 
+def _normalize_pagination_params(page_size: int, page: int) -> tuple[int, int]:
+    """规范化分页参数
+
+    Args:
+        page_size: 每页大小
+        page: 页码
+
+    Returns:
+        (page_size, page) 元组
+    """
+    if page_size < 1 or page_size > 100:
+        page_size = 20
+    if page < 1:
+        page = 1
+    return page_size, page
+
+
+def _build_user_query(db: Session, search: Optional[str], role: Optional[str]):
+    """构建用户查询
+
+    Args:
+        db: 数据库会话
+        search: 搜索关键词
+        role: 角色筛选
+
+    Returns:
+        查询对象
+    """
+    # 只查询活跃用户（过滤已删除的用户），并排除超级管理员
+    query = db.query(User).filter(User.is_active.is_(True), User.is_super_admin.is_(False))
+
+    # 搜索过滤（用户名或邮箱）
+    if search:
+        search_filter = or_(User.username.ilike(f"%{search}%"), User.email.ilike(f"%{search}%"))
+        query = query.filter(search_filter)
+
+    # 角色过滤（此处 admin 仅包含普通管理员，不包含超级管理员）
+    if role == "admin":
+        query = query.filter(User.is_admin.is_(True))
+    elif role == "moderator":
+        query = query.filter(User.is_moderator.is_(True), User.is_admin.is_(False))
+    elif role == "user":
+        query = query.filter(User.is_moderator.is_(False), User.is_admin.is_(False))
+
+    return query
+
+
+def _get_last_upload_map(db: Session, user_ids: list[str]) -> dict[str, datetime]:
+    """获取用户最后上传时间映射
+
+    Args:
+        db: 数据库会话
+        user_ids: 用户ID列表
+
+    Returns:
+        用户ID到最后上传时间的映射字典
+    """
+    if not user_ids:
+        return {}
+
+    subquery = (
+        db.query(
+            UploadRecord.uploader_id.label("uploader_id"),
+            func.max(UploadRecord.created_at).label("last_upload_at"),
+        )
+        .filter(UploadRecord.uploader_id.in_(user_ids))
+        .group_by(UploadRecord.uploader_id)
+        .subquery()
+    )
+
+    upload_rows = db.query(subquery.c.uploader_id, subquery.c.last_upload_at).all()
+    return {row.uploader_id: row.last_upload_at for row in upload_rows}
+
+
+def _build_user_info_dict(user: User, db: Session, last_upload_map: dict[str, datetime]) -> dict:
+    """构建用户信息字典
+
+    Args:
+        user: 用户对象
+        db: 数据库会话
+        last_upload_map: 最后上传时间映射
+
+    Returns:
+        用户信息字典
+    """
+    kb_count = db.query(func.count(KnowledgeBase.id)).filter(KnowledgeBase.uploader_id == user.id).scalar() or 0
+    pc_count = db.query(func.count(PersonaCard.id)).filter(PersonaCard.uploader_id == user.id).scalar() or 0
+
+    role_str = (
+        "super_admin"
+        if getattr(user, "is_super_admin", False)
+        else ("admin" if user.is_admin else ("moderator" if user.is_moderator else "user"))
+    )
+    last_upload_at = last_upload_map.get(user.id)
+
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "role": role_str,
+        "is_active": user.is_active,
+        "createdAt": user.created_at.isoformat() if user.created_at else None,
+        "knowledgeCount": kb_count,
+        "personaCount": pc_count,
+        "lastUploadAt": last_upload_at.isoformat() if last_upload_at else None,
+        "lastLoginAt": None,
+        "lockedUntil": user.locked_until.isoformat() if user.locked_until else None,
+        "isMuted": user.is_muted,
+        "mutedUntil": user.muted_until.isoformat() if user.muted_until else None,
+        "banReason": getattr(user, "ban_reason", None),
+        "muteReason": getattr(user, "mute_reason", None),
+    }
+
+
 # 用户管理API
 @router.get("/users")
 async def get_all_users(
@@ -161,27 +275,8 @@ async def get_all_users(
             f"Get all users: user_id={current_user.get('id')}, page={page}, page_size={page_size}, search={search}, role={role}"
         )
 
-        # 限制参数范围
-        if page_size < 1 or page_size > 100:
-            page_size = 20
-        if page < 1:
-            page = 1
-
-        # 构建查询 - 只查询活跃用户（过滤已删除的用户），并排除超级管理员
-        query = db.query(User).filter(User.is_active.is_(True), User.is_super_admin.is_(False))
-
-        # 搜索过滤（用户名或邮箱）
-        if search:
-            search_filter = or_(User.username.ilike(f"%{search}%"), User.email.ilike(f"%{search}%"))
-            query = query.filter(search_filter)
-
-        # 角色过滤（此处 admin 仅包含普通管理员，不包含超级管理员）
-        if role == "admin":
-            query = query.filter(User.is_admin.is_(True))
-        elif role == "moderator":
-            query = query.filter(User.is_moderator.is_(True), User.is_admin.is_(False))
-        elif role == "user":
-            query = query.filter(User.is_moderator.is_(False), User.is_admin.is_(False))
+        page_size, page = _normalize_pagination_params(page_size, page)
+        query = _build_user_query(db, search, role)
 
         # 获取总数
         total = query.count()
@@ -191,54 +286,9 @@ async def get_all_users(
         users = query.order_by(User.created_at.desc()).offset(offset).limit(page_size).all()
 
         user_ids = [user.id for user in users]
+        last_upload_map = _get_last_upload_map(db, user_ids)
 
-        last_upload_map = {}
-        if user_ids:
-            subquery = (
-                db.query(
-                    UploadRecord.uploader_id.label("uploader_id"),
-                    func.max(UploadRecord.created_at).label("last_upload_at"),
-                )
-                .filter(UploadRecord.uploader_id.in_(user_ids))
-                .group_by(UploadRecord.uploader_id)
-                .subquery()
-            )
-
-            upload_rows = db.query(subquery.c.uploader_id, subquery.c.last_upload_at).all()
-            for row in upload_rows:
-                last_upload_map[row.uploader_id] = row.last_upload_at
-
-        user_list = []
-        for user in users:
-            kb_count = db.query(func.count(KnowledgeBase.id)).filter(KnowledgeBase.uploader_id == user.id).scalar() or 0
-            pc_count = db.query(func.count(PersonaCard.id)).filter(PersonaCard.uploader_id == user.id).scalar() or 0
-
-            role_str = (
-                "super_admin"
-                if getattr(user, "is_super_admin", False)
-                else ("admin" if user.is_admin else ("moderator" if user.is_moderator else "user"))
-            )
-            last_upload_at = last_upload_map.get(user.id)
-
-            user_list.append(
-                {
-                    "id": user.id,
-                    "username": user.username,
-                    "email": user.email,
-                    "role": role_str,
-                    "is_active": user.is_active,
-                    "createdAt": user.created_at.isoformat() if user.created_at else None,
-                    "knowledgeCount": kb_count,
-                    "personaCount": pc_count,
-                    "lastUploadAt": last_upload_at.isoformat() if last_upload_at else None,
-                    "lastLoginAt": None,
-                    "lockedUntil": user.locked_until.isoformat() if user.locked_until else None,
-                    "isMuted": user.is_muted,
-                    "mutedUntil": user.muted_until.isoformat() if user.muted_until else None,
-                    "banReason": getattr(user, "ban_reason", None),
-                    "muteReason": getattr(user, "mute_reason", None),
-                }
-            )
+        user_list = [_build_user_info_dict(user, db, last_upload_map) for user in users]
 
         log_api_request(app_logger, "GET", "/api/admin/users", current_user.get("id"), status_code=200)
         return Page(
@@ -253,6 +303,78 @@ async def get_all_users(
     except Exception as e:
         log_exception(app_logger, "Get all users error", exception=e)
         raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取用户列表失败: {str(e)}")
+
+
+def _validate_role_value(new_role: str) -> None:
+    """验证角色值
+
+    Args:
+        new_role: 新角色
+
+    Raises:
+        ValidationError: 角色值无效
+    """
+    if new_role not in ["user", "moderator", "admin"]:
+        raise ValidationError("角色必须是 user、moderator 或 admin")
+
+
+def _validate_role_update_permission(user_id: str, current_user: dict, user: User, new_role: str) -> None:
+    """验证角色更新权限
+
+    Args:
+        user_id: 目标用户ID
+        current_user: 当前用户信息
+        user: 目标用户对象
+        new_role: 新角色
+
+    Raises:
+        ValidationError: 权限不足
+    """
+    # 不能修改自己的角色
+    if user_id == current_user.get("id"):
+        raise ValidationError("不能修改自己的角色")
+
+    # 管理员不能操作其它管理员账号，仅超级管理员可以调整管理员角色
+    is_target_admin_like = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
+    is_operator_super_admin = bool(current_user.get("is_super_admin", False))
+    if is_target_admin_like and not is_operator_super_admin:
+        raise ValidationError("只有超级管理员可以修改管理员或超级管理员的角色")
+
+    # 只有超级管理员可以将用户提升为管理员
+    if new_role == "admin" and not is_operator_super_admin:
+        raise ValidationError("只有超级管理员可以任命管理员")
+
+
+def _check_last_admin_for_role_update(db: Session, user: User, new_role: str) -> None:
+    """检查是否是最后一个管理员
+
+    Args:
+        db: 数据库会话
+        user: 用户对象
+        new_role: 新角色
+
+    Raises:
+        ValidationError: 不能删除最后一个管理员
+    """
+    if user.is_admin and new_role != "admin":
+        admin_count = (
+            db.query(func.count(User.id)).filter(User.is_admin.is_(True), User.is_active.is_(True)).scalar() or 0
+        )
+        if admin_count <= 1:
+            raise ValidationError("不能删除最后一个管理员")
+
+
+def _apply_role_update(db: Session, user: User, new_role: str) -> None:
+    """应用角色更新
+
+    Args:
+        db: 数据库会话
+        user: 用户对象
+        new_role: 新角色
+    """
+    user.is_admin = new_role == "admin"
+    user.is_moderator = new_role == "moderator"
+    db.commit()
 
 
 @router.put("/users/{user_id}/role")
@@ -273,40 +395,17 @@ async def update_user_role(
         )
 
         new_role = role_data.get("role")
-        if new_role not in ["user", "moderator", "admin"]:
-            raise ValidationError("角色必须是 user、moderator 或 admin")
-
-        # 不能修改自己的角色
-        if user_id == current_user.get("id"):
-            raise ValidationError("不能修改自己的角色")
+        _validate_role_value(new_role)
 
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise NotFoundError("用户不存在")
 
-        # 管理员不能操作其它管理员账号，仅超级管理员可以调整管理员角色
-        is_target_admin_like = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
-        is_operator_super_admin = bool(current_user.get("is_super_admin", False))
-        if is_target_admin_like and not is_operator_super_admin:
-            raise ValidationError("只有超级管理员可以修改管理员或超级管理员的角色")
+        _validate_role_update_permission(user_id, current_user, user, new_role)
+        _check_last_admin_for_role_update(db, user, new_role)
 
-        # 只有超级管理员可以将用户提升为管理员
-        if new_role == "admin" and not is_operator_super_admin:
-            raise ValidationError("只有超级管理员可以任命管理员")
-
-        # 检查是否是最后一个管理员（只统计活跃管理员，不含超级管理员）
-        if user.is_admin and new_role != "admin":
-            admin_count = (
-                db.query(func.count(User.id)).filter(User.is_admin.is_(True), User.is_active.is_(True)).scalar() or 0
-            )
-            if admin_count <= 1:
-                raise ValidationError("不能删除最后一个管理员")
-
-        # 更新角色
-        user.is_admin = new_role == "admin"
-        user.is_moderator = new_role == "moderator"
         username = user.username
-        db.commit()
+        _apply_role_update(db, user, new_role)
 
         log_database_operation(
             app_logger, "update", "user_role", record_id=user_id, user_id=current_user.get("id"), success=True
@@ -326,13 +425,13 @@ async def update_user_role(
 
 def _parse_mute_duration(duration: str) -> datetime | None:
     """解析禁言时长
-    
+
     Args:
         duration: 禁言时长字符串（1d, 7d, 30d, permanent）
-        
+
     Returns:
         禁言结束时间，永久禁言返回 None
-        
+
     Raises:
         ValidationError: 禁言时长无效
     """
@@ -351,11 +450,11 @@ def _parse_mute_duration(duration: str) -> datetime | None:
 
 def _validate_mute_target(user: User, current_user: dict) -> None:
     """验证禁言目标用户
-    
+
     Args:
         user: 目标用户对象
         current_user: 当前用户信息
-        
+
     Raises:
         ValidationError: 不能禁言自己或管理员权限不足
     """
@@ -370,7 +469,7 @@ def _validate_mute_target(user: User, current_user: dict) -> None:
 
 def _apply_mute_to_user(user: User, muted_until: datetime | None, reason: str, db: Session) -> None:
     """应用禁言到用户
-    
+
     Args:
         user: 用户对象
         muted_until: 禁言结束时间
@@ -387,7 +486,7 @@ def _send_mute_notification(
     user_id: str, muted_until: datetime | None, reason: str, operator_id: str, db: Session
 ) -> None:
     """发送禁言通知站内信
-    
+
     Args:
         user_id: 用户ID
         muted_until: 禁言结束时间
@@ -517,6 +616,64 @@ async def unmute_user(user_id: str, current_user: dict = Depends(get_current_use
         raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"解除禁言失败: {str(e)}")
 
 
+def _validate_delete_user_request(user_id: str, current_user: dict) -> None:
+    """验证删除用户请求
+
+    Args:
+        user_id: 目标用户ID
+        current_user: 当前用户信息
+
+    Raises:
+        ValidationError: 不能删除自己
+    """
+    if user_id == current_user.get("id"):
+        raise ValidationError("不能删除自己")
+
+
+def _check_delete_user_permission(user: User, current_user: dict) -> None:
+    """检查删除用户权限
+
+    Args:
+        user: 目标用户对象
+        current_user: 当前用户信息
+
+    Raises:
+        ValidationError: 权限不足
+    """
+    is_target_admin_like = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
+    if is_target_admin_like and not current_user.get("is_super_admin", False):
+        raise ValidationError("管理员不能删除其它管理员或超级管理员账号")
+
+
+def _check_last_admin_for_delete(db: Session, user: User) -> None:
+    """检查是否是最后一个管理员
+
+    Args:
+        db: 数据库会话
+        user: 用户对象
+
+    Raises:
+        ValidationError: 不能删除最后一个管理员
+    """
+    if user.is_admin:
+        admin_count = (
+            db.query(func.count(User.id)).filter(User.is_admin.is_(True), User.is_active.is_(True)).scalar() or 0
+        )
+        if admin_count <= 1:
+            raise ValidationError("不能删除最后一个管理员")
+
+
+def _soft_delete_user(db: Session, user: User) -> None:
+    """软删除用户
+
+    Args:
+        db: 数据库会话
+        user: 用户对象
+    """
+    user.is_active = False
+    db.commit()
+
+
 @router.delete("/users/{user_id}")
 async def delete_user(user_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """删除用户（仅限admin，软删除）"""
@@ -527,30 +684,15 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
     try:
         app_logger.info(f"Delete user: user_id={user_id}, operator={current_user.get('id')}")
 
-        # 不能删除自己
-        if user_id == current_user.get("id"):
-            raise ValidationError("不能删除自己")
+        _validate_delete_user_request(user_id, current_user)
 
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise NotFoundError("用户不存在")
 
-        # 管理员不能删除其它管理员账号，仅超级管理员可以删除管理员
-        is_target_admin_like = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
-        if is_target_admin_like and not current_user.get("is_super_admin", False):
-            raise ValidationError("管理员不能删除其它管理员或超级管理员账号")
-
-        # 检查是否是最后一个管理员（只统计活跃管理员）
-        if user.is_admin:
-            admin_count = (
-                db.query(func.count(User.id)).filter(User.is_admin.is_(True), User.is_active.is_(True)).scalar() or 0
-            )
-            if admin_count <= 1:
-                raise ValidationError("不能删除最后一个管理员")
-
-        # 软删除：标记为不活跃
-        user.is_active = False
-        db.commit()
+        _check_delete_user_permission(user, current_user)
+        _check_last_admin_for_delete(db, user)
+        _soft_delete_user(db, user)
 
         log_database_operation(
             app_logger, "delete", "user", record_id=user_id, user_id=current_user.get("id"), success=True
@@ -667,7 +809,9 @@ def _apply_ban(db: Session, user: User, locked_until: datetime, reason: str) -> 
     log_database_operation(app_logger, "update", "user", record_id=user.id, success=True)
 
 
-def _send_ban_notification(db: Session, user_id: str, operator_id: str, duration: str, locked_until: datetime, reason: str) -> None:
+def _send_ban_notification(
+    db: Session, user_id: str, operator_id: str, duration: str, locked_until: datetime, reason: str
+) -> None:
     """发送封禁通知"""
     try:
         if duration == "permanent":
@@ -764,10 +908,10 @@ async def unban_user(user_id: str, current_user: dict = Depends(get_current_user
 
 def _extract_user_creation_data(user_data: dict) -> tuple[str, str, str, str]:
     """提取并清理用户创建数据
-    
+
     Args:
         user_data: 用户数据字典
-        
+
     Returns:
         (username, email, password, role) 元组
     """
@@ -780,13 +924,13 @@ def _extract_user_creation_data(user_data: dict) -> tuple[str, str, str, str]:
 
 def _validate_user_creation_input(username: str, email: str, password: str, role: str) -> None:
     """验证用户创建输入
-    
+
     Args:
         username: 用户名
         email: 邮箱
         password: 密码
         role: 角色
-        
+
     Raises:
         ValidationError: 输入验证失败
     """
@@ -802,11 +946,11 @@ def _validate_user_creation_input(username: str, email: str, password: str, role
 
 def _validate_admin_creation_permission(role: str, current_user: dict) -> None:
     """验证创建管理员账号的权限
-    
+
     Args:
         role: 要创建的用户角色
         current_user: 当前用户信息
-        
+
     Raises:
         ValidationError: 权限不足
     """
@@ -816,10 +960,10 @@ def _validate_admin_creation_permission(role: str, current_user: dict) -> None:
 
 def _validate_password_strength(password: str) -> None:
     """验证密码强度
-    
+
     Args:
         password: 密码
-        
+
     Raises:
         ValidationError: 密码强度不足
     """
@@ -831,12 +975,12 @@ def _validate_password_strength(password: str) -> None:
 
 def _check_user_uniqueness(user_service: UserService, username: str, email: str) -> None:
     """检查用户名和邮箱唯一性
-    
+
     Args:
         user_service: 用户服务实例
         username: 用户名
         email: 邮箱
-        
+
     Raises:
         ConflictError: 用户名或邮箱已存在
     """
@@ -846,21 +990,19 @@ def _check_user_uniqueness(user_service: UserService, username: str, email: str)
         raise ConflictError("邮箱已存在")
 
 
-def _create_new_user(
-    user_service: UserService, username: str, email: str, password: str, role: str
-):
+def _create_new_user(user_service: UserService, username: str, email: str, password: str, role: str):
     """创建新用户
-    
+
     Args:
         user_service: 用户服务实例
         username: 用户名
         email: 邮箱
         password: 密码
         role: 角色
-        
+
     Returns:
         创建的用户对象
-        
+
     Raises:
         DatabaseError: 创建用户失败
     """
@@ -871,10 +1013,10 @@ def _create_new_user(
         is_admin=(role == "admin"),
         is_moderator=(role == "moderator"),
     )
-    
+
     if not new_user:
         raise DatabaseError("创建用户失败")
-    
+
     return new_user
 
 
@@ -893,14 +1035,14 @@ async def create_user_by_admin(
         )
 
         username, email, password, role = _extract_user_creation_data(user_data)
-        
+
         _validate_user_creation_input(username, email, password, role)
         _validate_admin_creation_permission(role, current_user)
         _validate_password_strength(password)
 
         user_service = UserService(db)
         _check_user_uniqueness(user_service, username, email)
-        
+
         new_user = _create_new_user(user_service, username, email, password, role)
 
         log_database_operation(

@@ -84,103 +84,18 @@ class ExceptionInjector:
             ...     assert result is None
         """
         patches = []
+        injectors = self._get_operation_injectors()
 
         try:
-            if operation in ["query", "all"]:
-                # Mock Session.query 方法
-                query_patch = patch("sqlalchemy.orm.Session.query")
-                mock_query = query_patch.start()
-                mock_query.side_effect = error_type(error_message)
-                patches.append(query_patch)
-                logger.debug(f"Injected database error for query operation: {error_message}")
-
-            if operation in ["commit", "all"]:
-                # Mock Session.commit 方法
-                commit_patch = patch("sqlalchemy.orm.Session.commit")
-                mock_commit = commit_patch.start()
-                mock_commit.side_effect = error_type(error_message)
-                patches.append(commit_patch)
-                logger.debug(f"Injected database error for commit operation: {error_message}")
-
-            if operation in ["add", "all"]:
-                # Mock Session.add 方法
-                add_patch = patch("sqlalchemy.orm.Session.add")
-                mock_add = add_patch.start()
-                mock_add.side_effect = error_type(error_message)
-                patches.append(add_patch)
-                logger.debug(f"Injected database error for add operation: {error_message}")
-
-            if operation in ["delete", "all"]:
-                # Mock Session.delete 方法
-                delete_patch = patch("sqlalchemy.orm.Session.delete")
-                mock_delete = delete_patch.start()
-                mock_delete.side_effect = error_type(error_message)
-                patches.append(delete_patch)
-                logger.debug(f"Injected database error for delete operation: {error_message}")
-
-            if operation in ["update", "all"]:
-                # Mock Session.execute 方法（用于更新操作）
-                execute_patch = patch("sqlalchemy.orm.Session.execute")
-                mock_execute = execute_patch.start()
-                mock_execute.side_effect = error_type(error_message)
-                patches.append(execute_patch)
-                logger.debug(f"Injected database error for update operation: {error_message}")
-
-            if operation in ["refresh", "all"]:
-                # Mock Session.refresh 方法
-                refresh_patch = patch("sqlalchemy.orm.Session.refresh")
-                mock_refresh = refresh_patch.start()
-                mock_refresh.side_effect = error_type(error_message)
-                patches.append(refresh_patch)
-                logger.debug(f"Injected database error for refresh operation: {error_message}")
-
-            if operation in ["flush", "all"]:
-                # Mock Session.flush 方法
-                flush_patch = patch("sqlalchemy.orm.Session.flush")
-                mock_flush = flush_patch.start()
-                mock_flush.side_effect = error_type(error_message)
-                patches.append(flush_patch)
-                logger.debug(f"Injected database error for flush operation: {error_message}")
-
-            if operation in ["rollback", "all"]:
-                # Mock Session.rollback 方法
-                rollback_patch = patch("sqlalchemy.orm.Session.rollback")
-                mock_rollback = rollback_patch.start()
-                mock_rollback.side_effect = error_type(error_message)
-                patches.append(rollback_patch)
-                logger.debug(f"Injected database error for rollback operation: {error_message}")
-
-            if operation in ["scalar", "all"]:
-                # Mock Query.scalar 方法
-                scalar_patch = patch("sqlalchemy.orm.Query.scalar")
-                mock_scalar = scalar_patch.start()
-                mock_scalar.side_effect = error_type(error_message)
-                patches.append(scalar_patch)
-                logger.debug(f"Injected database error for scalar operation: {error_message}")
-
-            if operation in ["first", "all"]:
-                # Mock Query.first 方法
-                first_patch = patch("sqlalchemy.orm.Query.first")
-                mock_first = first_patch.start()
-                mock_first.side_effect = error_type(error_message)
-                patches.append(first_patch)
-                logger.debug(f"Injected database error for first operation: {error_message}")
-
-            if operation in ["filter", "all"]:
-                # Mock Query.filter 方法
-                filter_patch = patch("sqlalchemy.orm.Query.filter")
-                mock_filter = filter_patch.start()
-                mock_filter.side_effect = error_type(error_message)
-                patches.append(filter_patch)
-                logger.debug(f"Injected database error for filter operation: {error_message}")
-
-            if operation in ["count", "all"]:
-                # Mock Query.count 方法
-                count_patch = patch("sqlalchemy.orm.Query.count")
-                mock_count = count_patch.start()
-                mock_count.side_effect = error_type(error_message)
-                patches.append(count_patch)
-                logger.debug(f"Injected database error for count operation: {error_message}")
+            if operation == "all":
+                # 注入所有操作的异常
+                for injector in injectors.values():
+                    patch_obj = injector(error_type, error_message)
+                    patches.append(patch_obj)
+            elif operation in injectors:
+                # 注入指定操作的异常
+                patch_obj = injectors[operation](error_type, error_message)
+                patches.append(patch_obj)
 
             yield
 
@@ -190,12 +105,125 @@ class ExceptionInjector:
                 p.stop()
             logger.debug("Database error injection cleaned up")
 
+    def _inject_query_error(self, error_type: Type[Exception], error_message: str) -> Any:
+        """注入查询操作异常"""
+        query_patch = patch("sqlalchemy.orm.Session.query")
+        mock_query = query_patch.start()
+        mock_query.side_effect = error_type(error_message)
+        logger.debug(f"Injected database error for query operation: {error_message}")
+        return query_patch
+
+    def _inject_commit_error(self, error_type: Type[Exception], error_message: str) -> Any:
+        """注入提交操作异常"""
+        commit_patch = patch("sqlalchemy.orm.Session.commit")
+        mock_commit = commit_patch.start()
+        mock_commit.side_effect = error_type(error_message)
+        logger.debug(f"Injected database error for commit operation: {error_message}")
+        return commit_patch
+
+    def _inject_add_error(self, error_type: Type[Exception], error_message: str) -> Any:
+        """注入添加操作异常"""
+        add_patch = patch("sqlalchemy.orm.Session.add")
+        mock_add = add_patch.start()
+        mock_add.side_effect = error_type(error_message)
+        logger.debug(f"Injected database error for add operation: {error_message}")
+        return add_patch
+
+    def _inject_delete_error(self, error_type: Type[Exception], error_message: str) -> Any:
+        """注入删除操作异常"""
+        delete_patch = patch("sqlalchemy.orm.Session.delete")
+        mock_delete = delete_patch.start()
+        mock_delete.side_effect = error_type(error_message)
+        logger.debug(f"Injected database error for delete operation: {error_message}")
+        return delete_patch
+
+    def _inject_update_error(self, error_type: Type[Exception], error_message: str) -> Any:
+        """注入更新操作异常"""
+        execute_patch = patch("sqlalchemy.orm.Session.execute")
+        mock_execute = execute_patch.start()
+        mock_execute.side_effect = error_type(error_message)
+        logger.debug(f"Injected database error for update operation: {error_message}")
+        return execute_patch
+
+    def _inject_refresh_error(self, error_type: Type[Exception], error_message: str) -> Any:
+        """注入刷新操作异常"""
+        refresh_patch = patch("sqlalchemy.orm.Session.refresh")
+        mock_refresh = refresh_patch.start()
+        mock_refresh.side_effect = error_type(error_message)
+        logger.debug(f"Injected database error for refresh operation: {error_message}")
+        return refresh_patch
+
+    def _inject_flush_error(self, error_type: Type[Exception], error_message: str) -> Any:
+        """注入刷新缓存操作异常"""
+        flush_patch = patch("sqlalchemy.orm.Session.flush")
+        mock_flush = flush_patch.start()
+        mock_flush.side_effect = error_type(error_message)
+        logger.debug(f"Injected database error for flush operation: {error_message}")
+        return flush_patch
+
+    def _inject_rollback_error(self, error_type: Type[Exception], error_message: str) -> Any:
+        """注入回滚操作异常"""
+        rollback_patch = patch("sqlalchemy.orm.Session.rollback")
+        mock_rollback = rollback_patch.start()
+        mock_rollback.side_effect = error_type(error_message)
+        logger.debug(f"Injected database error for rollback operation: {error_message}")
+        return rollback_patch
+
+    def _inject_scalar_error(self, error_type: Type[Exception], error_message: str) -> Any:
+        """注入标量查询操作异常"""
+        scalar_patch = patch("sqlalchemy.orm.Query.scalar")
+        mock_scalar = scalar_patch.start()
+        mock_scalar.side_effect = error_type(error_message)
+        logger.debug(f"Injected database error for scalar operation: {error_message}")
+        return scalar_patch
+
+    def _inject_first_error(self, error_type: Type[Exception], error_message: str) -> Any:
+        """注入获取第一条记录操作异常"""
+        first_patch = patch("sqlalchemy.orm.Query.first")
+        mock_first = first_patch.start()
+        mock_first.side_effect = error_type(error_message)
+        logger.debug(f"Injected database error for first operation: {error_message}")
+        return first_patch
+
+    def _inject_filter_error(self, error_type: Type[Exception], error_message: str) -> Any:
+        """注入过滤操作异常"""
+        filter_patch = patch("sqlalchemy.orm.Query.filter")
+        mock_filter = filter_patch.start()
+        mock_filter.side_effect = error_type(error_message)
+        logger.debug(f"Injected database error for filter operation: {error_message}")
+        return filter_patch
+
+    def _inject_count_error(self, error_type: Type[Exception], error_message: str) -> Any:
+        """注入计数操作异常"""
+        count_patch = patch("sqlalchemy.orm.Query.count")
+        mock_count = count_patch.start()
+        mock_count.side_effect = error_type(error_message)
+        logger.debug(f"Injected database error for count operation: {error_message}")
+        return count_patch
+
+    def _get_operation_injectors(self) -> dict:
+        """获取操作类型到注入方法的映射"""
+        return {
+            "query": self._inject_query_error,
+            "commit": self._inject_commit_error,
+            "add": self._inject_add_error,
+            "delete": self._inject_delete_error,
+            "update": self._inject_update_error,
+            "refresh": self._inject_refresh_error,
+            "flush": self._inject_flush_error,
+            "rollback": self._inject_rollback_error,
+            "scalar": self._inject_scalar_error,
+            "first": self._inject_first_error,
+            "filter": self._inject_filter_error,
+            "count": self._inject_count_error,
+        }
+
     @contextmanager
     def inject_integrity_error(self, constraint: str = "unique_constraint", error_message: Optional[str] = None):
         """
-        注入数据库完整性约束错误
+            注入数据库完整性约束错误
 
-        用于测试唯一约束、外键约束等违反时的处理。
+            用于测试唯一约束、外键约束等违反时的处理。
 
         Args:
             constraint: 约束类型（如 "unique_constraint", "foreign_key"）
@@ -279,70 +307,20 @@ class ExceptionInjector:
             ...     assert result is None
         """
         if error_message is None:
-            if error_type == "required_error":
-                error_message = f"Field '{field}' is required"
-            elif error_type == "type_error":
-                error_message = f"Invalid type for field '{field}'"
-            elif error_type == "format_error":
-                error_message = f"Invalid format for field '{field}'"
-            elif error_type == "length_error":
-                error_message = f"Invalid length for field '{field}'"
-            elif error_type == "range_error":
-                error_message = f"Value out of range for field '{field}'"
-            else:
-                error_message = f"Validation failed for field: {field}"
+            error_message = self._get_default_error_message(field, error_type)
 
         patches = []
 
         try:
             if error_type == "custom_validation":
-                # 注入自定义 ValidationError（来自 app.core.error_handlers）
-                try:
-                    from app.core.error_handlers import ValidationError as CustomValidationError
-
-                    # Mock 可能抛出 ValidationError 的函数
-                    # 这里我们 mock 一个通用的验证函数
-                    validation_patch = patch("app.core.error_handlers.ValidationError")
-                    mock_validation = validation_patch.start()
-                    mock_validation.side_effect = CustomValidationError(error_message)
-                    patches.append(validation_patch)
-
-                except ImportError:
-                    # 如果无法导入自定义 ValidationError，使用 ValueError
-                    logger.warning("Could not import custom ValidationError, using ValueError instead")
-                    validation_patch = patch("pydantic.BaseModel.model_validate")
-                    mock_validate = validation_patch.start()
-                    mock_validate.side_effect = ValueError(error_message)
-                    patches.append(validation_patch)
-
+                patch_obj = self._inject_custom_validation_error(error_message)
             elif error_type == "type_error":
-                # 注入类型错误
-                validation_patch = patch("pydantic.BaseModel.model_validate")
-                mock_validate = validation_patch.start()
-                mock_validate.side_effect = TypeError(error_message)
-                patches.append(validation_patch)
-
-            elif error_type == "required_error":
-                # 注入必填字段错误
-                validation_patch = patch("pydantic.BaseModel.model_validate")
-                mock_validate = validation_patch.start()
-                mock_validate.side_effect = ValueError(error_message)
-                patches.append(validation_patch)
-
-            elif error_type in ["format_error", "length_error", "range_error"]:
-                # 注入格式、长度或范围错误
-                validation_patch = patch("pydantic.BaseModel.model_validate")
-                mock_validate = validation_patch.start()
-                mock_validate.side_effect = ValueError(error_message)
-                patches.append(validation_patch)
-
+                patch_obj = self._inject_type_error(error_message)
             else:
-                # 默认：注入 ValueError
-                validation_patch = patch("pydantic.BaseModel.model_validate")
-                mock_validate = validation_patch.start()
-                mock_validate.side_effect = ValueError(error_message)
-                patches.append(validation_patch)
+                # 默认使用值错误（包括 required_error, format_error, length_error, range_error）
+                patch_obj = self._inject_value_error(error_message)
 
+            patches.append(patch_obj)
             logger.debug(f"Injected validation error (type: {error_type}) for field '{field}': {error_message}")
             yield
 
@@ -350,6 +328,48 @@ class ExceptionInjector:
             for p in patches:
                 p.stop()
             logger.debug("Validation error injection cleaned up")
+
+    def _get_default_error_message(self, field: str, error_type: str) -> str:
+        """获取默认的错误消息"""
+        error_messages = {
+            "required_error": f"Field '{field}' is required",
+            "type_error": f"Invalid type for field '{field}'",
+            "format_error": f"Invalid format for field '{field}'",
+            "length_error": f"Invalid length for field '{field}'",
+            "range_error": f"Value out of range for field '{field}'",
+        }
+        return error_messages.get(error_type, f"Validation failed for field: {field}")
+
+    def _inject_custom_validation_error(self, error_message: str) -> Any:
+        """注入自定义验证错误"""
+        try:
+            from app.core.error_handlers import ValidationError as CustomValidationError
+
+            validation_patch = patch("app.core.error_handlers.ValidationError")
+            mock_validation = validation_patch.start()
+            mock_validation.side_effect = CustomValidationError(error_message)
+            return validation_patch
+
+        except ImportError:
+            logger.warning("Could not import custom ValidationError, using ValueError instead")
+            validation_patch = patch("pydantic.BaseModel.model_validate")
+            mock_validate = validation_patch.start()
+            mock_validate.side_effect = ValueError(error_message)
+            return validation_patch
+
+    def _inject_type_error(self, error_message: str) -> Any:
+        """注入类型错误"""
+        validation_patch = patch("pydantic.BaseModel.model_validate")
+        mock_validate = validation_patch.start()
+        mock_validate.side_effect = TypeError(error_message)
+        return validation_patch
+
+    def _inject_value_error(self, error_message: str) -> Any:
+        """注入值错误"""
+        validation_patch = patch("pydantic.BaseModel.model_validate")
+        mock_validate = validation_patch.start()
+        mock_validate.side_effect = ValueError(error_message)
+        return validation_patch
 
     @contextmanager
     def inject_permission_error(
