@@ -1976,7 +1976,9 @@ description = "No version here"
 
         try:
             # 创建一个文件，size 属性小但实际内容大（超过 100MB 限制）
-            huge_content = b"x" * (150 * 1024 * 1024)  # 150MB
+            # 使用 MAX_FILE_SIZE + 1 来测试边界，而不是 150MB
+            max_size = 100 * 1024 * 1024  # 100MB (默认限制)
+            huge_content = b"x" * (max_size + 1)  # 刚好超过限制
             mock_file = Mock(spec=UploadFile)
             mock_file.filename = "test.txt"
             mock_file.size = 1024  # 声称只有 1KB
@@ -2190,18 +2192,17 @@ description = "No version here"
         service = FileUploadService(test_db)
 
         # 创建一个超大内容的文件
-        huge_content = b"x" * (50 * 1024 * 1024)  # 50MB
+        # 使用 MAX_FILE_SIZE + 1 来测试边界
+        max_size = 100 * 1024 * 1024  # 100MB (默认限制)
+        huge_content = b"x" * (max_size + 1)  # 刚好超过限制
         mock_file = Mock(spec=UploadFile)
         mock_file.read = AsyncMock(return_value=huge_content)
         mock_file.seek = AsyncMock()
 
         result = await service._validate_file_content(mock_file)
 
-        # 实际上，_validate_file_content 会在读取时检查大小
-        # 如果内容超过限制，应该返回 False
-        # 但是由于 Mock 的限制，可能会返回 True
-        # 我们只验证方法被调用且没有抛出异常
-        assert result in [True, False]
+        # 内容超过限制，应该返回 False
+        assert result is False
         mock_file.seek.assert_called_with(0)
 
     @pytest.mark.asyncio
@@ -2300,7 +2301,7 @@ description = "No version here"
 
         mock_file = Mock(spec=UploadFile)
         mock_file.filename = "bot_config.toml"
-        mock_file.size = 100 * 1024 * 1024  # 100MB
+        mock_file.size = 6 * 1024 * 1024  # 6MB，超过 5MB 限制
         # 不需要 read，因为大小验证会先失败
 
         service = FileUploadService(test_db)
@@ -2327,7 +2328,9 @@ description = "No version here"
         user = factory.create_user()
 
         # 创建一个文件，size 属性小但实际内容大
-        huge_content = b"x" * (50 * 1024 * 1024)  # 50MB
+        # 人设卡 TOML 文件限制为 5MB
+        max_size = 5 * 1024 * 1024  # 5MB (人设卡限制)
+        huge_content = b"x" * (max_size + 1)  # 刚好超过限制
         mock_file = Mock(spec=UploadFile)
         mock_file.filename = "bot_config.toml"
         mock_file.size = 1024  # 声称只有 1KB
@@ -2345,5 +2348,5 @@ description = "No version here"
                 copyright_owner="Test Owner",
             )
 
-        # 可能是内容过大或 TOML 解析错误（因为内容不是有效的 TOML）
-        assert "文件内容过大" in exc_info.value.message or "TOML" in exc_info.value.message
+        # 验证错误信息
+        assert "文件内容过大" in exc_info.value.message

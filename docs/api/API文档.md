@@ -502,16 +502,19 @@ POST /api/persona
 
 **认证**: 需要 Bearer Token
 
-**请求体**:
-```json
-{
-  "name": "string",
-  "description": "string",
-  "copyright_owner": "string (optional)",
-  "tags": "string (optional)",
-  "is_public": false
-}
-```
+**请求**: multipart/form-data
+- `files`: 文件列表（必须为 bot_config.toml，单个文件最大 5MB）
+- `name`: 人设卡名称
+- `description`: 人设卡描述
+- `copyright_owner`: 版权所有者（可选）
+- `tags`: 标签（可选）
+- `is_public`: 是否公开（默认 false）
+
+**文件限制**:
+- 文件名必须为 `bot_config.toml`
+- 文件类型必须为 `.toml`
+- 单个文件最大 5MB
+- 必须包含版本号字段（version）
 
 **响应示例** (201):
 ```json
@@ -523,6 +526,17 @@ POST /api/persona
   "is_public": false,
   "is_pending": true,
   "created_at": "2025-02-20T00:00:00"
+}
+```
+
+**错误响应** (400):
+```json
+{
+  "message": "人设卡配置错误：文件内容过大 bot_config.toml，单个文件最大允许5MB",
+  "details": {
+    "code": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED",
+    "filename": "bot_config.toml"
+  }
 }
 ```
 
@@ -630,7 +644,13 @@ POST /api/persona/{persona_id}/files
 **认证**: 需要 Bearer Token
 
 **请求**: multipart/form-data
-- `files`: 文件列表
+- `files`: 文件列表（必须为 bot_config.toml，单个文件最大 5MB）
+
+**文件限制**:
+- 文件名必须为 `bot_config.toml`
+- 文件类型必须为 `.toml`
+- 单个文件最大 5MB
+- 每次只能上传一个文件
 
 **响应示例** (200):
 ```json
@@ -645,6 +665,17 @@ POST /api/persona/{persona_id}/files
       "file_type": "string"
     }
   ]
+}
+```
+
+**错误响应** (400):
+```json
+{
+  "message": "人设卡配置错误：文件过大 bot_config.toml，单个文件最大允许5MB",
+  "details": {
+    "code": "PERSONA_FILE_SIZE_EXCEEDED",
+    "filename": "bot_config.toml"
+  }
 }
 ```
 

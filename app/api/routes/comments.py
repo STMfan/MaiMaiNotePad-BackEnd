@@ -105,14 +105,21 @@ async def get_comments(
 @router.post(
     "/comments",
 )
-async def create_comment(
-    data: dict = Body(...), current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
-):
-    """创建评论或回复（受禁言限制）"""
-    content = (data.get("content") or "").strip()
-    target_type = data.get("target_type")
-    target_id = data.get("target_id")
-    parent_id = data.get("parent_id")
+def _validate_comment_input(content: str, target_type: str, target_id: Any) -> str:
+    """验证评论输入参数
+
+    Args:
+        content: 评论内容
+        target_type: 目标类型
+        target_id: 目标ID
+
+    Returns:
+        清理后的评论内容
+
+    Raises:
+        ValidationError: 参数验证失败
+    """
+    content = (content or "").strip()
 
     if not content:
         raise ValidationError("评论内容不能为空")
@@ -123,7 +130,198 @@ async def create_comment(
     if not target_id:
         raise ValidationError("目标ID不能为空")
 
+    return content
+
+
+def _check_user_mute_status(user: User) -> None:
+    """检查用户禁言状态
+
+    Args:
+        user: 用户对象
+
+    Raises:
+        AuthorizationError: 用户处于禁言状态
+    """
+    if not user.is_muted:
+        return
+
+    now = datetime.now()
+    reason = getattr(user, "mute_reason", "") or "违反社区行为规范"
+
+    if user.muted_until and user.muted_until > now:
+        raise AuthorizationError(
+            f"你当前处于禁言状态，暂时无法发表评论。\n\n禁言原因：{reason}\n\n如有疑问，可以联系管理员。\n\n—— 麦麦"
+        )
+
+    if user.muted_until is None:
+        raise AuthorizationError(
+            f"你当前处于永久禁言状态，无法发表评论。\n\n禁言原因：{reason}\n\n如有疑问，可以联系管理员。\n\n—— 麦麦"
+        )
+
+
+def _get_comment_target(db: Session, target_type: str, target_id: Any) -> Any:
+    """获取评论目标对象
+
+    Args:
+        db: 数据库会话
+        target_type: 目标类型
+        target_id: 目标ID
+
+    Returns:
+        目标对象（KnowledgeBase 或 PersonaCard）
+
+    Raises:
+        NotFoundError: 目标不存在
+    """
+    if target_type == "knowledge":
+        target = db.query(KnowledgeBase).filter(KnowledgeBase.id == target_id).first()
+    else:
+        target = db.query(PersonaCard).filter(PersonaCard.id == target_id).first()
+
+    if not target:
+        raise NotFoundError("目标内容不存在")
+
+    return target
+
+
+def _get_parent_comment(db: Session, parent_id: Any, target_type: str, target_id: Any) -> Optional[Comment]:
+    """获取父级评论
+
+    Args:
+        db: 数据库会话
+        parent_id: 父级评论ID
+        target_type: 目标类型
+        target_id: 目标ID
+
+    Returns:
+        父级评论对象，如果不存在则返回 None
+
+    Raises:
+        ValidationError: 父级评论不存在
+    """
+    if not parent_id:
+        return None
+
+    parent = (
+        db.query(Comment)
+        .filter(Comment.id == parent_id, Comment.target_type == target_type, Comment.target_id == target_id)
+        .first()
+    )
+
+    if not parent:
+        raise ValidationError("父级评论不存在")
+
+    return parent
+
+
+def _collect_notification_recipients(user: User, parent: Optional[Comment], target: Any, target_type: str) -> set:
+    """收集需要通知的用户ID
+
+    Args:
+        user: 当前用户
+        parent: 父级评论
+        target: 目标对象
+        target_type: 目标类型
+
+    Returns:
+        需要通知的用户ID集合
+    """
+    recipients = set()
+
+    # 通知父级评论作者
+    if parent and parent.user_id and parent.user_id != user.id:
+        recipients.add(str(parent.user_id))
+
+    # 通知目标内容所有者
+    owner_id = getattr(target, "uploader_id", None)
+    if owner_id and owner_id != user.id:
+        recipients.add(str(owner_id))
+
+    return recipients
+
+
+def _send_comment_notifications(
+    db: Session,
+    user: User,
+    content: str,
+    parent: Optional[Comment],
+    recipients: set
+) -> None:
+    """发送评论通知消息
+
+    Args:
+        db: 数据库会话
+        user: 当前用户
+        content: 评论内容
+        parent: 父级评论
+        recipients: 接收者ID集合
+    """
+    from app.models.database import Message
+
+    snippet = content[:80]
+
+    if parent:
+        title = "你收到了新的评论回复"
+        body = f"{user.username} 回复了你的评论：{snippet}"
+    else:
+        title = "你收到了新的评论"
+        body = f"{user.username} 评论了你的内容：{snippet}"
+
+    for rid in recipients:
+        try:
+            message = Message(
+                sender_id=str(user.id),
+                recipient_id=str(rid),
+                title=title,
+                content=body,
+                message_type="comment",
+                summary=snippet,
+            )
+            db.add(message)
+        except Exception:
+            continue
+
+
+def _build_comment_response(comment: Comment, user: User) -> dict:
+    """构建评论响应数据
+
+    Args:
+        comment: 评论对象
+        user: 用户对象
+
+    Returns:
+        评论响应数据字典
+    """
+    return {
+        "id": comment.id,
+        "userId": user.id,
+        "username": user.username,
+        "avatarUpdatedAt": user.avatar_updated_at.isoformat() if user.avatar_updated_at else None,
+        "parentId": comment.parent_id,
+        "content": comment.content,
+        "createdAt": comment.created_at.isoformat() if comment.created_at else None,
+        "likeCount": comment.like_count or 0,
+        "dislikeCount": comment.dislike_count or 0,
+        "myReaction": None,
+    }
+
+
+async def create_comment(
+    data: dict = Body(...), current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """创建评论或回复（受禁言限制）"""
     try:
+        # 验证输入
+        content = _validate_comment_input(
+            data.get("content"),
+            data.get("target_type"),
+            data.get("target_id")
+        )
+        target_type = data.get("target_type")
+        target_id = data.get("target_id")
+        parent_id = data.get("parent_id")
+
+        # 获取并验证用户
         sender_id = current_user.get("id")
         if not sender_id:
             raise AuthorizationError("用户未登录")
@@ -132,37 +330,16 @@ async def create_comment(
         if not user:
             raise NotFoundError("用户不存在")
 
-        now = datetime.now()
-        if user.is_muted:
-            reason = getattr(user, "mute_reason", "") or "违反社区行为规范"
-            if user.muted_until and user.muted_until > now:
-                raise AuthorizationError(
-                    f"你当前处于禁言状态，暂时无法发表评论。\n\n禁言原因：{reason}\n\n如有疑问，可以联系管理员。\n\n—— 麦麦"
-                )
-            if user.muted_until is None:
-                raise AuthorizationError(
-                    f"你当前处于永久禁言状态，无法发表评论。\n\n禁言原因：{reason}\n\n如有疑问，可以联系管理员。\n\n—— 麦麦"
-                )
+        # 检查禁言状态
+        _check_user_mute_status(user)
 
-        target: Optional[Any] = None
-        if target_type == "knowledge":
-            target = db.query(KnowledgeBase).filter(KnowledgeBase.id == target_id).first()
-        else:
-            target = db.query(PersonaCard).filter(PersonaCard.id == target_id).first()
+        # 获取目标对象
+        target = _get_comment_target(db, target_type, target_id)
 
-        if not target:
-            raise NotFoundError("目标内容不存在")
+        # 获取父级评论（如果有）
+        parent = _get_parent_comment(db, parent_id, target_type, target_id)
 
-        parent = None
-        if parent_id:
-            parent = (
-                db.query(Comment)
-                .filter(Comment.id == parent_id, Comment.target_type == target_type, Comment.target_id == target_id)
-                .first()
-            )
-            if not parent:
-                raise ValidationError("父级评论不存在")
-
+        # 创建评论
         comment = Comment(
             user_id=user.id,
             target_type=target_type,
@@ -174,63 +351,23 @@ async def create_comment(
         db.commit()
         db.refresh(comment)
 
-        recipients = set()
+        # 收集通知接收者
+        recipients = _collect_notification_recipients(user, parent, target, target_type)
 
-        if parent and parent.user_id and parent.user_id != user.id:
-            recipients.add(str(parent.user_id))
-
-        owner_id = None
-        if target_type == "knowledge":
-            owner_id = getattr(target, "uploader_id", None)
-        else:
-            owner_id = getattr(target, "uploader_id", None)
-        if owner_id and owner_id != user.id:
-            recipients.add(str(owner_id))
-
-        snippet = content[:80]
-        if parent:
-            title = "你收到了新的评论回复"
-            body = f"{user.username} 回复了你的评论：{snippet}"
-        else:
-            title = "你收到了新的评论"
-            body = f"{user.username} 评论了你的内容：{snippet}"
-
-        from app.models.database import Message
-
-        for rid in recipients:
-            try:
-                message = Message(
-                    sender_id=str(user.id),
-                    recipient_id=str(rid),
-                    title=title,
-                    content=body,
-                    message_type="comment",
-                    summary=snippet,
-                )
-                db.add(message)
-            except Exception:
-                continue
-
+        # 发送通知
+        _send_comment_notifications(db, user, content, parent, recipients)
         db.commit()
 
+        # 广播WebSocket更新
         if recipients:
             await message_ws_manager.broadcast_user_update(recipients)
 
+        # 返回响应
         return Success(
             message="发表评论成功",
-            data={
-                "id": comment.id,
-                "userId": user.id,
-                "username": user.username,
-                "avatarUpdatedAt": user.avatar_updated_at.isoformat() if user.avatar_updated_at else None,
-                "parentId": comment.parent_id,
-                "content": comment.content,
-                "createdAt": comment.created_at.isoformat() if comment.created_at else None,
-                "likeCount": comment.like_count or 0,
-                "dislikeCount": comment.dislike_count or 0,
-                "myReaction": None,
-            },
+            data=_build_comment_response(comment, user)
         )
+
     except (ValidationError, AuthorizationError, NotFoundError):
         raise
     except Exception as e:

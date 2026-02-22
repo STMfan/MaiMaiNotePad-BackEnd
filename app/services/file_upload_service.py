@@ -35,6 +35,7 @@ class FileUploadService:
 
     # 从配置管理器读取配置
     MAX_FILE_SIZE = settings.MAX_FILE_SIZE_MB * 1024 * 1024
+    MAX_PERSONA_TOML_SIZE = 5 * 1024 * 1024  # 人设卡 TOML 文件限制为 5MB
     MAX_KNOWLEDGE_FILES = config_manager.get_int("upload.knowledge.max_files", 100)
     MAX_PERSONA_FILES = config_manager.get_int("upload.persona.max_files", 1)
     ALLOWED_KNOWLEDGE_TYPES = config_manager.get_list("upload.knowledge.allowed_types", [".txt", ".json"])
@@ -135,6 +136,13 @@ class FileUploadService:
 
         return file.size <= self.MAX_FILE_SIZE
 
+    def _validate_persona_toml_size(self, file: UploadFile) -> bool:
+        """验证人设卡 TOML 文件大小（5MB 限制）"""
+        if not file.size:
+            return True  # 如果无法获取大小，暂时允许
+
+        return file.size <= self.MAX_PERSONA_TOML_SIZE
+
     async def _validate_file_content(self, file: UploadFile) -> bool:
         """验证文件内容大小"""
         # 读取文件内容以验证实际大小
@@ -142,6 +150,14 @@ class FileUploadService:
         await file.seek(0)  # 重置文件指针
 
         return len(content) <= self.MAX_FILE_SIZE
+
+    async def _validate_persona_toml_content(self, file: UploadFile) -> bool:
+        """验证人设卡 TOML 文件内容大小（5MB 限制）"""
+        # 读取文件内容以验证实际大小
+        content = await file.read()
+        await file.seek(0)  # 重置文件指针
+
+        return len(content) <= self.MAX_PERSONA_TOML_SIZE
 
     def _extract_version_from_toml(self, data: Dict[str, Any]) -> Optional[str]:
         if not isinstance(data, dict):
@@ -328,16 +344,16 @@ class FileUploadService:
                     details={"code": "PERSONA_FILE_TYPE_INVALID", "filename": file.filename},
                 )
 
-            if not self._validate_file_size(file):
+            if not self._validate_persona_toml_size(file):
                 raise ValidationError(
-                    message=f"人设卡配置错误：文件过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
+                    message=f"人设卡配置错误：文件过大 {file.filename}，单个文件最大允许{self.MAX_PERSONA_TOML_SIZE // (1024*1024)}MB",
                     details={"code": "PERSONA_FILE_SIZE_EXCEEDED", "filename": file.filename},
                 )
 
             # 验证实际文件内容大小
-            if not await self._validate_file_content(file):
+            if not await self._validate_persona_toml_content(file):
                 raise ValidationError(
-                    message=f"人设卡配置错误：文件内容过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
+                    message=f"人设卡配置错误：文件内容过大 {file.filename}，单个文件最大允许{self.MAX_PERSONA_TOML_SIZE // (1024*1024)}MB",
                     details={"code": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED", "filename": file.filename},
                 )
 
@@ -745,16 +761,16 @@ class FileUploadService:
                     details={"code": "PERSONA_FILE_TYPE_INVALID", "filename": file.filename},
                 )
 
-            if not self._validate_file_size(file):
+            if not self._validate_persona_toml_size(file):
                 raise ValidationError(
-                    message=f"人设卡配置错误：文件过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
+                    message=f"人设卡配置错误：文件过大 {file.filename}，单个文件最大允许{self.MAX_PERSONA_TOML_SIZE // (1024*1024)}MB",
                     details={"code": "PERSONA_FILE_SIZE_EXCEEDED", "filename": file.filename},
                 )
 
             # 验证实际文件内容大小
-            if not await self._validate_file_content(file):
+            if not await self._validate_persona_toml_content(file):
                 raise ValidationError(
-                    message=f"人设卡配置错误：文件内容过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
+                    message=f"人设卡配置错误：文件内容过大 {file.filename}，单个文件最大允许{self.MAX_PERSONA_TOML_SIZE // (1024*1024)}MB",
                     details={"code": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED", "filename": file.filename},
                 )
 

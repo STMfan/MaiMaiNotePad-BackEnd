@@ -462,16 +462,20 @@ load_test_config() {
 build_pytest_command() {
     local base_cmd="pytest"
     local args=""
+    local enable_parallel="${1:-true}"  # 默认启用并行
     
     # 加载配置
     load_test_config
     
     # 添加并行参数
-    if [ "$TEST_PARALLEL" = "true" ]; then
+    if [ "$TEST_PARALLEL" = "true" ] && [ "$enable_parallel" = "true" ]; then
         args="$args -n $TEST_WORKERS"
-        print_info "并行测试: 启用 (工作进程: $TEST_WORKERS)"
+        # 并行测试时禁用 coverage 以避免数据库冲突
+        args="$args --no-cov"
+        print_info "并行测试: 启用 (工作进程: $TEST_WORKERS)" >&2
+        print_info "Coverage: 已禁用（并行模式下）" >&2
     else
-        print_info "并行测试: 禁用"
+        print_info "并行测试: 禁用" >&2
     fi
     
     # 添加额外参数
@@ -596,7 +600,7 @@ start_prod_server() {
 }
 
 run_all_tests() {
-    print_header "运行所有测试"
+    print_header "运行所有测试（并行模式）"
     
     # 加载配置
     load_test_config
@@ -621,6 +625,66 @@ run_all_tests() {
     pause
 }
 
+run_all_tests_with_coverage() {
+    print_header "完整测试流程（并行测试 + 覆盖率报告）"
+    
+    # 加载配置
+    load_test_config
+    
+    # 检查环境
+    echo ""
+    if ! check_python_environment "$RECOMMENDED_CONDA_ENV"; then
+        pause
+        return 1
+    fi
+    
+    # 第一步：并行测试（快速验证）
+    echo ""
+    print_separator
+    echo ""
+    print_info "步骤 1/3: 运行并行测试（快速验证）"
+    echo ""
+    
+    local parallel_cmd=$(build_pytest_command "true")
+    print_info "执行命令: $parallel_cmd"
+    echo ""
+    
+    if ! eval "$parallel_cmd"; then
+        print_error "并行测试失败，跳过覆盖率测试"
+        pause
+        return 1
+    fi
+    
+    # 第二步：覆盖率测试（单线程）
+    echo ""
+    print_separator
+    echo ""
+    print_info "步骤 2/3: 生成覆盖率报告（单线程模式）"
+    echo ""
+    
+    local coverage_cmd=$(build_pytest_command "false")
+    print_info "执行命令: $coverage_cmd"
+    echo ""
+    
+    eval "$coverage_cmd"
+    
+    # 第三步：清理临时文件
+    echo ""
+    print_separator
+    echo ""
+    print_info "步骤 3/3: 清理临时文件"
+    echo ""
+    
+    # 清理损坏的 coverage 文件
+    find . -maxdepth 1 -name ".coverage.*" -type f -delete 2>/dev/null || true
+    print_success "已清理临时 coverage 文件"
+    
+    echo ""
+    print_success "完整测试流程已完成"
+    print_info "查看 HTML 报告: open htmlcov/index.html"
+    pause
+}
+
 run_unit_tests() {
     print_header "运行单元测试"
     
@@ -638,12 +702,12 @@ run_unit_tests() {
     print_separator
     echo ""
     
-    # 构建并执行命令
+    # 构建并执行命令，指定单元测试目录
     local cmd=$(build_pytest_command)
-    print_info "执行命令: $cmd -m unit"
+    print_info "执行命令: $cmd tests/unit"
     echo ""
     
-    eval "$cmd -m unit"
+    eval "$cmd tests/unit"
     pause
 }
 
@@ -664,17 +728,17 @@ run_integration_tests() {
     print_separator
     echo ""
     
-    # 构建并执行命令
+    # 构建并执行命令，指定集成测试目录
     local cmd=$(build_pytest_command)
-    print_info "执行命令: $cmd -m integration"
+    print_info "执行命令: $cmd tests/integration"
     echo ""
     
-    eval "$cmd -m integration"
+    eval "$cmd tests/integration"
     pause
 }
 
 run_fast_tests() {
-    print_header "运行快速测试（排除慢速测试）"
+    print_header "运行详细模式测试"
     
     # 加载配置
     load_test_config
@@ -690,12 +754,13 @@ run_fast_tests() {
     print_separator
     echo ""
     
-    # 构建并执行命令
+    # 构建并执行命令，添加详细输出
     local cmd=$(build_pytest_command)
-    print_info "执行命令: $cmd -m 'not slow'"
+    print_info "执行命令: $cmd -vv"
+    print_info "详细模式: 显示每个测试的完整信息"
     echo ""
     
-    eval "$cmd -m 'not slow'"
+    eval "$cmd -vv"
     pause
 }
 
@@ -716,8 +781,9 @@ run_coverage_tests() {
     print_separator
     echo ""
     
-    # 构建并执行命令（覆盖率测试使用配置中的参数）
-    local cmd=$(build_pytest_command)
+    # 覆盖率测试必须在单线程模式下运行以避免数据库冲突
+    print_info "覆盖率测试: 单线程模式（避免数据冲突）"
+    local cmd=$(build_pytest_command "false")  # 禁用并行
     print_info "执行命令: $cmd"
     echo ""
     
@@ -1014,22 +1080,23 @@ show_menu() {
     echo ""
     
     echo -e "${BOLD}${MAGENTA}测试相关${NC}"
-    echo "  4. 运行所有测试"
-    echo "  5. 运行单元测试"
-    echo "  6. 运行集成测试"
-    echo "  7. 运行快速测试（排除慢速）"
-    echo "  8. 生成测试覆盖率报告"
+    echo "  4. 运行所有测试（并行，快速验证）"
+    echo "  5. 运行单元测试（tests/unit）"
+    echo "  6. 运行集成测试（tests/integration）"
+    echo "  7. 详细模式测试（-vv，调试用）"
+    echo "  8. 生成测试覆盖率报告（单线程，完整报告）"
+    echo "  9. 完整测试流程（并行验证 + 覆盖率分析）"
     echo ""
     
     echo -e "${BOLD}${MAGENTA}项目维护${NC}"
-    echo "  9. 清理项目（缓存、临时文件）"
-    echo " 10. 数据库管理"
-    echo " 11. 代码质量检查"
-    echo " 12. 生成文档"
+    echo " 10. 清理项目（缓存、临时文件）"
+    echo " 11. 数据库管理"
+    echo " 12. 代码质量检查"
+    echo " 13. 生成文档"
     echo ""
     
     echo -e "${BOLD}${MAGENTA}高级操作${NC}"
-    echo -e " 13. 清档重置（${RED}⚠️  危险操作${NC}）"
+    echo -e " 14. 清档重置（${RED}⚠️  危险操作${NC}）"
     echo ""
     
     echo -e "${BOLD}${MAGENTA}其他${NC}"
@@ -1185,7 +1252,7 @@ fi
 # 交互式菜单模式
 while true; do
     show_menu
-    read -p "$(echo -e ${CYAN}请选择操作 [0-13/h]: ${NC})" choice
+    read -p "$(echo -e ${CYAN}请选择操作 [0-14/h]: ${NC})" choice
     
     case $choice in
         0)
@@ -1218,18 +1285,21 @@ while true; do
             run_coverage_tests
             ;;
         9)
-            cleanup_project
+            run_all_tests_with_coverage
             ;;
         10)
-            database_menu
+            cleanup_project
             ;;
         11)
-            code_quality_menu
+            database_menu
             ;;
         12)
-            generate_docs
+            code_quality_menu
             ;;
         13)
+            generate_docs
+            ;;
+        14)
             reset_environment
             ;;
         h|H)

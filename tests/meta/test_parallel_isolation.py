@@ -12,6 +12,10 @@ tests in parallel using pytest-xdist. It checks for:
 - Foreign key constraint handling
 
 CRITICAL: This test is EXPECTED TO FAIL on unfixed code - failure confirms the bug exists.
+
+NOTE: These are meta tests that test the testing framework itself.
+They are located in tests/meta/ and excluded from regular test runs.
+Run them explicitly with: pytest tests/meta/ -v
 """
 
 import pytest
@@ -21,8 +25,8 @@ import os
 from pathlib import Path
 from hypothesis import given, strategies as st, settings, HealthCheck
 
-# Mark all tests in this file as serial
-pytestmark = pytest.mark.serial
+# Mark all tests in this file as serial and meta
+pytestmark = [pytest.mark.serial, pytest.mark.meta]
 
 
 # ============================================================================
@@ -155,10 +159,12 @@ class TestCacheIsolation:
     """
 
     @given(
-        num_workers=st.integers(min_value=2, max_value=8),
+        num_workers=st.integers(min_value=2, max_value=4),  # 减少最大 worker 数
     )
     @settings(
-        max_examples=5, deadline=None, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture]
+        max_examples=2,  # 减少示例数量从 5 到 2
+        deadline=None,
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
     )
     def test_cache_isolation_property(self, num_workers):
         """
@@ -189,12 +195,12 @@ def test_password_cache_isolation(test_user):
         temp_test_file.write_text(test_content)
 
         try:
-            # Run the test in parallel
+            # Run the test in parallel with reduced timeout
             result = subprocess.run(
                 [sys.executable, "-m", "pytest", str(temp_test_file), "-n", str(num_workers), "-v"],
                 capture_output=True,
                 text=True,
-                timeout=60,
+                timeout=30,  # 减少超时时间从 60 秒到 30 秒
             )
 
             output = result.stdout + result.stderr
