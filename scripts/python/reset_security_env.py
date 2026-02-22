@@ -2,11 +2,14 @@ import secrets
 import shutil
 import subprocess
 import sys
+import os
 from pathlib import Path
 
 
 RED = "\033[31m"
 YELLOW = "\033[33m"
+GREEN = "\033[32m"
+BLUE = "\033[34m"
 BOLD = "\033[1m"
 RESET = "\033[0m"
 
@@ -97,6 +100,121 @@ def cleanup_files(root: Path) -> None:
     print("uploads 与 logs 目录内容已清空")
 
 
+def init_superadmin(root: Path) -> bool:
+    """初始化超级管理员账户"""
+    print()
+    print(f"{BOLD}{BLUE}正在初始化超级管理员...{RESET}")
+    
+    try:
+        # 添加项目根目录到 Python 路径
+        sys.path.insert(0, str(root))
+        
+        # 重新加载环境变量（因为刚刚更新了 .env）
+        from dotenv import load_dotenv
+        load_dotenv(override=True)
+        
+        from app.core.database import SessionLocal
+        from app.services.user_service import UserService
+        
+        # 创建数据库会话
+        db = SessionLocal()
+        
+        try:
+            # 创建用户服务
+            user_service = UserService(db)
+            
+            # 确保超级管理员存在
+            user_service.ensure_super_admin_exists()
+            
+            superadmin_username = os.getenv('SUPERADMIN_USERNAME', 'superadmin')
+            superadmin_pwd = os.getenv('SUPERADMIN_PWD', 'admin123456')
+            external_domain = os.getenv('EXTERNAL_DOMAIN', 'example.com')
+            
+            print(f"{GREEN}✅ 超级管理员创建成功{RESET}")
+            print(f"   用户名: {superadmin_username}")
+            print(f"   密码: {superadmin_pwd}")
+            print(f"   邮箱: {superadmin_username}@{external_domain}")
+            
+            return True
+            
+        finally:
+            db.close()
+            
+    except Exception as e:
+        print(f"{RED}❌ 超级管理员创建失败: {e}{RESET}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def verify_superadmin(root: Path) -> bool:
+    """验证超级管理员账户"""
+    print()
+    print(f"{BOLD}{BLUE}正在验证超级管理员...{RESET}")
+    
+    try:
+        # 添加项目根目录到 Python 路径
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        
+        from dotenv import load_dotenv
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        
+        # 重新加载环境变量
+        load_dotenv(override=True)
+        
+        from app.models.database import User
+        from app.core.security import verify_password
+        
+        # 读取配置
+        superadmin_username = os.getenv('SUPERADMIN_USERNAME', 'superadmin')
+        superadmin_pwd = os.getenv('SUPERADMIN_PWD', 'admin123456')
+        database_url = os.getenv('DATABASE_URL', 'sqlite:///data/mainnp.db')
+        
+        # 连接数据库
+        engine = create_engine(database_url)
+        SessionLocal = sessionmaker(bind=engine)
+        db = SessionLocal()
+        
+        try:
+            # 查询超级管理员
+            super_admin = db.query(User).filter(User.is_super_admin == True).first()
+            
+            if not super_admin:
+                print(f"{RED}❌ 数据库中没有超级管理员账户{RESET}")
+                return False
+            
+            # 验证用户名
+            if super_admin.username != superadmin_username:
+                print(f"⚠️  {YELLOW}警告: 用户名不匹配{RESET}")
+                print(f"   期望: {superadmin_username}")
+                print(f"   实际: {super_admin.username}")
+            
+            # 验证密码
+            pwd_to_verify = superadmin_pwd[:72]  # bcrypt 限制
+            
+            if verify_password(pwd_to_verify, super_admin.hashed_password):
+                print(f"✅ {GREEN}超级管理员验证成功{RESET}")
+                print(f"   用户ID: {super_admin.id}")
+                print(f"   用户名: {super_admin.username}")
+                print(f"   邮箱: {super_admin.email}")
+                print(f"   是否激活: {super_admin.is_active}")
+                return True
+            else:
+                print(f"❌ {RED}密码验证失败{RESET}")
+                return False
+                
+        finally:
+            db.close()
+            
+    except Exception as e:
+        print(f"❌ {RED}验证失败: {e}{RESET}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def confirm_reset(root: Path) -> None:
     print()
     print(f"{BOLD}{RED}⚠ 即将执行清档操作：{RESET}")
@@ -121,10 +239,91 @@ def main() -> None:
     # 脚本在 scripts/python/ 目录下，需要往上两层到项目根目录
     root = Path(__file__).resolve().parents[2]
     env_path = root / ".env"
+    
+    print()
+    print(f"{BOLD}{'=' * 60}{RESET}")
+    print(f"{BOLD}清档脚本 - 重置安全环境{RESET}")
+    print(f"{BOLD}{'=' * 60}{RESET}")
+    
+    # 1. 确认操作
     confirm_reset(root)
+    
+    print()
+    print(f"{BOLD}{'=' * 60}{RESET}")
+    print(f"{BOLD}步骤 1/5: 更新环境配置{RESET}")
+    print(f"{BOLD}{'=' * 60}{RESET}")
+    
+    # 2. 更新环境配置
     update_env_file(env_path)
+    
+    print()
+    print(f"{BOLD}{'=' * 60}{RESET}")
+    print(f"{BOLD}步骤 2/5: 重置数据库{RESET}")
+    print(f"{BOLD}{'=' * 60}{RESET}")
+    
+    # 3. 重置数据库
     reset_database(root)
+    
+    print()
+    print(f"{BOLD}{'=' * 60}{RESET}")
+    print(f"{BOLD}步骤 3/5: 清理文件{RESET}")
+    print(f"{BOLD}{'=' * 60}{RESET}")
+    
+    # 4. 清理文件
     cleanup_files(root)
+    
+    print()
+    print(f"{BOLD}{'=' * 60}{RESET}")
+    print(f"{BOLD}步骤 4/5: 初始化超级管理员{RESET}")
+    print(f"{BOLD}{'=' * 60}{RESET}")
+    
+    # 5. 初始化超级管理员
+    init_success = init_superadmin(root)
+    
+    if not init_success:
+        print()
+        print(f"⚠️  {RED}超级管理员初始化失败，请手动运行：{RESET}")
+        print(f"   python scripts/python/init_superadmin.py")
+        sys.exit(1)
+    
+    print()
+    print(f"{BOLD}{'=' * 60}{RESET}")
+    print(f"{BOLD}步骤 5/5: 验证超级管理员{RESET}")
+    print(f"{BOLD}{'=' * 60}{RESET}")
+    
+    # 6. 验证超级管理员
+    verify_success = verify_superadmin(root)
+    
+    if not verify_success:
+        print()
+        print(f"⚠️  {YELLOW}超级管理员验证失败，请运行诊断脚本：{RESET}")
+        print(f"   python scripts/python/check_superadmin.py")
+    
+    # 7. 总结
+    print()
+    print(f"{BOLD}{'=' * 60}{RESET}")
+    print(f"{BOLD}清档完成{RESET}")
+    print(f"{BOLD}{'=' * 60}{RESET}")
+    print()
+    
+    if init_success and verify_success:
+        print(f"✅ {GREEN}所有步骤执行成功{RESET}")
+        print()
+        print(f"{BOLD}登录信息：{RESET}")
+        superadmin_username = os.getenv('SUPERADMIN_USERNAME', 'superadmin')
+        superadmin_pwd = os.getenv('SUPERADMIN_PWD', 'admin123456')
+        print(f"   用户名: {superadmin_username}")
+        print(f"   密码: {superadmin_pwd}")
+        print()
+        print(f"{BOLD}下一步：{RESET}")
+        print(f"   启动应用: python -m uvicorn app.main:app --host 0.0.0.0 --port 9278")
+        print(f"   或使用: ./manage.sh start-dev")
+    else:
+        print(f"⚠️  {YELLOW}部分步骤执行失败，请检查上面的错误信息{RESET}")
+        sys.exit(1)
+    
+    print()
+    print(f"{BOLD}{'=' * 60}{RESET}")
 
 
 if __name__ == "__main__":

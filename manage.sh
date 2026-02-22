@@ -382,7 +382,7 @@ show_menu() {
     echo ""
     
     echo -e "${BOLD}${MAGENTA}高级操作${NC}"
-    echo " 11. 清档重置（${RED}⚠️  危险操作${NC}）"
+    echo -e " 11. 清档重置（${RED}⚠️  危险操作${NC}）"
     echo ""
     
     echo -e "${BOLD}${MAGENTA}其他${NC}"
