@@ -5,18 +5,13 @@
 需求：3.1
 """
 
-import pytest
 import uuid
 import io
 from datetime import datetime
 from unittest.mock import patch
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 from PIL import Image
 
-from app.models.database import User, KnowledgeBase, PersonaCard, StarRecord, UploadRecord
-from app.core.security import get_password_hash
-from tests.conftest import assert_error_response
+from app.models.database import KnowledgeBase, PersonaCard, StarRecord, UploadRecord
 
 
 class TestGetUserProfile:
@@ -2027,7 +2022,6 @@ class TestUserStarsEdgeCases:
         - 相同时间戳的排序稳定
         - 空值排序正确
         """
-        from datetime import timedelta
 
         # Create stars with same timestamp
         same_time = datetime.now()
@@ -2555,7 +2549,6 @@ class TestChangePasswordEdgeCases:
         - 密码版本正确更新
         """
         import threading
-        import time
 
         results = []
 

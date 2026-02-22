@@ -71,9 +71,8 @@ try:
     setup_static_routes(app)
 except ImportError:
     # 如果 static_routes 不存在，使用内联实现
-    from fastapi import Request
+    from fastapi import Request, HTTPException
     from fastapi.responses import FileResponse
-    from pathlib import Path
 
     @app.get("/uploads/avatars/{file_path:path}")
     async def serve_avatar_route(file_path: str, request: Request):
@@ -83,8 +82,6 @@ except ImportError:
 
         # 安全检查：防止路径遍历
         if ".." in file_path:
-            from fastapi import HTTPException
-
             raise HTTPException(status_code=403, detail="Invalid file path")
 
         full_path = avatars_dir / file_path
@@ -93,13 +90,9 @@ except ImportError:
         try:
             full_path.resolve().relative_to(avatars_dir.resolve())
         except ValueError:
-            from fastapi import HTTPException
-
             raise HTTPException(status_code=403, detail="Invalid file path")
 
         if not full_path.exists() or not full_path.is_file():
-            from fastapi import HTTPException
-
             raise HTTPException(status_code=404, detail="Avatar not found")
 
         return FileResponse(str(full_path))

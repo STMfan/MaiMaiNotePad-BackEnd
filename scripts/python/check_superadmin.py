@@ -66,7 +66,7 @@ def check_superadmin():
     print("-" * 60)
 
     try:
-        super_admin = db.query(User).filter(User.is_super_admin == True).first()
+        super_admin = db.query(User).filter(User.is_super_admin.is_(True)).first()
 
         if not super_admin:
             print("❌ 数据库中没有超级管理员账户")

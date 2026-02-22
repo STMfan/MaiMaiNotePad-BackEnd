@@ -19,18 +19,15 @@ from app.api.routes import (
 # 创建主 APIRouter
 api_router = APIRouter()
 
+# 向后兼容：添加 /user 前缀的 stars 路由
+# 这是为了支持旧的 API 路径 /api/user/stars
+_user_compat_router = APIRouter()
+_user_compat_router.add_api_route("/stars", users.get_user_stars, methods=["GET"], tags=["users"])
+
 # 注册所有子路由
 # 用户路由
 api_router.include_router(users.router, prefix="/users", tags=["users"])
-
-# 向后兼容：添加 /user 前缀的 stars 路由
-# 这是为了支持旧的 API 路径 /api/user/stars
-from fastapi import APIRouter as _APIRouter
-
-_user_compat_router = _APIRouter()
-_user_compat_router.add_api_route("/stars", users.get_user_stars, methods=["GET"], tags=["users"])
 api_router.include_router(_user_compat_router, prefix="/user")
-
 # 认证路由
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 

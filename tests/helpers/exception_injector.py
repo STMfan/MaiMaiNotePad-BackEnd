@@ -5,10 +5,10 @@
 用于系统化地测试所有服务层的异常处理和错误路径。
 """
 
-from typing import Optional, Any, Callable, Dict, Type
+from typing import Optional, Any, Dict, Type
 from contextlib import contextmanager
 from unittest.mock import patch, MagicMock
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError, OperationalError
+from sqlalchemy.exc import SQLAlchemyError
 import logging
 
 logger = logging.getLogger(__name__)

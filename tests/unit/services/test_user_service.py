@@ -9,13 +9,12 @@ UserService 单元测试
 import pytest
 import os
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.services.user_service import UserService
 from app.models.database import User
-from app.core.security import get_password_hash, verify_password
 
 
 class TestUserRetrieval:

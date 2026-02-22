@@ -9,12 +9,12 @@
 - 内容审核管理
 """
 
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status as HTTPStatus, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, status as HTTPStatus, Body
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_, and_, desc
+from sqlalchemy import func, or_, desc
 
 from app.api.response_util import Success, Page
 from app.core.database import get_db
@@ -23,15 +23,10 @@ from app.models.database import (
     KnowledgeBase,
     PersonaCard,
     UploadRecord,
-    KnowledgeBaseFile,
-    PersonaCardFile,
     Message,
 )
-from app.core.error_handlers import APIError, ValidationError, NotFoundError, ConflictError, DatabaseError
+from app.core.error_handlers import ValidationError, NotFoundError, ConflictError, DatabaseError
 from app.services.user_service import UserService
-from app.services.knowledge_service import KnowledgeService
-from app.services.persona_service import PersonaService
-from app.services.message_service import MessageService
 
 # 导入错误处理和日志记录模块
 from app.core.logging import app_logger, log_exception, log_api_request, log_database_operation
@@ -53,7 +48,7 @@ async def get_admin_stats(current_user: dict = Depends(get_current_user), db: Se
         app_logger.info(f"Get admin stats: user_id={current_user.get('id')}")
 
         # 总用户数（只统计活跃用户）
-        total_users = db.query(func.count(User.id)).filter(User.is_active == True).scalar() or 0
+        total_users = db.query(func.count(User.id)).filter(User.is_active.is_(True)).scalar() or 0
 
         # 知识库数量（包括待审核）
         total_knowledge = db.query(func.count(KnowledgeBase.id)).scalar() or 0
@@ -63,11 +58,11 @@ async def get_admin_stats(current_user: dict = Depends(get_current_user), db: Se
 
         # 待审核知识库数量
         pending_knowledge = (
-            db.query(func.count(KnowledgeBase.id)).filter(KnowledgeBase.is_pending == True).scalar() or 0
+            db.query(func.count(KnowledgeBase.id)).filter(KnowledgeBase.is_pending.is_(True)).scalar() or 0
         )
 
         # 待审核人格数量
-        pending_personas = db.query(func.count(PersonaCard.id)).filter(PersonaCard.is_pending == True).scalar() or 0
+        pending_personas = db.query(func.count(PersonaCard.id)).filter(PersonaCard.is_pending.is_(True)).scalar() or 0
 
         stats = {
             "totalUsers": total_users,
@@ -108,7 +103,7 @@ async def get_recent_users(
         offset = (page - 1) * page_size
         users = (
             db.query(User)
-            .filter(User.is_active == True)
+            .filter(User.is_active.is_(True))
             .order_by(desc(User.created_at))
             .offset(offset)
             .limit(page_size)
@@ -173,7 +168,7 @@ async def get_all_users(
             page = 1
 
         # 构建查询 - 只查询活跃用户（过滤已删除的用户），并排除超级管理员
-        query = db.query(User).filter(User.is_active == True, User.is_super_admin == False)  # noqa: E712
+        query = db.query(User).filter(User.is_active.is_(True), User.is_super_admin.is_(False))
 
         # 搜索过滤（用户名或邮箱）
         if search:
@@ -182,11 +177,11 @@ async def get_all_users(
 
         # 角色过滤（此处 admin 仅包含普通管理员，不包含超级管理员）
         if role == "admin":
-            query = query.filter(User.is_admin == True)  # noqa: E712
+            query = query.filter(User.is_admin.is_(True))
         elif role == "moderator":
-            query = query.filter(User.is_moderator == True, User.is_admin == False)
+            query = query.filter(User.is_moderator.is_(True), User.is_admin.is_(False))
         elif role == "user":
-            query = query.filter(User.is_moderator == False, User.is_admin == False)
+            query = query.filter(User.is_moderator.is_(False), User.is_admin.is_(False))
 
         # 获取总数
         total = query.count()
@@ -302,7 +297,7 @@ async def update_user_role(
         # 检查是否是最后一个管理员（只统计活跃管理员，不含超级管理员）
         if user.is_admin and new_role != "admin":
             admin_count = (
-                db.query(func.count(User.id)).filter(User.is_admin == True, User.is_active == True).scalar() or 0
+                db.query(func.count(User.id)).filter(User.is_admin.is_(True), User.is_active.is_(True)).scalar() or 0
             )
             if admin_count <= 1:
                 raise ValidationError("不能删除最后一个管理员")
@@ -497,7 +492,7 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
         # 检查是否是最后一个管理员（只统计活跃管理员）
         if user.is_admin:
             admin_count = (
-                db.query(func.count(User.id)).filter(User.is_admin == True, User.is_active == True).scalar() or 0
+                db.query(func.count(User.id)).filter(User.is_admin.is_(True), User.is_active.is_(True)).scalar() or 0
             )
             if admin_count <= 1:
                 raise ValidationError("不能删除最后一个管理员")
@@ -564,7 +559,7 @@ async def ban_user(
 
         # 检查是否是最后一个管理员（只统计未被永久封禁的活跃管理员）
         if user.is_admin:
-            admin_query = db.query(func.count(User.id)).filter(User.is_admin == True, User.is_active == True)
+            admin_query = db.query(func.count(User.id)).filter(User.is_admin.is_(True), User.is_active.is_(True))
             # 只统计未被永久封禁（locked_until 为空或已经过期）的管理员
             admin_query = admin_query.filter((User.locked_until == None) | (User.locked_until <= now))  # noqa: E711
             admin_count = admin_query.scalar() or 0

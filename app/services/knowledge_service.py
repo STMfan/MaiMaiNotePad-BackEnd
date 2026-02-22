@@ -72,7 +72,7 @@ class KnowledgeService:
         """
         try:
             query = self.db.query(KnowledgeBase).filter(
-                KnowledgeBase.is_public == True, KnowledgeBase.is_pending == False
+                KnowledgeBase.is_public.is_(True), KnowledgeBase.is_pending.is_(False)
             )
 
             # 应用筛选条件

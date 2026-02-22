@@ -24,7 +24,6 @@ import sys
 import os
 from pathlib import Path
 from hypothesis import given, strategies as st, settings, HealthCheck, Phase
-from typing import List
 
 
 # ============================================================================

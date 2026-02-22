@@ -5,7 +5,7 @@ app/utils/websocket.py 单元测试
 """
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 from fastapi import WebSocket
 
 from app.utils.websocket import MessageWebSocketManager, message_ws_manager
@@ -247,10 +247,6 @@ class TestMessageWebSocketManager:
     @pytest.mark.asyncio
     async def test_send_message_update_handles_send_failure(self, manager, mock_websocket):
         """Test send_message_update handles WebSocket send failures"""
-        from app.models.database import User
-        from app.core.security import get_password_hash
-        import uuid
-        from datetime import datetime
 
         user_id = "user123"
         manager.connections[user_id] = [mock_websocket]

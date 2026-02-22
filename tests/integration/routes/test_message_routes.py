@@ -6,11 +6,8 @@
 Requirements: 3.2
 """
 
-import pytest
 import uuid
 from datetime import datetime
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 from app.models.database import User, Message
 
 

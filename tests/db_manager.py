@@ -8,7 +8,6 @@
 """
 
 import os
-import uuid
 from typing import Optional, Generator
 from contextlib import contextmanager
 from sqlalchemy import create_engine, event

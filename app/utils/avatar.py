@@ -7,7 +7,7 @@
 import os
 import io
 from datetime import datetime
-from typing import Tuple, Optional, Union
+from typing import Tuple, Union
 from PIL import Image, ImageDraw, ImageFont
 from PIL.ImageFont import FreeTypeFont, ImageFont as DefaultImageFont
 import hashlib

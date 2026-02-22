@@ -9,9 +9,7 @@ WebSocket 连接清理属性测试
 import pytest
 import asyncio
 from hypothesis import given, strategies as st, assume, settings, HealthCheck
-from typing import List
 import gc
-import sys
 
 # Mark all tests in this file as serial
 pytestmark = pytest.mark.serial
@@ -81,7 +79,7 @@ class TestWebSocketConnectionCleanup:
                 assert current_count == initial_count + 1, (
                     f"连接建立后应该有 {initial_count + 1} 个活动连接，" f"实际有 {current_count} 个"
                 )
-        except Exception as e:
+        except Exception:
             # 连接可能因为各种原因失败，这是可以接受的
             pass
 
@@ -288,7 +286,6 @@ class TestMemoryLeakPrevention:
 
         **Validates: Requirements FR6**
         """
-        from app.utils.websocket import message_ws_manager
         from app.core.security import create_access_token
         from fastapi.testclient import TestClient
         from app.main import app
@@ -359,7 +356,6 @@ class TestMemoryLeakPrevention:
 
         **Validates: Requirements FR6**
         """
-        from app.utils.websocket import message_ws_manager
         from app.core.security import create_access_token
         from fastapi.testclient import TestClient
         from app.main import app

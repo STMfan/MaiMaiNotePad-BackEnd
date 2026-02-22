@@ -9,13 +9,12 @@ import pytest
 import tempfile
 import shutil
 import toml
-from io import BytesIO
 from unittest.mock import Mock, AsyncMock
 from fastapi import UploadFile, HTTPException
 from datetime import datetime
 
 from app.services.file_upload_service import FileUploadService
-from app.models.database import KnowledgeBase, PersonaCard, KnowledgeBaseFile, PersonaCardFile, User
+from app.models.database import KnowledgeBase, PersonaCard, KnowledgeBaseFile, PersonaCardFile
 from app.core.error_handlers import ValidationError
 
 
@@ -1355,7 +1354,7 @@ class TestFileOperationErrors:
         # Mock json.dump 失败
         import json
 
-        original_dump = json.dump
+        json.dump
 
         def mock_dump(*args, **kwargs):
             raise Exception("JSON dump error")

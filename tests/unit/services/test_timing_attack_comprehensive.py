@@ -11,8 +11,6 @@
 任务: 4.3.3 - 测试计时攻击防护
 """
 
-import pytest
-import time
 from unittest.mock import Mock, patch, call
 from sqlalchemy.orm import Session
 

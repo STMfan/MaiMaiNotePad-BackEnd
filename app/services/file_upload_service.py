@@ -7,9 +7,8 @@ import os
 import shutil
 import zipfile
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional
 from fastapi import UploadFile, HTTPException, status
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import toml
 import json
@@ -25,7 +24,6 @@ from app.models.database import (
     User,
 )
 from app.core.error_handlers import ValidationError, DatabaseError
-from app.core.database import get_db_context
 from app.core.config import settings
 from app.core.config_manager import config_manager
 
@@ -188,7 +186,7 @@ class FileUploadService:
     def _create_metadata_file(self, metadata: Dict[str, Any], target_dir: str, prefix: str) -> str:
         """创建元数据文件"""
         try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            datetime.now().strftime("%Y%m%d_%H%M%S")
             file_name = f"{prefix}_metadata.json"
             file_path = os.path.join(target_dir, file_name)
 

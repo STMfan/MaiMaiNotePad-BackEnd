@@ -1,14 +1,12 @@
 """认证路由模块 - 处理用户登录、注册、密码重置等认证相关的API端点"""
 
 from fastapi import APIRouter, Depends, Form, Request
-from typing import Dict, Any
 import hashlib
 
 from app.api.response_util import Success
 from app.core.database import get_db
 from app.services.auth_service import AuthService
 from app.services.user_service import UserService
-from app.services.email_service import EmailService
 from app.models.schemas import (
     BaseResponse,
     LoginResponse,

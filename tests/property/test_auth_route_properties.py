@@ -189,7 +189,6 @@ class TestAuthenticationConsistency:
         from app.main import app
         from app.core.security import create_access_token
         from datetime import timedelta
-        import jwt
 
         client = TestClient(app)
 
@@ -218,7 +217,6 @@ class TestAuthenticationConsistency:
         """
         from app.main import app
         from app.core.security import create_access_token
-        import jwt
 
         client = TestClient(app)
 

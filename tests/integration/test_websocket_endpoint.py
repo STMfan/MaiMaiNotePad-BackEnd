@@ -316,8 +316,6 @@ class TestWebSocketExceptionDisconnect:
         通过在WebSocket连接建立后，模拟客户端发送导致服务器端抛出异常的消息。
         由于TestClient的限制，我们通过关闭连接来模拟异常场景。
         """
-        from unittest.mock import patch, AsyncMock
-        import asyncio
 
         # 创建有效的JWT token
         token = create_access_token({"sub": test_user.id})

@@ -18,10 +18,6 @@ from app.api.response_util import Page, Success
 
 from app.models.database import Message, KnowledgeBase, PersonaCard, UploadRecord
 from app.models.schemas import (
-    KnowledgeBaseResponse,
-    PersonaCardResponse,
-    KnowledgeBasePaginatedResponse,
-    PersonaCardPaginatedResponse,
     BaseResponse,
     PageResponse,
 )
@@ -30,7 +26,6 @@ from app.api.deps import get_current_user
 from app.utils.websocket import message_ws_manager
 from app.services.knowledge_service import KnowledgeService
 from app.services.persona_service import PersonaService
-from app.services.message_service import MessageService
 
 # 导入错误处理和日志记录模块
 from app.core.logging import app_logger
@@ -61,7 +56,7 @@ async def get_pending_knowledge_bases(
 
     try:
         # Query pending knowledge bases
-        query = db.query(KnowledgeBase).filter(KnowledgeBase.is_pending == True)
+        query = db.query(KnowledgeBase).filter(KnowledgeBase.is_pending.is_(True))
 
         # Apply filters
         if name:
@@ -123,7 +118,7 @@ async def get_pending_persona_cards(
 
     try:
         # Query pending persona cards
-        query = db.query(PersonaCard).filter(PersonaCard.is_pending == True)
+        query = db.query(PersonaCard).filter(PersonaCard.is_pending.is_(True))
 
         # Apply filters
         if name:

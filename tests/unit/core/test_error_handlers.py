@@ -6,7 +6,6 @@
 
 import pytest
 import json
-import os
 from unittest.mock import Mock, patch, mock_open
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse

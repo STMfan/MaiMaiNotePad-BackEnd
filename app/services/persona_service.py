@@ -85,7 +85,9 @@ class PersonaService:
             (人设卡列表, 总数) 元组
         """
         try:
-            query = self.db.query(PersonaCard).filter(PersonaCard.is_public == True, PersonaCard.is_pending == False)
+            query = self.db.query(PersonaCard).filter(
+                PersonaCard.is_public.is_(True), PersonaCard.is_pending.is_(False)
+            )
 
             if name:
                 query = query.filter(PersonaCard.name.ilike(f"%{name}%"))

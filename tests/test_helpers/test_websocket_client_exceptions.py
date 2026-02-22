@@ -5,9 +5,8 @@ WebSocket测试客户端异常模拟功能的单元测试
 """
 
 import pytest
-import time
-from unittest.mock import Mock, patch, MagicMock
-from tests.helpers.websocket_client import WebSocketTestClient, ConnectionState, MessageType
+from unittest.mock import Mock, MagicMock
+from tests.helpers.websocket_client import WebSocketTestClient, ConnectionState
 from fastapi.testclient import TestClient
 
 

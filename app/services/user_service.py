@@ -305,7 +305,7 @@ class UserService:
                 dummy_hash = "$2b$12$dummy.hash.for.timing.attack.prevention.abcdefghijklmnopqrstuv"
                 try:
                     verify_password(password, dummy_hash)
-                except:
+                except Exception:
                     pass
                 # 添加随机延迟以进一步模糊时间差异
                 time.sleep(0.1)
@@ -405,7 +405,7 @@ class UserService:
         """
         try:
             # 检查超级管理员是否存在
-            super_admin = self.db.query(User).filter(User.is_super_admin == True).first()
+            super_admin = self.db.query(User).filter(User.is_super_admin.is_(True)).first()
             if super_admin:
                 return
 

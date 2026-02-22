@@ -12,8 +12,7 @@ WebSocket测试客户端消息收发功能单元测试
 
 import pytest
 import json
-import time
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 from tests.helpers.websocket_client import WebSocketTestClient, MessageType, ConnectionState
 
 

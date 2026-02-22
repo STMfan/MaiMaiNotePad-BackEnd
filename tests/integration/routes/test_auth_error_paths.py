@@ -5,12 +5,10 @@
 Requirements: 5.7 (auth.py error paths)
 """
 
-import pytest
 import uuid
 from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from app.models.database import User, EmailVerification
 from app.core.security import get_password_hash
@@ -580,7 +578,6 @@ class TestPasswordResetErrors:
         - 返回"重置密码失败"错误消息
         """
         from app.main import app
-        from sqlalchemy.exc import SQLAlchemyError
 
         client = TestClient(app)
 

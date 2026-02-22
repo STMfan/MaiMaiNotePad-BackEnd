@@ -5,17 +5,12 @@
 Requirements: 3.3
 """
 
-import pytest
 import uuid
 import io
 import os
-from datetime import datetime
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-from app.models.database import User, PersonaCard, PersonaCardFile, StarRecord, UploadRecord
-from tests.conftest import assert_error_response
+from app.models.database import PersonaCard, StarRecord
 
 
 class TestUploadPersonaCard:
@@ -706,7 +701,7 @@ class TestDownloadPersonaCardFile:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as temp_file:
             temp_file.write("test content for persona card file")
             temp_path = temp_file.name
-            temp_filename = os.path.basename(temp_path)
+            os.path.basename(temp_path)
 
         try:
             # Mock os.path.exists to return True for our temp file
@@ -765,7 +760,7 @@ class TestPersonaCardEdgeCases:
     def test_upload_persona_card_when_one_exists(self, authenticated_client, factory, test_db):
         """Test uploading persona card when one already exists"""
         # Create an existing persona card
-        existing_pc = factory.create_persona_card()
+        factory.create_persona_card()
 
         file_content = b"version = '1.0.0'\nname = 'Test Persona'"
         files = [("files", ("config.toml", io.BytesIO(file_content), "application/toml"))]

@@ -7,10 +7,8 @@
 
 import re
 import sys
-import json
 from pathlib import Path
-from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict
 from collections import defaultdict
 
 

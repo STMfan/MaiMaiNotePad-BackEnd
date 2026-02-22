@@ -9,8 +9,7 @@ EmailService 单元测试
 
 import pytest
 import smtplib
-from unittest.mock import Mock, patch, MagicMock, call
-from email.mime.text import MIMEText
+from unittest.mock import patch, MagicMock
 
 from app.services.email_service import EmailService, send_email
 
@@ -337,7 +336,7 @@ class TestEmailMessageFormat:
             # Verify email was sent successfully with Chinese content
             assert mock_smtp.sendmail.called
             call_args = mock_smtp.sendmail.call_args[0]
-            message_str = call_args[2]
+            call_args[2]
 
             # The content should be in the message (encoded)
             assert mock_smtp.sendmail.call_count == 1

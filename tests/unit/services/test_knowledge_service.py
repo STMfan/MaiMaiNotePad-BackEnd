@@ -6,14 +6,12 @@
 Requirements: 2.2
 """
 
-import pytest
 import uuid
-from datetime import datetime
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import patch
 from sqlalchemy.orm import Session
 
 from app.services.knowledge_service import KnowledgeService
-from app.models.database import KnowledgeBase, KnowledgeBaseFile, User, StarRecord, UploadRecord
+from app.models.database import KnowledgeBase, UploadRecord
 from tests.fixtures.data_factory import TestDataFactory
 
 

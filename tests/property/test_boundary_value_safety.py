@@ -7,10 +7,8 @@
 """
 
 import pytest
-from hypothesis import given, strategies as st, assume, settings, HealthCheck
-from typing import Any, Optional
+from hypothesis import given, strategies as st, settings, HealthCheck
 import sys
-import math
 
 # Mark all tests in this file as serial
 pytestmark = pytest.mark.serial
@@ -98,7 +96,7 @@ class TestBoundaryValueSafety:
 
             # 验证返回值类型正确
             assert result is None or hasattr(result, "username"), f"get_user_by_username 应该返回 None 或 User 对象"
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError):
             # 预期的异常是可以接受的
             pass
         except Exception as e:
@@ -129,7 +127,7 @@ class TestBoundaryValueSafety:
 
             # 验证返回值类型正确
             assert result is None or hasattr(result, "email"), f"get_user_by_email 应该返回 None 或 User 对象"
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError):
             # 预期的异常是可以接受的
             pass
         except Exception as e:
@@ -216,7 +214,7 @@ class TestBoundaryValueSafety:
 
             # 验证返回值类型正确
             assert result is None or hasattr(result, "id"), f"get_persona_card_by_id 应该返回 None 或 PersonaCard 对象"
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError):
             # 预期的异常是可以接受的
             pass
         except Exception as e:
@@ -247,7 +245,7 @@ class TestBoundaryValueSafety:
             assert result is None or hasattr(
                 result, "id"
             ), f"get_knowledge_base_by_id 应该返回 None 或 KnowledgeBase 对象"
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError):
             # 预期的异常是可以接受的
             pass
         except Exception as e:
@@ -484,7 +482,7 @@ class TestSpecialCharacterHandling:
 
             # 验证返回值类型正确
             assert result is None or hasattr(result, "username"), f"get_user_by_username 应该返回 None 或 User 对象"
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError):
             # 某些特殊字符可能会被拒绝
             pass
         except Exception as e:
@@ -531,7 +529,7 @@ class TestSpecialCharacterHandling:
             if result is not None:
                 assert hasattr(result, "description"), "结果应该有 description 属性"
 
-        except (ValueError, TypeError, UnicodeError) as e:
+        except (ValueError, TypeError, UnicodeError):
             # 某些 Unicode 字符可能会被拒绝
             pass
         except Exception as e:

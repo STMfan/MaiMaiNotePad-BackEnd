@@ -4,9 +4,9 @@ SQLAlchemy 数据库模型
 包含应用的所有数据模型定义。
 """
 
-from datetime import datetime, timedelta
-from typing import List, Optional, TYPE_CHECKING
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, Index, and_, or_, func
+from datetime import datetime
+from typing import List, TYPE_CHECKING
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, Index
 from sqlalchemy.orm import relationship
 import uuid
 

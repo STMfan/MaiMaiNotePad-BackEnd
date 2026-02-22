@@ -5,14 +5,12 @@
 需求：3.4
 """
 
-import pytest
 import uuid
 from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from unittest.mock import patch, AsyncMock
 
-from app.models.database import Comment, CommentReaction, User, KnowledgeBase, PersonaCard
+from app.models.database import Comment, CommentReaction, User
 from tests.conftest import assert_error_response
 
 

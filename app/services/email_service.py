@@ -70,10 +70,10 @@ class EmailService:
             if smtp:
                 try:
                     smtp.quit()
-                except:
+                except Exception:
                     try:
                         smtp.close()
-                    except:
+                    except Exception:
                         pass
 
 

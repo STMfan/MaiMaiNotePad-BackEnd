@@ -9,7 +9,7 @@ AuthService 单元测试
 
 import pytest
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from sqlalchemy.orm import Session
 
 from app.services.auth_service import AuthService

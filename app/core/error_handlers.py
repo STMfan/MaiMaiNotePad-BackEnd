@@ -8,8 +8,8 @@ import traceback
 import uuid
 import json
 import os
-from typing import Dict, Any, Optional, Union
-from fastapi import Request, Response, HTTPException
+from typing import Dict, Any, Optional
+from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
@@ -104,12 +104,12 @@ ERROR_CODE_BY_MESSAGE: Dict[str, str] = {
     "父级评论不存在": "16005",
     "action 必须是 like、dislike 或 clear": "16006",
     "名称和描述不能为空": "13001",
-    "至少需要上传一个文件": "13002",
+    "知识库至少需要上传一个文件": "13002",
     "您已经创建过同名的知识库": "13003",
     "没有提供要更新的字段": "13004",
     "知识库不存在": "13005",
     "人设卡不存在": "14001",
-    "至少需要上传一个文件": "14002",
+    "人设卡至少需要上传一个文件": "14002",
     "上传人设卡失败": "14003",
     "获取公开人设卡失败": "14004",
     "获取人设卡详情失败": "14005",
@@ -118,18 +118,18 @@ ERROR_CODE_BY_MESSAGE: Dict[str, str] = {
     "修改人设卡失败": "14008",
     "取消Star人设卡失败": "14009",
     "删除人设卡失败": "14012",
-    "添加文件失败": "14013",
-    "删除文件失败": "14014",
-    "下载文件失败": "14015",
+    "添加人设卡文件失败": "14013",
+    "删除人设卡文件失败": "14014",
+    "下载人设卡文件失败": "14015",
     "上传知识库失败": "13006",
     "获取公开知识库失败": "13007",
     "获取知识库失败": "13008",
     "获取用户知识库失败": "13009",
     "取消Star知识库失败": "13012",
     "修改知识库失败": "13013",
-    "添加文件失败": "13014",
-    "删除文件失败": "13015",
-    "下载文件失败": "13016",
+    "添加知识库文件失败": "13014",
+    "删除知识库文件失败": "13015",
+    "下载知识库文件失败": "13016",
     "删除知识库失败": "13017",
     "获取评论失败": "16010",
     "发表评论失败": "16011",
@@ -232,7 +232,6 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
         user_agent = request.headers.get("user-agent", "unknown")
 
         # 尝试获取用户信息
-        user_id = None
         try:
             # 这里可以根据实际的认证机制获取用户ID
             # 例如从JWT token中解析

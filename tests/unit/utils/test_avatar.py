@@ -7,11 +7,9 @@
 任务：15.5.2 - avatar.py (86% → 90%)
 """
 
-import pytest
-import os
 import io
 from PIL import Image
-from unittest.mock import patch, Mock, mock_open
+from unittest.mock import patch, mock_open
 
 from app.utils.avatar import (
     ensure_avatar_dir,
@@ -22,7 +20,6 @@ from app.utils.avatar import (
     delete_avatar_file,
     AVATAR_MAX_SIZE,
     AVATAR_MAX_DIMENSION,
-    AVATAR_ALLOWED_FORMATS,
     AVATAR_UPLOAD_DIR,
     AVATAR_THUMBNAIL_SIZE,
 )
@@ -245,8 +242,8 @@ class TestInitialAvatarGeneration:
         img_a = Image.open(io.BytesIO(avatar_a))
         img_b = Image.open(io.BytesIO(avatar_b))
 
-        color_a = img_a.getpixel((0, 0))
-        color_b = img_b.getpixel((0, 0))
+        img_a.getpixel((0, 0))
+        img_b.getpixel((0, 0))
 
         # A和B应该有不同的颜色（大概率）
         # 注意：有小概率相同，但测试中可以接受

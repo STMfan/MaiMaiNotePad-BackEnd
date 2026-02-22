@@ -10,11 +10,11 @@ import os
 import pytest
 import tempfile
 import shutil
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 from sqlalchemy.orm import Session
 
 from app.services.file_service import FileService, FileValidationError, FileDatabaseError
-from app.models.database import KnowledgeBase, PersonaCard, KnowledgeBaseFile, PersonaCardFile, User
+from app.models.database import KnowledgeBase, KnowledgeBaseFile
 
 
 class TestFileServiceInit:

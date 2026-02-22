@@ -6,7 +6,6 @@
 Requirements: 3.6
 """
 
-import pytest
 from datetime import datetime, timedelta
 from tests.conftest import assert_error_response
 
@@ -59,7 +58,6 @@ class TestAdminStats:
 
     def test_get_admin_stats_exception_handling(self, admin_client, test_db, monkeypatch):
         """测试获取统计数据时异常处理（覆盖91-95行）"""
-        from sqlalchemy.exc import SQLAlchemyError
         from sqlalchemy.orm import Query
 
         # Mock Query.scalar to raise an exception
@@ -1305,7 +1303,7 @@ class TestAdminContentManagement:
         pc1 = factory.create_persona_card(uploader=user)
 
         # 获取用户上传历史
-        response = admin_client.get(f"/api/users/{user.id}/upload-history")
+        admin_client.get(f"/api/users/{user.id}/upload-history")
         # Note: This endpoint may need admin permission check
 
 
@@ -1315,7 +1313,6 @@ class TestAdminSystemStatistics:
     def test_admin_stats_with_empty_database(self, admin_client, test_db):
         """测试空数据库时的统计数据"""
         # 清空所有测试数据（除了admin用户）
-        from app.models.database import User, KnowledgeBase, PersonaCard
 
         # 获取统计
         response = admin_client.get("/api/admin/stats")
@@ -1483,7 +1480,6 @@ class TestAdminRoleManagementEdgeCases:
         """测试不能修改超级管理员角色"""
         # 注意：这取决于实际实现
         # 如果有超级管理员保护机制，应该测试
-        pass
 
     def test_role_change_with_existing_content(self, admin_client, factory, test_db):
         """测试有内容的用户角色变更"""
@@ -1540,7 +1536,7 @@ class TestAdminUserDisableEnable:
         test_db.commit()
 
         # 内容应该仍然可见（取决于业务逻辑）
-        response = admin_client.get(f"/api/knowledge/{kb.id}")
+        admin_client.get(f"/api/knowledge/{kb.id}")
         # 验证响应
 
     def test_batch_disable_users(self, admin_client, factory, test_db):

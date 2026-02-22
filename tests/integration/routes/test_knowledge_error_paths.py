@@ -5,14 +5,9 @@
 Requirements: 5.5 (knowledge.py error paths)
 """
 
-import pytest
 import uuid
 import io
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-from unittest.mock import patch, MagicMock
 
-from app.models.database import KnowledgeBase, User
 from tests.conftest import assert_error_response
 
 

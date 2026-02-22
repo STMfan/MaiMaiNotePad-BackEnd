@@ -11,7 +11,6 @@
 import pytest
 import jwt
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
 
 from app.core.security import (
     verify_password,
@@ -385,7 +384,7 @@ class TestSecurityEdgeCases:
 
         # bcrypt不允许空字节，应该抛出异常
         with pytest.raises(Exception):
-            hashed = get_password_hash(password)
+            get_password_hash(password)
 
     def test_token_with_large_payload(self):
         """测试大负载令牌"""

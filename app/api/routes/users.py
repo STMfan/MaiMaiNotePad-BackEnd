@@ -1,9 +1,8 @@
 """用户路由模块 - 处理用户信息、头像、收藏、上传历史等用户相关的API端点"""
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request, Body, Query
-from typing import Dict, Any, Optional
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Body, Query
+from typing import Optional
 import os
-import hashlib
 from datetime import datetime
 
 from app.api.response_util import Success, Page
@@ -180,7 +179,7 @@ async def upload_avatar(
         user.avatar_updated_at = datetime.now()
         try:
             db.commit()
-        except Exception as e:
+        except Exception:
             db.rollback()
             # 如果保存失败，删除已上传的文件
             delete_avatar_file(file_path)
@@ -223,7 +222,7 @@ async def delete_avatar_endpoint(current_user: dict = Depends(get_current_user),
         user.avatar_updated_at = datetime.now()
         try:
             db.commit()
-        except Exception as e:
+        except Exception:
             db.rollback()
             raise DatabaseError("保存头像信息失败")
 
@@ -264,7 +263,7 @@ async def get_user_avatar(user_id: str, size: int = 200, db: Session = Depends(g
         user.avatar_updated_at = datetime.now()
         try:
             db.commit()
-        except Exception as e:
+        except Exception:
             db.rollback()
             delete_avatar_file(file_path)
             raise DatabaseError("保存头像信息失败")

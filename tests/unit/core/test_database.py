@@ -4,10 +4,7 @@ app/core/database.py 单元测试
 测试数据库连接、会话管理和上下文管理器。
 """
 
-import pytest
-from unittest.mock import patch, Mock, MagicMock
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine
 
 
 class TestDatabaseEngine:
@@ -315,7 +312,6 @@ class TestDatabaseConfiguration:
 
     def test_sqlite_check_same_thread_config(self):
         """测试SQLite禁用了check_same_thread"""
-        from app.core.database import engine
         from app.core.config import settings
 
         if "sqlite" in settings.DATABASE_URL:

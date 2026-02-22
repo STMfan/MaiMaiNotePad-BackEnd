@@ -13,7 +13,6 @@ import time
 import logging
 import json
 from collections import deque
-from queue import Queue, Empty
 
 logger = logging.getLogger(__name__)
 

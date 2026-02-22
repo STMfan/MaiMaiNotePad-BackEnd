@@ -6,7 +6,6 @@
 
 import pytest
 from tests.helpers.websocket_client import WebSocketTestClient
-from fastapi.testclient import TestClient
 
 
 def test_websocket_client_initialization(client):

@@ -9,7 +9,6 @@ import pytest
 
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
-import asyncio
 from tests.helpers.websocket_client import WebSocketTestClient
 from app.core.security import create_access_token
 from app.utils.websocket import message_ws_manager
@@ -451,7 +450,6 @@ class TestWebSocketNetworkExceptions:
         - 接收消息时的异常被捕获
         - 连接被正确清理
         """
-        from unittest.mock import patch
 
         token = create_access_token({"sub": test_user.id})
         ws_client = WebSocketTestClient(client, token)

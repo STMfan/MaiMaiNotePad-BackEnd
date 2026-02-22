@@ -7,11 +7,7 @@
 """
 
 import pytest
-import asyncio
 from hypothesis import given, strategies as st, assume, settings, HealthCheck
-from typing import List
-import threading
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Mark all tests in this file as serial
@@ -47,7 +43,6 @@ class TestDataConsistency:
         **Validates: Requirements FR6**
         """
         from app.services.user_service import UserService
-        from app.models.database import Base
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
         import uuid
@@ -74,7 +69,7 @@ class TestDataConsistency:
                 )
                 session.commit()
                 return result is not None
-            except Exception as e:
+            except Exception:
                 session.rollback()
                 return False
             finally:
@@ -110,7 +105,6 @@ class TestDataConsistency:
         from app.services.persona_service import PersonaService
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        import uuid
         import os
 
         # 创建独立的数据库会话
@@ -139,7 +133,7 @@ class TestDataConsistency:
                 result = service.save_persona_card(persona_data)
                 session.commit()
                 return result.id if result else None
-            except Exception as e:
+            except Exception:
                 session.rollback()
                 return None
             finally:
@@ -172,7 +166,6 @@ class TestDataConsistency:
         from app.services.knowledge_service import KnowledgeService
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        import uuid
         import os
 
         # 创建独立的数据库会话
@@ -201,7 +194,7 @@ class TestDataConsistency:
                 result = service.save_knowledge_base(kb_data)
                 session.commit()
                 return result.id if result else None
-            except Exception as e:
+            except Exception:
                 session.rollback()
                 return None
             finally:
@@ -259,7 +252,7 @@ class TestDataConsistency:
                 result = service.update_user(user_id=test_user.id, username=f"{test_user.username}_updated_{index}")
                 session.commit()
                 return result is not None
-            except Exception as e:
+            except Exception:
                 session.rollback()
                 return False
             finally:
@@ -448,7 +441,7 @@ class TestForeignKeyConstraints:
                 # 某些数据库可能不强制执行外键约束（如 SQLite 默认配置）
                 # 在这种情况下，我们只验证数据是一致的
                 assert result.uploader_id == fake_user_id
-        except Exception as e:
+        except Exception:
             # 外键约束违反应该抛出异常
             # 这是预期的行为
             pass

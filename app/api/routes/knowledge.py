@@ -129,11 +129,9 @@ async def upload_knowledge_base(
             if is_public:
                 kb.is_public = False
                 kb.is_pending = True
-                upload_status = "pending"
             else:
                 kb.is_public = False
                 kb.is_pending = False
-                upload_status = "success"
 
             # 提交更改
             db.commit()

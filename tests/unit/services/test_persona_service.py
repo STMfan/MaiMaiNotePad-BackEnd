@@ -7,13 +7,12 @@ PersonaService 单元测试
 需求: 2.2 - 服务层单元测试
 """
 
-import pytest
 from datetime import datetime
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 from sqlalchemy.orm import Session
 
 from app.services.persona_service import PersonaService
-from app.models.database import PersonaCard, PersonaCardFile, User, StarRecord, UploadRecord
+from app.models.database import PersonaCard, PersonaCardFile, User, StarRecord
 
 
 class TestPersonaCardRetrieval:

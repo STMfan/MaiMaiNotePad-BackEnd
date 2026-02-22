@@ -6,9 +6,7 @@ app/utils/file.py 单元测试
 
 import os
 import pytest
-from io import BytesIO
-from datetime import datetime
-from unittest.mock import Mock, AsyncMock, patch, mock_open
+from unittest.mock import Mock, AsyncMock, patch
 from fastapi import UploadFile, HTTPException
 
 from app.utils.file import (

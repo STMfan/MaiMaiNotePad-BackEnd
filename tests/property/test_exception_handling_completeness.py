@@ -7,10 +7,9 @@
 """
 
 import pytest
-from hypothesis import given, strategies as st, assume, settings, HealthCheck
-from unittest.mock import patch, MagicMock
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError, OperationalError
-from sqlalchemy.orm import Session
+from hypothesis import given, strategies as st, settings, HealthCheck
+from unittest.mock import patch
+from sqlalchemy.exc import SQLAlchemyError
 import logging
 
 # Mark all tests in this file as serial
@@ -194,7 +193,6 @@ class TestDatabaseTransactionRollback:
 
         # 创建一个 persona
         import uuid
-        import os
         import tempfile
 
         # 创建临时目录作为 base_path
@@ -240,7 +238,6 @@ class TestDatabaseTransactionRollback:
 
         # 创建一个知识库条目
         import uuid
-        import os
         import tempfile
 
         # 创建临时目录作为 base_path

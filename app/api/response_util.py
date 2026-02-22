@@ -1,6 +1,6 @@
 """响应工具模块 - 提供统一的API响应格式化函数"""
 
-from typing import Any, Optional, TypeVar, List
+from typing import Optional, TypeVar, List
 
 from app.models.schemas import BaseResponse, PageResponse, Pagination
 

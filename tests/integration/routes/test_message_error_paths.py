@@ -5,12 +5,9 @@
 Requirements: 5.4 (messages.py error paths)
 """
 
-import pytest
 import uuid
 from datetime import datetime
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from app.models.database import User, Message
 from tests.conftest import assert_error_response

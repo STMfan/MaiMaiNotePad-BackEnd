@@ -5,11 +5,8 @@
 需求: 3.7
 """
 
-import pytest
 import json
-import os
-from unittest.mock import patch, mock_open, MagicMock
-from fastapi.testclient import TestClient
+from unittest.mock import patch, mock_open
 from sqlalchemy.orm import Session
 
 

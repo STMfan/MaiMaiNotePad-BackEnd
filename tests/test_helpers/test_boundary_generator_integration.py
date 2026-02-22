@@ -7,7 +7,6 @@
 
 import pytest
 import math
-from typing import List
 
 
 class TestBoundaryGeneratorFixtures:
@@ -384,7 +383,7 @@ class TestBoundaryGeneratorDocumentation:
 
         # 验证可以执行测试
         for test_case in test_cases:
-            result = process_data(test_case["param_value"])
+            process_data(test_case["param_value"])
             # 测试逻辑
 
     def test_readme_example_3(self, string_boundaries):
@@ -452,7 +451,7 @@ class TestBoundaryGeneratorPerformance:
         for _ in range(100):
             from tests.helpers.boundary_generator import BoundaryValueGenerator
 
-            generator = BoundaryValueGenerator()
+            BoundaryValueGenerator()
         end = time.time()
 
         # 100 次创建应该在 1 秒内完成

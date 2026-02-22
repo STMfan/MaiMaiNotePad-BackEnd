@@ -8,7 +8,6 @@ import pytest
 from unittest.mock import Mock, patch
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
 
 from app.api.deps import (
     get_current_user,

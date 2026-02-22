@@ -6,7 +6,7 @@ app/main.py 单元测试
 
 import pytest
 import os
-from unittest.mock import patch, Mock, MagicMock
+from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -410,7 +410,6 @@ class TestEnvironmentVariables:
 
     def test_environment_variables_loaded(self):
         """测试环境变量加载 - Task 3.1.3"""
-        import os
         from app.core.config import settings
 
         # Verify that settings are loaded from environment
@@ -562,7 +561,7 @@ class TestMiddlewareConfiguration:
         from app.main import app
 
         # 验证日志中间件存在
-        middleware_types = [type(m).__name__ for m in app.user_middleware]
+        [type(m).__name__ for m in app.user_middleware]
         # 应该有某种日志或监控中间件
 
     def test_error_handling_middleware(self):
@@ -602,7 +601,6 @@ class TestErrorHandlers:
     @patch("app.main.app")
     def test_error_handler_returns_json(self, mock_app):
         """测试错误处理器返回JSON格式"""
-        from app.main import app
 
         # 错误响应应该是JSON格式
         # 这需要实际测试请求来验证
@@ -663,12 +661,11 @@ class TestStaticFiles:
         from app.main import app
 
         # 验证静态文件路由
-        routes = [route.path for route in app.routes]
+        [route.path for route in app.routes]
         # 应该有uploads路径
 
     def test_static_files_accessible(self):
         """测试静态文件可访问"""
-        from app.main import app
 
         # 验证静态文件配置
 
@@ -690,7 +687,7 @@ class TestDatabaseConnection:
 
         # 验证会话正确关闭
         db_gen = get_db()
-        db = next(db_gen)
+        next(db_gen)
         try:
             next(db_gen)
         except StopIteration:
@@ -795,14 +792,12 @@ class TestApplicationLifecycle:
 
     def test_startup_event_handler(self):
         """测试启动事件处理器"""
-        from app.main import app
 
         # 验证启动事件
         # 注意：FastAPI的事件处理器可能需要特殊方式测试
 
     def test_shutdown_event_handler(self):
         """测试关闭事件处理器"""
-        from app.main import app
 
         # 验证关闭事件
 
@@ -851,8 +846,6 @@ class TestMainEdgeCases:
 
     def test_application_debug_mode(self):
         """测试应用调试模式"""
-        from app.main import app
-        from app.core.config import settings
 
         # 验证调试模式配置
         # 生产环境应该关闭调试

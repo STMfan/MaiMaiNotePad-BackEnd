@@ -14,7 +14,7 @@ import pytest
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
 import time
-from tests.helpers.websocket_client import WebSocketTestClient, MessageType
+from tests.helpers.websocket_client import WebSocketTestClient
 from app.core.security import create_access_token
 
 

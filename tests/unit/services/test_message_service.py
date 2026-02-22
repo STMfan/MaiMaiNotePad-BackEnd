@@ -8,7 +8,7 @@ MessageService 单元测试
 
 import pytest
 from datetime import datetime
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 from sqlalchemy.orm import Session
 
 from app.services.message_service import MessageService

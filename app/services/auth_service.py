@@ -61,7 +61,7 @@ class AuthService:
                 dummy_hash = "$2b$12$dummy.hash.for.timing.attack.prevention.abcdefghijklmnopqrstuv"
                 try:
                     verify_password(password, dummy_hash)
-                except:
+                except Exception:
                     pass
                 # 添加随机延迟以进一步模糊时间差异
                 time.sleep(0.1)
@@ -202,7 +202,7 @@ class AuthService:
                 .filter(
                     EmailVerification.email == email,
                     EmailVerification.code == code,
-                    EmailVerification.is_used == False,
+                    EmailVerification.is_used.is_(False),
                     EmailVerification.expires_at > datetime.now(),
                 )
                 .first()

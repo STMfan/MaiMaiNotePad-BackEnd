@@ -21,8 +21,7 @@
 import os
 import ast
 import json
-from pathlib import Path
-from typing import List, Dict, Set
+from typing import List, Dict
 
 
 def analyze_coverage(coverage_file: str = "coverage.json") -> Dict:

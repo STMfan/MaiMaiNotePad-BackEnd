@@ -137,7 +137,7 @@ def test_email_config():
         if smtp:
             try:
                 smtp.quit()
-            except:
+            except Exception:
                 pass
 
     print()

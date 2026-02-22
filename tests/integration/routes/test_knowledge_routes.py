@@ -5,14 +5,9 @@
 Requirements: 3.2
 """
 
-import pytest
 import io
-import os
-import tempfile
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 
-from app.models.database import KnowledgeBase, KnowledgeBaseFile, StarRecord
+from app.models.database import KnowledgeBase, StarRecord
 from tests.conftest import assert_error_response
 
 
@@ -912,7 +907,7 @@ class TestKnowledgeDatabaseErrorHandling:
 
     def test_upload_knowledge_base_db_connection_error(self, authenticated_client, monkeypatch):
         """Test uploading KB when database connection fails"""
-        from unittest.mock import Mock, patch
+        from unittest.mock import patch
         from sqlalchemy.exc import OperationalError
 
         file_content = b"Test content"
@@ -937,7 +932,7 @@ class TestKnowledgeDatabaseErrorHandling:
 
     def test_get_public_knowledge_bases_db_query_timeout(self, client, monkeypatch):
         """Test getting public KBs when query times out"""
-        from unittest.mock import Mock, patch
+        from unittest.mock import patch
         from sqlalchemy.exc import TimeoutError as SQLTimeoutError
 
         # Mock the service method to raise timeout error
@@ -1050,7 +1045,7 @@ class TestKnowledgeDatabaseErrorHandling:
 
     def test_add_files_db_rollback_on_error(self, authenticated_client, test_user, factory, monkeypatch):
         """Test adding files with database rollback on error"""
-        from unittest.mock import patch, Mock
+        from unittest.mock import patch
         from sqlalchemy.exc import OperationalError
 
         kb = factory.create_knowledge_base(uploader=test_user)
@@ -1266,7 +1261,7 @@ class TestKnowledgeFileOperationErrors:
 
     def test_upload_knowledge_base_cleanup_on_failure(self, authenticated_client, test_db, monkeypatch):
         """Test that temporary files are cleaned up when upload fails"""
-        from unittest.mock import patch, Mock
+        from unittest.mock import patch
 
         file_content = b"Test content"
         files = [("files", ("test.txt", io.BytesIO(file_content), "text/plain"))]
@@ -2318,7 +2313,6 @@ class TestKnowledgeZipDownloadErrorHandling:
     def test_download_kb_zipfile_write_error(self, authenticated_client, test_user, factory, monkeypatch):
         """Test downloading KB when zipfile.ZipFile.write fails"""
         from unittest.mock import patch, MagicMock
-        import zipfile
 
         kb = factory.create_knowledge_base(uploader=test_user, is_public=True)
         factory.create_knowledge_base_file(knowledge_base=kb)
@@ -2346,7 +2340,6 @@ class TestKnowledgeZipDownloadErrorHandling:
     def test_download_kb_zipfile_permission_error(self, authenticated_client, test_user, factory, monkeypatch):
         """Test downloading KB when ZIP file creation has permission error"""
         from unittest.mock import patch
-        import zipfile
 
         kb = factory.create_knowledge_base(uploader=test_user, is_public=True)
         factory.create_knowledge_base_file(knowledge_base=kb)
@@ -2417,7 +2410,7 @@ class TestKnowledgeZipDownloadErrorHandling:
 
     def test_download_kb_file_read_error_during_zip(self, authenticated_client, test_user, factory, monkeypatch):
         """Test downloading KB when file cannot be read during ZIP creation"""
-        from unittest.mock import patch, MagicMock, mock_open
+        from unittest.mock import patch, MagicMock
 
         kb = factory.create_knowledge_base(uploader=test_user, is_public=True)
         factory.create_knowledge_base_file(knowledge_base=kb)
@@ -2451,12 +2444,11 @@ class TestKnowledgeZipDownloadErrorHandling:
 
         # Track if os.remove was called
         remove_called = []
-        original_remove = os.remove
+        os.remove
 
         def mock_remove(path):
             remove_called.append(path)
             # Don't actually remove anything in test
-            pass
 
         # Mock zipfile to fail and track cleanup
         with patch("zipfile.ZipFile") as mock_zipfile:
@@ -2481,7 +2473,6 @@ class TestKnowledgeZipDownloadErrorHandling:
         self, authenticated_client, test_user, factory, monkeypatch
     ):
         """Test downloading KB with special characters in filename"""
-        from unittest.mock import patch
 
         # Create KB with special characters in name
         kb = factory.create_knowledge_base(uploader=test_user, name='测试知识库<>:"/\\|?*', is_public=True)

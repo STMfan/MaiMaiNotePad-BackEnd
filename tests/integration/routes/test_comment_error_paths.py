@@ -5,14 +5,11 @@
 Requirements: 5.6 (comments.py error paths)
 """
 
-import pytest
 import uuid
 from datetime import datetime, timedelta
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-from app.models.database import Comment, User, KnowledgeBase, PersonaCard
+from app.models.database import Comment, KnowledgeBase
 from tests.conftest import assert_error_response
 
 

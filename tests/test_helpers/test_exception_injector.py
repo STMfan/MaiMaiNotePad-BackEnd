@@ -5,8 +5,8 @@
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError, OperationalError
+from unittest.mock import Mock
+from sqlalchemy.exc import SQLAlchemyError
 
 from tests.helpers.exception_injector import ExceptionInjector, ExceptionType, create_injector
 

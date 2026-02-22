@@ -50,7 +50,7 @@ async def get_comments(
 
         query = (
             db.query(Comment)
-            .filter(Comment.target_type == target_type, Comment.target_id == target_id, Comment.is_deleted == False)
+            .filter(Comment.target_type == target_type, Comment.target_id == target_id, Comment.is_deleted.is_(False))
             .order_by(Comment.created_at.asc())
         )
 
@@ -257,7 +257,7 @@ async def react_comment(
         raise AuthorizationError("用户未登录")
 
     try:
-        comment = db.query(Comment).filter(Comment.id == comment_id, Comment.is_deleted == False).first()
+        comment = db.query(Comment).filter(Comment.id == comment_id, Comment.is_deleted.is_(False)).first()
         if not comment:
             raise NotFoundError("评论不存在或已删除")
 
