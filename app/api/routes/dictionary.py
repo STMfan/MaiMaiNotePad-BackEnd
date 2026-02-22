@@ -55,4 +55,3 @@ def _load_translation_dict() -> Dict[str, Any]:
 async def get_translation_dictionary():
     data = _load_translation_dict()
     return Success(data=data)
-

@@ -26,7 +26,7 @@ class UserService:
     def __init__(self, db: Session):
         """
         初始化用户服务。
-        
+
         Args:
             db: SQLAlchemy 数据库会话
         """
@@ -35,42 +35,42 @@ class UserService:
     def get_user_by_id(self, user_id: str) -> Optional[User]:
         """
         根据 ID 获取用户。
-        
+
         Args:
             user_id: 用户 ID
-            
+
         Returns:
             找到返回用户对象，否则返回 None
         """
         try:
             return self.db.query(User).filter(User.id == user_id).first()
         except Exception as e:
-            logger.error(f'Error getting user by ID {user_id}: {str(e)}')
+            logger.error(f"Error getting user by ID {user_id}: {str(e)}")
             return None
 
     def get_user_by_username(self, username: str) -> Optional[User]:
         """
         根据用户名获取用户。
-        
+
         Args:
             username: 用户名
-            
+
         Returns:
             找到返回用户对象，否则返回 None
         """
         try:
             return self.db.query(User).filter(User.username == username).first()
         except Exception as e:
-            logger.error(f'Error getting user by username {username}: {str(e)}')
+            logger.error(f"Error getting user by username {username}: {str(e)}")
             return None
 
     def get_user_by_email(self, email: str) -> Optional[User]:
         """
         根据邮箱获取用户。
-        
+
         Args:
             email: 邮箱地址（会自动转为小写）
-            
+
         Returns:
             找到返回用户对象，否则返回 None
         """
@@ -78,20 +78,20 @@ class UserService:
             email_lower = email.lower() if email else ""
             return self.db.query(User).filter(User.email == email_lower).first()
         except Exception as e:
-            logger.error(f'Error getting user by email {email}: {str(e)}')
+            logger.error(f"Error getting user by email {email}: {str(e)}")
             return None
 
     def get_all_users(self) -> List[User]:
         """
         获取数据库中所有用户。
-        
+
         Returns:
             用户对象列表
         """
         try:
             return self.db.query(User).all()
         except Exception as e:
-            logger.error(f'Error getting all users: {str(e)}')
+            logger.error(f"Error getting all users: {str(e)}")
             return []
 
     def create_user(
@@ -101,11 +101,11 @@ class UserService:
         password: str,
         is_admin: bool = False,
         is_moderator: bool = False,
-        is_super_admin: bool = False
+        is_super_admin: bool = False,
     ) -> Optional[User]:
         """
         创建新用户。
-        
+
         Args:
             username: 用户名
             email: 邮箱地址
@@ -113,20 +113,20 @@ class UserService:
             is_admin: 是否为管理员
             is_moderator: 是否为审核员
             is_super_admin: 是否为超级管理员
-            
+
         Returns:
             成功返回创建的用户对象，否则返回 None
         """
         try:
             # 检查用户名是否已存在
             if self.get_user_by_username(username):
-                logger.warning(f'Username {username} already exists')
+                logger.warning(f"Username {username} already exists")
                 return None
 
             # 检查邮箱是否已存在
             email_lower = email.lower() if email else ""
             if self.get_user_by_email(email_lower):
-                logger.warning(f'Email {email_lower} already exists')
+                logger.warning(f"Email {email_lower} already exists")
                 return None
 
             # 确保密码不超过 72 字节（bcrypt 限制）
@@ -143,46 +143,41 @@ class UserService:
                 is_super_admin=is_super_admin,
                 is_active=True,
                 created_at=datetime.now(),
-                password_version=0
+                password_version=0,
             )
 
             self.db.add(new_user)
             self.db.commit()
             self.db.refresh(new_user)
 
-            logger.info(f'User {username} created successfully')
+            logger.info(f"User {username} created successfully")
             return new_user
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error creating user {username}: {str(e)}')
+            logger.error(f"Error creating user {username}: {str(e)}")
             return None
 
-    def update_user(
-        self,
-        user_id: str,
-        username: Optional[str] = None,
-        email: Optional[str] = None
-    ) -> Optional[User]:
+    def update_user(self, user_id: str, username: Optional[str] = None, email: Optional[str] = None) -> Optional[User]:
         """
         更新用户信息。
-        
+
         Args:
             user_id: 用户 ID
             username: 新用户名（可选）
             email: 新邮箱（可选）
-            
+
         Returns:
             成功返回更新后的用户对象，否则返回 None
         """
         try:
             user = self.get_user_by_id(user_id)
             if not user:
-                logger.warning(f'User {user_id} not found')
+                logger.warning(f"User {user_id} not found")
                 return None
 
             # 检查是否尝试修改超级管理员用户名
             if username and username != user.username and user.is_super_admin:
-                logger.warning(f'Super admin username change attempted and blocked: {user.username} -> {username}')
+                logger.warning(f"Super admin username change attempted and blocked: {user.username} -> {username}")
                 raise ValueError("不能修改超级管理员用户名")
 
             # 如果提供了新用户名则更新
@@ -190,7 +185,7 @@ class UserService:
                 # 检查新用户名是否已存在
                 existing = self.get_user_by_username(username)
                 if existing and existing.id != user_id:
-                    logger.warning(f'Username {username} already exists')
+                    logger.warning(f"Username {username} already exists")
                     return None
                 user.username = username
 
@@ -200,46 +195,41 @@ class UserService:
                 # 检查新邮箱是否已存在
                 existing = self.get_user_by_email(email_lower)
                 if existing and existing.id != user_id:
-                    logger.warning(f'Email {email_lower} already exists')
+                    logger.warning(f"Email {email_lower} already exists")
                     return None
                 user.email = email_lower
 
             self.db.commit()
             self.db.refresh(user)
 
-            logger.info(f'User {user.username} updated successfully')
+            logger.info(f"User {user.username} updated successfully")
             return user
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error updating user {user_id}: {str(e)}')
+            logger.error(f"Error updating user {user_id}: {str(e)}")
             raise
 
-    def update_password(
-        self,
-        user_id: str,
-        old_password: str,
-        new_password: str
-    ) -> bool:
+    def update_password(self, user_id: str, old_password: str, new_password: str) -> bool:
         """
         更新用户密码。
-        
+
         Args:
             user_id: 用户 ID
             old_password: 当前密码
             new_password: 新密码
-            
+
         Returns:
             成功返回 True，否则返回 False
         """
         try:
             user = self.get_user_by_id(user_id)
             if not user:
-                logger.warning(f'User {user_id} not found')
+                logger.warning(f"User {user_id} not found")
                 return False
 
             # 验证旧密码
             if not verify_password(old_password, user.hashed_password):
-                logger.warning(f'User {user.username} tried to update password but old password verification failed')
+                logger.warning(f"User {user.username} tried to update password but old password verification failed")
                 return False
 
             # 确保新密码不超过 72 字节（bcrypt 限制）
@@ -252,34 +242,31 @@ class UserService:
 
             self.db.commit()
 
-            logger.info(f'User {user.username} updated password successfully')
+            logger.info(f"User {user.username} updated password successfully")
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error updating password for user {user_id}: {str(e)}')
+            logger.error(f"Error updating password for user {user_id}: {str(e)}")
             return False
 
     def update_role(
-        self,
-        user_id: str,
-        is_admin: Optional[bool] = None,
-        is_moderator: Optional[bool] = None
+        self, user_id: str, is_admin: Optional[bool] = None, is_moderator: Optional[bool] = None
     ) -> Optional[User]:
         """
         更新用户角色。
-        
+
         Args:
             user_id: 用户 ID
             is_admin: 是否为管理员（可选）
             is_moderator: 是否为审核员（可选）
-            
+
         Returns:
             成功返回更新后的用户对象，否则返回 None
         """
         try:
             user = self.get_user_by_id(user_id)
             if not user:
-                logger.warning(f'User {user_id} not found')
+                logger.warning(f"User {user_id} not found")
                 return None
 
             if is_admin is not None:
@@ -290,25 +277,26 @@ class UserService:
             self.db.commit()
             self.db.refresh(user)
 
-            logger.info(f'User {user.username} role updated successfully')
+            logger.info(f"User {user.username} role updated successfully")
             return user
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error updating role for user {user_id}: {str(e)}')
+            logger.error(f"Error updating role for user {user_id}: {str(e)}")
             return None
 
     def verify_credentials(self, username: str, password: str) -> Optional[User]:
         """
         验证用户凭证（带计时攻击防护）。
-        
+
         Args:
             username: 用户名
             password: 明文密码
-            
+
         Returns:
             凭证有效返回用户对象，否则返回 None
         """
         import time
+
         try:
             user = self.get_user_by_username(username)
 
@@ -335,16 +323,16 @@ class UserService:
             self.increment_failed_login(user.id)
             return None
         except Exception as e:
-            logger.error(f'Error verifying user credentials: {str(e)}')
+            logger.error(f"Error verifying user credentials: {str(e)}")
             return None
 
     def check_account_lock(self, user_id: str) -> bool:
         """
         检查账户是否被锁定。
-        
+
         Args:
             user_id: 用户 ID
-            
+
         Returns:
             账户未锁定返回 True，已锁定返回 False
         """
@@ -358,13 +346,13 @@ class UserService:
 
             return True  # Account is not locked
         except Exception as e:
-            logger.error(f'Error checking account lock for user {user_id}: {str(e)}')
+            logger.error(f"Error checking account lock for user {user_id}: {str(e)}")
             return False
 
     def increment_failed_login(self, user_id: str) -> None:
         """
         递增登录失败次数，可能锁定账户。
-        
+
         Args:
             user_id: 用户 ID
         """
@@ -379,21 +367,21 @@ class UserService:
             # 从配置读取失败次数限制和锁定时长
             max_attempts = config_manager.get_int("security.max_failed_login_attempts", 5)
             lock_duration = config_manager.get_int("security.account_lock_duration_minutes", 30)
-            
+
             # 达到失败次数限制后锁定账户
             if user.failed_login_attempts >= max_attempts:
                 user.locked_until = datetime.now() + timedelta(minutes=lock_duration)
-                logger.warning(f'Account locked: username={user.username}, attempts={user.failed_login_attempts}')
+                logger.warning(f"Account locked: username={user.username}, attempts={user.failed_login_attempts}")
 
             self.db.commit()
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error incrementing failed login for user {user_id}: {str(e)}')
+            logger.error(f"Error incrementing failed login for user {user_id}: {str(e)}")
 
     def reset_failed_login(self, user_id: str) -> None:
         """
         重置登录失败次数。
-        
+
         Args:
             user_id: 用户 ID
         """
@@ -408,7 +396,7 @@ class UserService:
                 self.db.commit()
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error resetting failed login for user {user_id}: {str(e)}')
+            logger.error(f"Error resetting failed login for user {user_id}: {str(e)}")
 
     def ensure_super_admin_exists(self) -> None:
         """
@@ -422,9 +410,9 @@ class UserService:
                 return
 
             # 创建超级管理员
-            super_username = os.getenv('SUPERADMIN_USERNAME', 'superadmin')
-            super_pwd = os.getenv('SUPERADMIN_PWD', 'admin123456')
-            external_domain = os.getenv('EXTERNAL_DOMAIN', 'example.com')
+            super_username = os.getenv("SUPERADMIN_USERNAME", "superadmin")
+            super_pwd = os.getenv("SUPERADMIN_PWD", "admin123456")
+            external_domain = os.getenv("EXTERNAL_DOMAIN", "example.com")
 
             super_pwd = super_pwd[:72]  # bcrypt 限制
 
@@ -438,33 +426,33 @@ class UserService:
                 is_moderator=False,
                 is_super_admin=True,
                 created_at=datetime.now(),
-                password_version=0
+                password_version=0,
             )
 
             self.db.add(super_admin)
             self.db.commit()
 
-            logger.info(f'Super admin account created: {super_username}')
+            logger.info(f"Super admin account created: {super_username}")
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error ensuring super admin exists: {str(e)}')
+            logger.error(f"Error ensuring super admin exists: {str(e)}")
 
     def promote_to_admin(self, user_id: str, highest_pwd: str) -> bool:
         """
         将用户提升为管理员角色。
-        
+
         Args:
             user_id: 用户 ID
             highest_pwd: 最高权限密码用于验证
-            
+
         Returns:
             成功返回 True，否则返回 False
         """
         try:
             # 验证最高权限密码
-            highest_password_hash = get_password_hash(os.getenv('HIGHEST_PASSWORD', ''))
+            highest_password_hash = get_password_hash(os.getenv("HIGHEST_PASSWORD", ""))
             if not verify_password(highest_pwd, highest_password_hash):
-                logger.error(f'User {user_id} tried to become admin but highest password verification failed')
+                logger.error(f"User {user_id} tried to become admin but highest password verification failed")
                 return False
 
             user = self.get_user_by_id(user_id)
@@ -474,29 +462,29 @@ class UserService:
             user.is_admin = True
             self.db.commit()
 
-            logger.info(f'User {user.username} promoted to admin')
+            logger.info(f"User {user.username} promoted to admin")
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error promoting user {user_id} to admin: {str(e)}')
+            logger.error(f"Error promoting user {user_id} to admin: {str(e)}")
             return False
 
     def promote_to_moderator(self, user_id: str, highest_pwd: str) -> bool:
         """
         将用户提升为审核员角色。
-        
+
         Args:
             user_id: 用户 ID
             highest_pwd: 最高权限密码用于验证
-            
+
         Returns:
             成功返回 True，否则返回 False
         """
         try:
             # 验证最高权限密码
-            highest_password_hash = get_password_hash(os.getenv('HIGHEST_PASSWORD', ''))
+            highest_password_hash = get_password_hash(os.getenv("HIGHEST_PASSWORD", ""))
             if not verify_password(highest_pwd, highest_password_hash):
-                logger.error(f'User {user_id} tried to become moderator but highest password verification failed')
+                logger.error(f"User {user_id} tried to become moderator but highest password verification failed")
                 return False
 
             user = self.get_user_by_id(user_id)
@@ -506,81 +494,69 @@ class UserService:
             user.is_moderator = True
             self.db.commit()
 
-            logger.info(f'User {user.username} promoted to moderator')
+            logger.info(f"User {user.username} promoted to moderator")
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'Error promoting user {user_id} to moderator: {str(e)}')
+            logger.error(f"Error promoting user {user_id} to moderator: {str(e)}")
             return False
 
     def get_upload_records_by_uploader(
-        self,
-        uploader_id: str,
-        page: int = 1,
-        page_size: int = 20,
-        status: Optional[str] = None
+        self, uploader_id: str, page: int = 1, page_size: int = 20, status: Optional[str] = None
     ) -> List:
         """
         Get upload records by uploader with pagination and optional status filter.
-        
+
         Args:
             uploader_id: Uploader user ID
             page: Page number (starting from 1)
             page_size: Number of records per page
             status: Optional status filter (approved, rejected, pending)
-            
+
         Returns:
             List of UploadRecord objects
         """
         try:
             from app.models.database import UploadRecord
-            
-            query = self.db.query(UploadRecord).filter(
-                UploadRecord.uploader_id == uploader_id
-            )
-            
+
+            query = self.db.query(UploadRecord).filter(UploadRecord.uploader_id == uploader_id)
+
             # Apply status filter if provided
             if status:
                 query = query.filter(UploadRecord.status == status)
-            
+
             # Apply pagination
             offset = (page - 1) * page_size
             records = query.order_by(UploadRecord.created_at.desc()).offset(offset).limit(page_size).all()
-            
+
             return records
         except Exception as e:
-            logger.error(f'Error getting upload records for uploader {uploader_id}: {str(e)}')
+            logger.error(f"Error getting upload records for uploader {uploader_id}: {str(e)}")
             return []
 
-    def get_upload_records_count_by_uploader(
-        self,
-        uploader_id: str,
-        status: Optional[str] = None
-    ) -> int:
+    def get_upload_records_count_by_uploader(self, uploader_id: str, status: Optional[str] = None) -> int:
         """
         Get total count of upload records by uploader with optional status filter.
-        
+
         Args:
             uploader_id: Uploader user ID
             status: Optional status filter (approved, rejected, pending)
-            
+
         Returns:
             Total count of upload records
         """
         try:
             from app.models.database import UploadRecord
-            
-            query = self.db.query(UploadRecord).filter(
-                UploadRecord.uploader_id == uploader_id
-            )
-            
+
+            query = self.db.query(UploadRecord).filter(UploadRecord.uploader_id == uploader_id)
+
             # Apply status filter if provided
             if status:
                 query = query.filter(UploadRecord.status == status)
-            
+
             return query.count()
         except Exception as e:
-            logger.error(f'Error counting upload records for uploader {uploader_id}: {str(e)}')
+            logger.error(f"Error counting upload records for uploader {uploader_id}: {str(e)}")
             return 0
 
     def get_upload_stats_by_uploader(self, uploader_id: str) -> dict:
@@ -597,9 +573,7 @@ class UserService:
             from app.models.database import UploadRecord
 
             # Get all records
-            all_records = self.db.query(UploadRecord).filter(
-                UploadRecord.uploader_id == uploader_id
-            ).all()
+            all_records = self.db.query(UploadRecord).filter(UploadRecord.uploader_id == uploader_id).all()
 
             # Calculate statistics
             total = len(all_records)
@@ -615,97 +589,85 @@ class UserService:
                 "pending": pending,
                 "failed": failed,
                 "knowledge": knowledge,
-                "persona": persona
+                "persona": persona,
             }
         except Exception as e:
-            logger.error(f'Error getting upload stats for uploader {uploader_id}: {str(e)}')
-            return {
-                "total": 0,
-                "success": 0,
-                "pending": 0,
-                "failed": 0,
-                "knowledge": 0,
-                "persona": 0
-            }
-
+            logger.error(f"Error getting upload stats for uploader {uploader_id}: {str(e)}")
+            return {"total": 0, "success": 0, "pending": 0, "failed": 0, "knowledge": 0, "persona": 0}
 
     def get_knowledge_base_by_id(self, kb_id: str):
         """
         Get knowledge base by ID.
-        
+
         Args:
             kb_id: Knowledge base ID
-            
+
         Returns:
             KnowledgeBase object if found, None otherwise
         """
         try:
             from app.models.database import KnowledgeBase
+
             return self.db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
         except Exception as e:
-            logger.error(f'Error getting knowledge base {kb_id}: {str(e)}')
+            logger.error(f"Error getting knowledge base {kb_id}: {str(e)}")
             return None
 
     def get_persona_card_by_id(self, pc_id: str):
         """
         Get persona card by ID.
-        
+
         Args:
             pc_id: Persona card ID
-            
+
         Returns:
             PersonaCard object if found, None otherwise
         """
         try:
             from app.models.database import PersonaCard
+
             return self.db.query(PersonaCard).filter(PersonaCard.id == pc_id).first()
         except Exception as e:
-            logger.error(f'Error getting persona card {pc_id}: {str(e)}')
+            logger.error(f"Error getting persona card {pc_id}: {str(e)}")
             return None
 
-    def get_total_file_size_by_target(
-        self,
-        target_id: str,
-        target_type: str
-    ) -> int:
+    def get_total_file_size_by_target(self, target_id: str, target_type: str) -> int:
         """
         Get total file size for a target (knowledge base or persona card).
-        
+
         Args:
             target_id: Target ID
             target_type: Target type ('knowledge' or 'persona')
-            
+
         Returns:
             Total file size in bytes
         """
         try:
             if target_type == "knowledge":
                 from app.models.database import KnowledgeBaseFile
-                files = self.db.query(KnowledgeBaseFile).filter(
-                    KnowledgeBaseFile.knowledge_base_id == target_id
-                ).all()
+
+                files = self.db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == target_id).all()
             elif target_type == "persona":
                 from app.models.database import PersonaCardFile
-                files = self.db.query(PersonaCardFile).filter(
-                    PersonaCardFile.persona_card_id == target_id
-                ).all()
+
+                files = self.db.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == target_id).all()
             else:
                 return 0
-            
+
             total_size = sum(f.file_size for f in files if f.file_size)
             return total_size
         except Exception as e:
-            logger.error(f'Error getting total file size for {target_type} {target_id}: {str(e)}')
+            logger.error(f"Error getting total file size for {target_type} {target_id}: {str(e)}")
             return 0
 
     def get_dashboard_trend_stats(self, user_id: str, days: int = 30) -> Dict[str, Any]:
         """
         Get download and star trend statistics for a user.
-        
+
         Args:
             user_id: User ID (uploader)
             days: Number of days to include in the trend (default 30, max 90)
-            
+
         Returns:
             Dictionary with trend statistics, including a list of daily items.
         """
@@ -716,7 +678,7 @@ class UserService:
             # 从配置读取天数限制
             min_days = config_manager.get_int("statistics.min_trend_days", 1)
             max_days = config_manager.get_int("statistics.max_trend_days", 90)
-            
+
             if days < min_days:
                 days = min_days
             if days > max_days:
@@ -827,7 +789,7 @@ class UserService:
                 "items": items,
             }
         except Exception as e:
-            logger.error(f'Error getting dashboard trend stats for user {user_id}: {str(e)}')
+            logger.error(f"Error getting dashboard trend stats for user {user_id}: {str(e)}")
             return {
                 "days": days,
                 "items": [],

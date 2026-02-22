@@ -14,14 +14,14 @@ from fastapi import UploadFile, HTTPException, status
 def validate_file_type(file: UploadFile, allowed_types: list[str]) -> bool:
     """
     验证文件类型是否在允许的类型列表中
-    
+
     Args:
         file: 上传的文件对象
         allowed_types: 允许的文件扩展名列表，如 ['.txt', '.json']
-    
+
     Returns:
         bool: 文件类型是否有效
-    
+
     Example:
         >>> validate_file_type(file, ['.txt', '.json'])
         True
@@ -36,14 +36,14 @@ def validate_file_type(file: UploadFile, allowed_types: list[str]) -> bool:
 def validate_file_size(file: UploadFile, max_size: int) -> bool:
     """
     验证文件大小是否在允许的范围内
-    
+
     Args:
         file: 上传的文件对象
         max_size: 最大文件大小（字节）
-    
+
     Returns:
         bool: 文件大小是否有效
-    
+
     Example:
         >>> validate_file_size(file, 10 * 1024 * 1024)  # 10MB
         True
@@ -57,17 +57,17 @@ def validate_file_size(file: UploadFile, max_size: int) -> bool:
 async def validate_file_content_size(file: UploadFile, max_size: int) -> bool:
     """
     验证文件内容的实际大小
-    
+
     通过读取文件内容来验证实际大小，比 file.size 更准确。
     注意：此函数会重置文件指针到开始位置。
-    
+
     Args:
         file: 上传的文件对象
         max_size: 最大文件大小（字节）
-    
+
     Returns:
         bool: 文件内容大小是否有效
-    
+
     Example:
         >>> await validate_file_content_size(file, 10 * 1024 * 1024)
         True
@@ -82,19 +82,19 @@ async def validate_file_content_size(file: UploadFile, max_size: int) -> bool:
 async def save_uploaded_file(file: UploadFile, target_dir: str) -> str:
     """
     保存上传的文件到目标目录
-    
+
     文件名会添加时间戳前缀以避免冲突。
-    
+
     Args:
         file: 上传的文件对象
         target_dir: 目标目录路径
-    
+
     Returns:
         str: 保存后的文件完整路径
-    
+
     Raises:
         HTTPException: 文件保存失败时抛出
-    
+
     Example:
         >>> file_path = await save_uploaded_file(file, "uploads/knowledge")
     """
@@ -111,28 +111,25 @@ async def save_uploaded_file(file: UploadFile, target_dir: str) -> str:
 
         return file_path
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"文件保存失败: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"文件保存失败: {str(e)}")
 
 
 async def save_uploaded_file_with_size(file: UploadFile, directory: str) -> Tuple[str, int]:
     """
     保存上传的文件到指定目录，并返回文件路径和文件大小
-    
+
     如果文件已存在，会自动添加时间戳避免冲突。
-    
+
     Args:
         file: 上传的文件对象
         directory: 目标目录路径
-    
+
     Returns:
         Tuple[str, int]: (文件完整路径, 文件大小（字节）)
-    
+
     Raises:
         HTTPException: 文件保存失败时抛出
-    
+
     Example:
         >>> file_path, file_size = await save_uploaded_file_with_size(file, "uploads/knowledge")
         >>> print(f"Saved {file_size} bytes to {file_path}")
@@ -162,19 +159,16 @@ async def save_uploaded_file_with_size(file: UploadFile, directory: str) -> Tupl
 
         return file_path, file_size_b
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"文件保存失败: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"文件保存失败: {str(e)}")
 
 
 def ensure_directory_exists(directory: str) -> None:
     """
     确保目录存在，如果不存在则创建
-    
+
     Args:
         directory: 目录路径
-    
+
     Example:
         >>> ensure_directory_exists("uploads/avatars")
     """
@@ -184,13 +178,13 @@ def ensure_directory_exists(directory: str) -> None:
 def delete_file(file_path: str) -> bool:
     """
     删除指定的文件
-    
+
     Args:
         file_path: 文件路径
-    
+
     Returns:
         bool: 是否删除成功
-    
+
     Example:
         >>> delete_file("uploads/temp/file.txt")
         True
@@ -208,13 +202,13 @@ def delete_file(file_path: str) -> bool:
 def get_file_extension(filename: str) -> str:
     """
     获取文件扩展名（小写）
-    
+
     Args:
         filename: 文件名
-    
+
     Returns:
         str: 文件扩展名（包含点号，如 '.txt'）
-    
+
     Example:
         >>> get_file_extension("document.PDF")
         '.pdf'
@@ -225,14 +219,14 @@ def get_file_extension(filename: str) -> str:
 def generate_unique_filename(original_filename: str, prefix: str = "") -> str:
     """
     生成唯一的文件名（添加时间戳）
-    
+
     Args:
         original_filename: 原始文件名
         prefix: 可选的前缀
-    
+
     Returns:
         str: 唯一的文件名
-    
+
     Example:
         >>> generate_unique_filename("document.txt", "user123")
         'user123_20240101_120000_document.txt'

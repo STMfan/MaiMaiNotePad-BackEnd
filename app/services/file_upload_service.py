@@ -68,10 +68,7 @@ class FileUploadService:
 
             return file_path
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"文件保存失败: {str(e)}"
-            )
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"文件保存失败: {str(e)}")
 
     async def _save_uploaded_file_with_size(self, file: UploadFile, directory: str) -> tuple:
         """保存上传的文件到指定目录，并返回文件路径和文件大小(B)"""
@@ -100,10 +97,7 @@ class FileUploadService:
 
             return file_path, file_size_b
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"文件保存失败: {str(e)}"
-            )
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"文件保存失败: {str(e)}")
 
     def _validate_file_type(self, file: UploadFile, allowed_types: List[str]) -> bool:
         """验证文件类型"""
@@ -171,14 +165,13 @@ class FileUploadService:
             file_name = f"{prefix}_metadata.json"
             file_path = os.path.join(target_dir, file_name)
 
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(metadata, f, ensure_ascii=False, indent=2)
 
             return file_path
         except Exception as e:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"元数据文件创建失败: {str(e)}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"元数据文件创建失败: {str(e)}"
             )
 
     async def upload_knowledge_base(
@@ -196,7 +189,7 @@ class FileUploadService:
         if len(files) > self.MAX_KNOWLEDGE_FILES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"文件数量超过限制，最多允许{self.MAX_KNOWLEDGE_FILES}个文件"
+                detail=f"文件数量超过限制，最多允许{self.MAX_KNOWLEDGE_FILES}个文件",
             )
 
         # 验证文件类型和大小
@@ -204,20 +197,20 @@ class FileUploadService:
             if not self._validate_file_type(file, self.ALLOWED_KNOWLEDGE_TYPES):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"不支持的文件类型: {file.filename}。仅支持{', '.join(self.ALLOWED_KNOWLEDGE_TYPES)}文件"
+                    detail=f"不支持的文件类型: {file.filename}。仅支持{', '.join(self.ALLOWED_KNOWLEDGE_TYPES)}文件",
                 )
 
             if not self._validate_file_size(file):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"文件过大: {file.filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB"
+                    detail=f"文件过大: {file.filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
                 )
 
             # 验证实际文件内容大小
             if not await self._validate_file_content(file):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"文件内容过大: {file.filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB"
+                    detail=f"文件内容过大: {file.filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
                 )
 
         # 创建知识库目录
@@ -235,15 +228,12 @@ class FileUploadService:
             "tags": tags,
             "base_path": kb_dir,
             "is_pending": True,  # 新上传的内容默认为待审核状态
-            "is_public": False   # 新上传的内容默认为非公开
+            "is_public": False,  # 新上传的内容默认为非公开
         }
 
         saved_kb = sqlite_db_manager.save_knowledge_base(kb_data)
         if not saved_kb:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="知识库保存失败"
-            )
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="知识库保存失败")
 
         # 保存上传的文件并创建文件记录
         saved_files = []
@@ -258,7 +248,7 @@ class FileUploadService:
                 "original_name": file.filename,
                 "file_path": os.path.basename(file_path),  # 只存储文件名，相对于知识库目录
                 "file_type": file_ext,
-                "file_size": file_size_b  # 添加文件大小(B)
+                "file_size": file_size_b,  # 添加文件大小(B)
             }
 
             saved_file = sqlite_db_manager.save_knowledge_base_file(file_data)
@@ -282,7 +272,7 @@ class FileUploadService:
         if len(files) != 1:
             raise ValidationError(
                 message="人设卡配置错误：必须且仅包含一个 bot_config.toml 文件",
-                details={"code": "PERSONA_FILE_COUNT_INVALID"}
+                details={"code": "PERSONA_FILE_COUNT_INVALID"},
             )
 
         # 验证文件类型、名称和大小
@@ -290,26 +280,26 @@ class FileUploadService:
             if file.filename != "bot_config.toml":
                 raise ValidationError(
                     message="人设卡配置错误：配置文件名必须为 bot_config.toml",
-                    details={"code": "PERSONA_FILE_NAME_INVALID", "filename": file.filename}
+                    details={"code": "PERSONA_FILE_NAME_INVALID", "filename": file.filename},
                 )
 
             if not self._validate_file_type(file, self.ALLOWED_PERSONA_TYPES):
                 raise ValidationError(
                     message=f"人设卡配置错误：不支持的文件类型 {file.filename}，仅支持{', '.join(self.ALLOWED_PERSONA_TYPES)} 文件",
-                    details={"code": "PERSONA_FILE_TYPE_INVALID", "filename": file.filename}
+                    details={"code": "PERSONA_FILE_TYPE_INVALID", "filename": file.filename},
                 )
 
             if not self._validate_file_size(file):
                 raise ValidationError(
                     message=f"人设卡配置错误：文件过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
-                    details={"code": "PERSONA_FILE_SIZE_EXCEEDED", "filename": file.filename}
+                    details={"code": "PERSONA_FILE_SIZE_EXCEEDED", "filename": file.filename},
                 )
 
             # 验证实际文件内容大小
             if not await self._validate_file_content(file):
                 raise ValidationError(
                     message=f"人设卡配置错误：文件内容过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
-                    details={"code": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED", "filename": file.filename}
+                    details={"code": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED", "filename": file.filename},
                 )
 
         # 创建人设卡目录
@@ -319,7 +309,7 @@ class FileUploadService:
 
         try:
             persona_version: Optional[str] = None
-            
+
             # 保存上传的文件并解析 TOML 版本号
             for file in files:
                 file_path, file_size_b = await self._save_uploaded_file_with_size(file, pc_dir)
@@ -333,7 +323,7 @@ class FileUploadService:
                         if not parsed_version:
                             raise ValidationError(
                                 message="人设卡配置错误：TOML 中未找到版本号字段，请在 bot_config.toml 中添加 version 等版本字段后重试",
-                                details={"code": "PERSONA_TOML_VERSION_MISSING"}
+                                details={"code": "PERSONA_TOML_VERSION_MISSING"},
                             )
                         persona_version = parsed_version
                     except HTTPException:
@@ -341,13 +331,13 @@ class FileUploadService:
                     except Exception:
                         raise ValidationError(
                             message="人设卡配置解析失败：TOML 语法错误，请检查 bot_config.toml 格式是否正确",
-                            details={"code": "PERSONA_TOML_PARSE_ERROR"}
+                            details={"code": "PERSONA_TOML_PARSE_ERROR"},
                         )
 
             if not persona_version:
                 raise ValidationError(
                     message="人设卡配置错误：未能从 TOML 中解析出版本号，请在 bot_config.toml 中添加 version 等版本字段后重试",
-                    details={"code": "PERSONA_TOML_VERSION_MISSING"}
+                    details={"code": "PERSONA_TOML_VERSION_MISSING"},
                 )
 
             # 创建 PersonaCard 对象（不保存到数据库，由调用者处理）
@@ -361,7 +351,7 @@ class FileUploadService:
                 base_path=pc_dir,
                 version=persona_version,
                 is_pending=True,
-                is_public=False
+                is_public=False,
             )
 
             return pc
@@ -376,52 +366,52 @@ class FileUploadService:
         """获取知识库内容"""
         kb = sqlite_db_manager.get_knowledge_base_by_id(kb_id)
         if not kb:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="知识库不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在")
 
         # 获取知识库文件列表
         kb_files = sqlite_db_manager.get_files_by_knowledge_base_id(kb_id)
 
         return {
             "knowledge_base": kb.to_dict(),
-            "files": [{
-                "file_id": file.id,
-                "original_name": file.original_name,
-                "file_size": file.file_size,
-            } for file in kb_files],
+            "files": [
+                {
+                    "file_id": file.id,
+                    "original_name": file.original_name,
+                    "file_size": file.file_size,
+                }
+                for file in kb_files
+            ],
         }
 
     def get_persona_card_content(self, pc_id: str) -> Dict[str, Any]:
         """获取人设卡内容"""
         pc = sqlite_db_manager.get_persona_card_by_id(pc_id)
         if not pc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="人设卡不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="人设卡不存在")
 
         # 获取人设卡文件列表
         pc_files = sqlite_db_manager.get_files_by_persona_card_id(pc_id)
 
         return {
             "persona_card": pc.to_dict(),
-            "files": [{
-                "file_id": file.id,
-                "original_name": file.original_name,
-                "file_size": file.file_size,
-            } for file in pc_files],
+            "files": [
+                {
+                    "file_id": file.id,
+                    "original_name": file.original_name,
+                    "file_size": file.file_size,
+                }
+                for file in pc_files
+            ],
         }
 
-    async def add_files_to_knowledge_base(self, kb_id: str, files: List[UploadFile], user_id: str) -> Optional[KnowledgeBase]:
+    async def add_files_to_knowledge_base(
+        self, kb_id: str, files: List[UploadFile], user_id: str
+    ) -> Optional[KnowledgeBase]:
         """向知识库添加文件"""
         # 获取知识库信息
         kb = sqlite_db_manager.get_knowledge_base_by_id(kb_id)
         if not kb:
-            raise ValidationError(
-                message="知识库不存在"
-            )
+            raise ValidationError(message="知识库不存在")
 
         # 获取知识库现有文件
         current_files = sqlite_db_manager.get_files_by_knowledge_base_id(kb_id)
@@ -437,9 +427,7 @@ class FileUploadService:
         existing_file_names = {file.original_name for file in current_files}
         for file in files:
             if file.filename in existing_file_names:
-                raise ValidationError(
-                    message=f"文件名已存在: {file.filename}"
-                )
+                raise ValidationError(message=f"文件名已存在: {file.filename}")
 
         # 验证文件类型和大小
         for file in files:
@@ -462,10 +450,7 @@ class FileUploadService:
         # 获取知识库目录
         kb_dir = kb.base_path
         if not kb_dir or not os.path.exists(kb_dir):
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                message="知识库目录不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, message="知识库目录不存在")
 
         # 保存新文件并创建文件记录
         saved_files = []
@@ -480,7 +465,7 @@ class FileUploadService:
                 "original_name": file.filename,
                 "file_path": os.path.basename(file_path),  # 只存储文件名，相对于知识库目录
                 "file_type": file_ext,
-                "file_size": file_size_b  # 添加文件大小(B)
+                "file_size": file_size_b,  # 添加文件大小(B)
             }
 
             saved_file = sqlite_db_manager.save_knowledge_base_file(file_data)
@@ -498,26 +483,17 @@ class FileUploadService:
         # 获取知识库信息
         kb = sqlite_db_manager.get_knowledge_base_by_id(kb_id)
         if not kb:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="知识库不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在")
 
         # 获取要删除的文件
         kb_file = sqlite_db_manager.get_knowledge_base_file_by_id(file_id)
         if not kb_file or kb_file.knowledge_base_id != kb_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="文件不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
 
         # 获取知识库目录
         kb_dir = kb.base_path
         if not kb_dir or not os.path.exists(kb_dir):
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="知识库目录不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="知识库目录不存在")
 
         # 删除文件和文件记录
         try:
@@ -531,7 +507,7 @@ class FileUploadService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"删除文件失败 {kb_file.original_name}: {str(e)}"
+                detail=f"删除文件失败 {kb_file.original_name}: {str(e)}",
             )
 
         # 更新知识库时间戳
@@ -566,10 +542,7 @@ class FileUploadService:
         # 获取知识库信息
         kb = sqlite_db_manager.get_knowledge_base_by_id(kb_id)
         if not kb:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="知识库不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在")
 
         # 获取知识库文件列表
         kb_files = sqlite_db_manager.get_files_by_knowledge_base_id(kb_id)
@@ -587,8 +560,7 @@ class FileUploadService:
 
         if missing_files:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"以下文件不存在: {', '.join(missing_files)}"
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"以下文件不存在: {', '.join(missing_files)}"
             )
 
         # 创建临时ZIP文件
@@ -598,11 +570,10 @@ class FileUploadService:
         zip_path = os.path.join(temp_dir, zip_filename)
 
         try:
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
                 # 添加知识库文件
                 for kb_file in kb_files:
-                    file_full_path = os.path.join(
-                        kb.base_path, kb_file.file_path)
+                    file_full_path = os.path.join(kb.base_path, kb_file.file_path)
                     zipf.write(file_full_path, kb_file.original_name)
 
                 # 创建说明文件
@@ -636,10 +607,7 @@ class FileUploadService:
             # 清理临时文件
             if os.path.exists(zip_path):
                 os.remove(zip_path)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"创建压缩包失败: {str(e)}"
-            )
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"创建压缩包失败: {str(e)}")
 
     async def get_knowledge_base_file_path(self, kb_id: str, file_id: str) -> dict:
         """获取知识库中指定文件的完整路径"""
@@ -653,10 +621,7 @@ class FileUploadService:
         if not kb_files:
             return None
         else:
-            return {
-                "file_name": kb_files.original_name,
-                "file_path": kb_files.file_path
-            }
+            return {"file_name": kb_files.original_name, "file_path": kb_files.file_path}
 
     async def add_files_to_persona_card(self, pc_id: str, files: List[UploadFile]) -> Optional[PersonaCard]:
         """向人设卡添加文件"""
@@ -672,7 +637,7 @@ class FileUploadService:
         if len(files) != 1:
             raise ValidationError(
                 message="人设卡配置错误：一次仅支持上传一个 bot_config.toml 文件",
-                details={"code": "PERSONA_FILE_COUNT_INVALID"}
+                details={"code": "PERSONA_FILE_COUNT_INVALID"},
             )
 
         # 验证文件类型、名称和大小
@@ -680,34 +645,32 @@ class FileUploadService:
             if file.filename != "bot_config.toml":
                 raise ValidationError(
                     message=f"人设卡配置错误：文件名必须为 bot_config.toml，当前为 {file.filename}",
-                    details={"code": "PERSONA_FILE_NAME_INVALID", "filename": file.filename}
+                    details={"code": "PERSONA_FILE_NAME_INVALID", "filename": file.filename},
                 )
 
             if not self._validate_file_type(file, self.ALLOWED_PERSONA_TYPES):
                 raise ValidationError(
                     message=f"人设卡配置错误：不支持的文件类型 {file.filename}，仅支持{', '.join(self.ALLOWED_PERSONA_TYPES)} 文件",
-                    details={"code": "PERSONA_FILE_TYPE_INVALID", "filename": file.filename}
+                    details={"code": "PERSONA_FILE_TYPE_INVALID", "filename": file.filename},
                 )
 
             if not self._validate_file_size(file):
                 raise ValidationError(
                     message=f"人设卡配置错误：文件过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
-                    details={"code": "PERSONA_FILE_SIZE_EXCEEDED", "filename": file.filename}
+                    details={"code": "PERSONA_FILE_SIZE_EXCEEDED", "filename": file.filename},
                 )
 
             # 验证实际文件内容大小
             if not await self._validate_file_content(file):
                 raise ValidationError(
                     message=f"人设卡配置错误：文件内容过大 {file.filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
-                    details={"code": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED", "filename": file.filename}
+                    details={"code": "PERSONA_FILE_CONTENT_SIZE_EXCEEDED", "filename": file.filename},
                 )
 
         # 获取人设卡目录
         pc_dir = pc.base_path  # 人设卡主文件所在目录
         if not pc_dir or not os.path.exists(pc_dir):
-            raise DatabaseError(
-                message="人设卡目录不存在，请稍后重试或联系管理员"
-            )
+            raise DatabaseError(message="人设卡目录不存在，请稍后重试或联系管理员")
 
         # 保存新文件并创建文件记录，同时校验 TOML 版本号
         new_file = files[0]
@@ -723,7 +686,7 @@ class FileUploadService:
                 if not parsed_version:
                     raise ValidationError(
                         message="人设卡配置错误：TOML 中未找到版本号字段，请在 bot_config.toml 中添加 version 等版本字段后重试",
-                        details={"code": "PERSONA_TOML_VERSION_MISSING"}
+                        details={"code": "PERSONA_TOML_VERSION_MISSING"},
                     )
                 persona_version = parsed_version
 
@@ -734,14 +697,12 @@ class FileUploadService:
                 "original_name": new_file.filename,
                 "file_path": os.path.basename(file_path),  # 只存储文件名，相对于人设卡目录
                 "file_type": file_ext,
-                "file_size": file_size_b  # 添加文件大小(B)
+                "file_size": file_size_b,  # 添加文件大小(B)
             }
 
             saved_file = sqlite_db_manager.save_persona_card_file(file_data)
             if not saved_file:
-                raise DatabaseError(
-                    message="人设卡文件保存失败，请稍后重试或联系管理员"
-                )
+                raise DatabaseError(message="人设卡文件保存失败，请稍后重试或联系管理员")
 
             # 新文件保存成功后，删除旧文件及记录（实现“替换”）
             for old_file in current_files:
@@ -772,7 +733,7 @@ class FileUploadService:
                 os.remove(file_path)
             raise ValidationError(
                 message="人设卡配置解析失败：TOML 语法错误，请检查 bot_config.toml 格式是否正确",
-                details={"code": "PERSONA_TOML_PARSE_ERROR"}
+                details={"code": "PERSONA_TOML_PARSE_ERROR"},
             )
 
     async def delete_files_from_persona_card(self, pc_id: str, file_id: str, user_id: str) -> bool:
@@ -802,7 +763,7 @@ class FileUploadService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"删除文件失败 {pc_file.original_name}: {str(e)}"
+                detail=f"删除文件失败 {pc_file.original_name}: {str(e)}",
             )
 
         return True
@@ -819,25 +780,17 @@ class FileUploadService:
         if not pc_file:
             return None
         else:
-            return {
-                "file_id": pc_file.id,
-                "file_name": pc_file.original_name,
-                "file_path": pc_file.file_path
-            }
+            return {"file_id": pc_file.id, "file_name": pc_file.original_name, "file_path": pc_file.file_path}
 
     async def create_persona_card_zip(self, pc_id: str) -> dict:
         """创建人设卡的ZIP文件，返回ZIP文件路径和文件名"""
         # 获取人设卡信息
         pc = sqlite_db_manager.get_persona_card_by_id(pc_id)
         if not pc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="人设卡不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="人设卡不存在")
 
         # 获取人设卡文件列表
-        pc_files = sqlite_db_manager.get_persona_card_files_by_persona_card_id(
-            pc_id)
+        pc_files = sqlite_db_manager.get_persona_card_files_by_persona_card_id(pc_id)
 
         # 获取上传者信息
         uploader = sqlite_db_manager.get_user_by_id(pc.uploader_id)
@@ -852,8 +805,7 @@ class FileUploadService:
 
         if missing_files:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"以下文件不存在: {', '.join(missing_files)}"
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"以下文件不存在: {', '.join(missing_files)}"
             )
 
         # 创建临时ZIP文件
@@ -863,11 +815,10 @@ class FileUploadService:
         zip_path = os.path.join(temp_dir, zip_filename)
 
         try:
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
                 # 添加人设卡文件
                 for pc_file in pc_files:
-                    file_full_path = os.path.join(
-                        pc.base_path, pc_file.file_path)
+                    file_full_path = os.path.join(pc.base_path, pc_file.file_path)
                     zipf.write(file_full_path, pc_file.original_name)
 
                 # 创建说明文件
@@ -901,10 +852,7 @@ class FileUploadService:
             # 清理临时文件
             if os.path.exists(zip_path):
                 os.remove(zip_path)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"创建压缩包失败: {str(e)}"
-            )
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"创建压缩包失败: {str(e)}")
 
 
 # 创建全局文件上传服务实例

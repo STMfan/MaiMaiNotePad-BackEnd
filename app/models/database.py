@@ -15,6 +15,7 @@ from app.core.database import Base
 
 class User(Base):
     """用户模型"""
+
     __tablename__ = "users"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -46,12 +47,12 @@ class User(Base):
 
     # 索引
     __table_args__ = (
-        Index('idx_user_username', 'username'),
-        Index('idx_user_email', 'email'),
-        Index('idx_user_is_active', 'is_active'),
-        Index('idx_user_is_admin', 'is_admin'),
-        Index('idx_user_is_moderator', 'is_moderator'),
-        Index('idx_user_is_super_admin', 'is_super_admin'),
+        Index("idx_user_username", "username"),
+        Index("idx_user_email", "email"),
+        Index("idx_user_is_active", "is_active"),
+        Index("idx_user_is_admin", "is_admin"),
+        Index("idx_user_is_moderator", "is_moderator"),
+        Index("idx_user_is_super_admin", "is_super_admin"),
     )
 
     # 关联关系
@@ -89,6 +90,7 @@ class User(Base):
 
 class KnowledgeBase(Base):
     """知识库模型"""
+
     __tablename__ = "knowledge_bases"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -110,12 +112,12 @@ class KnowledgeBase(Base):
 
     # 索引
     __table_args__ = (
-        Index('idx_kb_uploader_id', 'uploader_id'),
-        Index('idx_kb_is_public', 'is_public'),
-        Index('idx_kb_is_pending', 'is_pending'),
-        Index('idx_kb_star_count', 'star_count'),
-        Index('idx_kb_created_at', 'created_at'),
-        Index('idx_kb_updated_at', 'updated_at'),
+        Index("idx_kb_uploader_id", "uploader_id"),
+        Index("idx_kb_is_public", "is_public"),
+        Index("idx_kb_is_pending", "is_pending"),
+        Index("idx_kb_star_count", "star_count"),
+        Index("idx_kb_created_at", "created_at"),
+        Index("idx_kb_updated_at", "updated_at"),
     )
 
     # 关联关系
@@ -125,7 +127,6 @@ class KnowledgeBase(Base):
         primaryjoin="KnowledgeBase.uploader_id==User.id",
         foreign_keys=[uploader_id],
     )
-
 
     def to_dict(self):
         return {
@@ -150,9 +151,9 @@ class KnowledgeBase(Base):
         }
 
 
-
 class KnowledgeBaseFile(Base):
     """知识库文件模型"""
+
     __tablename__ = "knowledge_base_files"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -167,16 +168,17 @@ class KnowledgeBaseFile(Base):
 
     # 索引
     __table_args__ = (
-        Index('idx_kb_file_knowledge_base_id', 'knowledge_base_id'),
-        Index('idx_kb_file_file_type', 'file_type'),
-        Index('idx_kb_file_file_size', 'file_size'),
-        Index('idx_kb_file_created_at', 'created_at'),
-        Index('idx_kb_file_updated_at', 'updated_at'),
+        Index("idx_kb_file_knowledge_base_id", "knowledge_base_id"),
+        Index("idx_kb_file_file_type", "file_type"),
+        Index("idx_kb_file_file_size", "file_size"),
+        Index("idx_kb_file_created_at", "created_at"),
+        Index("idx_kb_file_updated_at", "updated_at"),
     )
 
 
 class PersonaCard(Base):
     """人设卡模型"""
+
     __tablename__ = "persona_cards"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -198,12 +200,12 @@ class PersonaCard(Base):
 
     # 索引
     __table_args__ = (
-        Index('idx_pc_uploader_id', 'uploader_id'),
-        Index('idx_pc_is_public', 'is_public'),
-        Index('idx_pc_is_pending', 'is_pending'),
-        Index('idx_pc_star_count', 'star_count'),
-        Index('idx_pc_created_at', 'created_at'),
-        Index('idx_pc_updated_at', 'updated_at'),
+        Index("idx_pc_uploader_id", "uploader_id"),
+        Index("idx_pc_is_public", "is_public"),
+        Index("idx_pc_is_pending", "is_pending"),
+        Index("idx_pc_star_count", "star_count"),
+        Index("idx_pc_created_at", "created_at"),
+        Index("idx_pc_updated_at", "updated_at"),
     )
 
     # 关联关系
@@ -213,7 +215,6 @@ class PersonaCard(Base):
         primaryjoin="PersonaCard.uploader_id==User.id",
         foreign_keys=[uploader_id],
     )
-
 
     def to_dict(self):
         return {
@@ -238,9 +239,9 @@ class PersonaCard(Base):
         }
 
 
-
 class PersonaCardFile(Base):
     """人设卡文件模型"""
+
     __tablename__ = "persona_card_files"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -255,16 +256,17 @@ class PersonaCardFile(Base):
 
     # 索引
     __table_args__ = (
-        Index('idx_pc_file_persona_card_id', 'persona_card_id'),
-        Index('idx_pc_file_file_type', 'file_type'),
-        Index('idx_pc_file_file_size', 'file_size'),
-        Index('idx_pc_file_created_at', 'created_at'),
-        Index('idx_pc_file_updated_at', 'updated_at'),
+        Index("idx_pc_file_persona_card_id", "persona_card_id"),
+        Index("idx_pc_file_file_type", "file_type"),
+        Index("idx_pc_file_file_size", "file_size"),
+        Index("idx_pc_file_created_at", "created_at"),
+        Index("idx_pc_file_updated_at", "updated_at"),
     )
 
 
 class Message(Base):
     """消息模型"""
+
     __tablename__ = "messages"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -280,11 +282,11 @@ class Message(Base):
 
     # 索引
     __table_args__ = (
-        Index('idx_message_recipient_id', 'recipient_id'),
-        Index('idx_message_sender_id', 'sender_id'),
-        Index('idx_message_is_read', 'is_read'),
-        Index('idx_message_created_at', 'created_at'),
-        Index('idx_message_recipient_read', 'recipient_id', 'is_read'),
+        Index("idx_message_recipient_id", "recipient_id"),
+        Index("idx_message_sender_id", "sender_id"),
+        Index("idx_message_is_read", "is_read"),
+        Index("idx_message_created_at", "created_at"),
+        Index("idx_message_recipient_read", "recipient_id", "is_read"),
     )
 
     # 关联关系
@@ -318,6 +320,7 @@ class Message(Base):
 
 class StarRecord(Base):
     """收藏记录模型"""
+
     __tablename__ = "star_records"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -328,11 +331,11 @@ class StarRecord(Base):
 
     # 索引
     __table_args__ = (
-        Index('idx_star_user_id', 'user_id'),
-        Index('idx_star_target_id', 'target_id'),
-        Index('idx_star_target_type', 'target_type'),
-        Index('idx_star_created_at', 'created_at'),
-        Index('idx_star_user_target', 'user_id', 'target_id', 'target_type'),
+        Index("idx_star_user_id", "user_id"),
+        Index("idx_star_target_id", "target_id"),
+        Index("idx_star_target_type", "target_type"),
+        Index("idx_star_created_at", "created_at"),
+        Index("idx_star_user_target", "user_id", "target_id", "target_type"),
     )
 
     # 关联关系
@@ -346,6 +349,7 @@ class StarRecord(Base):
 
 class EmailVerification(Base):
     """邮箱验证码模型"""
+
     __tablename__ = "email_verifications"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -357,14 +361,15 @@ class EmailVerification(Base):
 
     # 索引
     __table_args__ = (
-        Index('idx_email_verification_email', 'email'),
-        Index('idx_email_verification_code', 'code'),
-        Index('idx_email_verification_expires', 'expires_at'),
+        Index("idx_email_verification_email", "email"),
+        Index("idx_email_verification_code", "code"),
+        Index("idx_email_verification_expires", "expires_at"),
     )
 
 
 class UploadRecord(Base):
     """上传记录模型"""
+
     __tablename__ = "upload_records"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -379,16 +384,17 @@ class UploadRecord(Base):
 
     # 索引
     __table_args__ = (
-        Index('idx_upload_record_uploader_id', 'uploader_id'),
-        Index('idx_upload_record_target_id', 'target_id'),
-        Index('idx_upload_record_target_type', 'target_type'),
-        Index('idx_upload_record_status', 'status'),
-        Index('idx_upload_record_created_at', 'created_at'),
+        Index("idx_upload_record_uploader_id", "uploader_id"),
+        Index("idx_upload_record_target_id", "target_id"),
+        Index("idx_upload_record_target_type", "target_type"),
+        Index("idx_upload_record_status", "status"),
+        Index("idx_upload_record_created_at", "created_at"),
     )
 
 
 class DownloadRecord(Base):
     """下载记录模型"""
+
     __tablename__ = "download_records"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -397,14 +403,15 @@ class DownloadRecord(Base):
     created_at = Column(DateTime, default=datetime.now)
 
     __table_args__ = (
-        Index('idx_download_record_target_id', 'target_id'),
-        Index('idx_download_record_target_type', 'target_type'),
-        Index('idx_download_record_created_at', 'created_at'),
+        Index("idx_download_record_target_id", "target_id"),
+        Index("idx_download_record_target_type", "target_type"),
+        Index("idx_download_record_created_at", "created_at"),
     )
 
 
 class Comment(Base):
     """评论模型"""
+
     __tablename__ = "comments"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -429,6 +436,7 @@ class Comment(Base):
 
 class CommentReaction(Base):
     """评论反应模型"""
+
     __tablename__ = "comment_reactions"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

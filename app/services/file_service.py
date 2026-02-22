@@ -16,17 +16,12 @@ from werkzeug.utils import secure_filename
 
 from app.core.config import settings
 from app.core.config_manager import config_manager
-from app.models.database import (
-    KnowledgeBase,
-    PersonaCard,
-    KnowledgeBaseFile,
-    PersonaCardFile,
-    User
-)
+from app.models.database import KnowledgeBase, PersonaCard, KnowledgeBaseFile, PersonaCardFile, User
 
 
 class FileValidationError(Exception):
     """文件验证错误"""
+
     def __init__(self, message: str, code: str = None, details: dict = None):
         self.message = message
         self.code = code
@@ -36,6 +31,7 @@ class FileValidationError(Exception):
 
 class FileDatabaseError(Exception):
     """文件数据库操作错误"""
+
     def __init__(self, message: str):
         self.message = message
         super().__init__(self.message)
@@ -53,12 +49,12 @@ class FileService:
 
     def __init__(self, db: Session):
         """初始化文件服务
-        
+
         Args:
             db: 数据库会话
         """
         self.db = db
-        
+
         # 设置上传目录
         base_dir = os.getenv("UPLOAD_DIR", "uploads")
         if not base_dir:
@@ -68,7 +64,7 @@ class FileService:
         self.upload_dir = base_dir
         self.knowledge_dir = os.path.join(self.upload_dir, "knowledge")
         self.persona_dir = os.path.join(self.upload_dir, "persona")
-        
+
         # 确保目录存在
         os.makedirs(self.upload_dir, exist_ok=True)
         os.makedirs(self.knowledge_dir, exist_ok=True)
@@ -76,12 +72,12 @@ class FileService:
 
     def _save_file(self, file_content: bytes, filename: str, target_dir: str) -> tuple[str, int]:
         """保存文件到目标目录
-        
+
         Args:
             file_content: 文件内容（字节）
             filename: 文件名
             target_dir: 目标目录
-            
+
         Returns:
             tuple: (文件路径, 文件大小)
         """
@@ -107,17 +103,17 @@ class FileService:
             # 返回文件路径和大小
             file_size = len(file_content)
             return file_path, file_size
-            
+
         except Exception as e:
             raise FileDatabaseError(f"文件保存失败: {str(e)}")
 
     def _validate_file_type(self, filename: str, allowed_types: List[str]) -> bool:
         """验证文件类型
-        
+
         Args:
             filename: 文件名
             allowed_types: 允许的文件类型列表
-            
+
         Returns:
             bool: 是否有效
         """
@@ -128,10 +124,10 @@ class FileService:
 
     def _validate_file_size(self, file_size: int) -> bool:
         """验证文件大小
-        
+
         Args:
             file_size: 文件大小（字节）
-            
+
         Returns:
             bool: 是否有效
         """
@@ -139,35 +135,35 @@ class FileService:
 
     def _extract_version_from_toml(self, data: Dict[str, Any]) -> Optional[str]:
         """从TOML数据中提取版本号
-        
+
         Args:
             data: TOML数据字典
-            
+
         Returns:
             Optional[str]: 版本号，如果未找到则返回None
         """
         if not isinstance(data, dict):
             return None
-            
+
         # 首先在顶层查找版本字段
         for key in ["version", "Version", "schema_version", "card_version"]:
             value = data.get(key)
             if isinstance(value, (str, int, float)):
                 return str(value)
-        
+
         # 在meta或card字段中查找
         meta_candidates = []
         for meta_key in ["meta", "Meta", "card", "Card"]:
             meta_value = data.get(meta_key)
             if isinstance(meta_value, dict):
                 meta_candidates.append(meta_value)
-        
+
         for meta in meta_candidates:
             for key in ["version", "Version", "schema_version", "card_version"]:
                 value = meta.get(key)
                 if isinstance(value, (str, int, float)):
                     return str(value)
-        
+
         # 深度搜索
         visited = set()
         stack = [data]
@@ -176,7 +172,7 @@ class FileService:
             if id(current) in visited:
                 continue
             visited.add(id(current))
-            
+
             if isinstance(current, dict):
                 for k, v in current.items():
                     if isinstance(k, str) and k.lower() == "version" and isinstance(v, (str, int, float)):
@@ -187,7 +183,7 @@ class FileService:
                 for v in current:
                     if isinstance(v, (dict, list)):
                         stack.append(v)
-        
+
         return None
 
     def upload_knowledge_base(
@@ -201,7 +197,7 @@ class FileService:
         tags: Optional[str] = None,
     ) -> KnowledgeBase:
         """上传知识库
-        
+
         Args:
             files: 文件列表，每个元素为(文件名, 文件内容)元组
             name: 知识库名称
@@ -210,15 +206,14 @@ class FileService:
             copyright_owner: 版权所有者
             content: 内容
             tags: 标签
-            
+
         Returns:
             KnowledgeBase: 创建的知识库对象
         """
         # 验证文件数量
         if len(files) > self.MAX_KNOWLEDGE_FILES:
             raise FileValidationError(
-                f"文件数量超过限制，最多允许{self.MAX_KNOWLEDGE_FILES}个文件",
-                code="FILE_COUNT_EXCEEDED"
+                f"文件数量超过限制，最多允许{self.MAX_KNOWLEDGE_FILES}个文件", code="FILE_COUNT_EXCEEDED"
             )
 
         # 验证文件类型和大小
@@ -226,13 +221,12 @@ class FileService:
             if not self._validate_file_type(filename, self.ALLOWED_KNOWLEDGE_TYPES):
                 raise FileValidationError(
                     f"不支持的文件类型: {filename}。仅支持{', '.join(self.ALLOWED_KNOWLEDGE_TYPES)}文件",
-                    code="INVALID_FILE_TYPE"
+                    code="INVALID_FILE_TYPE",
                 )
 
             if not self._validate_file_size(len(file_content)):
                 raise FileValidationError(
-                    f"文件过大: {filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
-                    code="FILE_SIZE_EXCEEDED"
+                    f"文件过大: {filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB", code="FILE_SIZE_EXCEEDED"
                 )
 
         # 创建知识库目录
@@ -251,7 +245,7 @@ class FileService:
                 tags=tags,
                 base_path=kb_dir,
                 is_pending=True,
-                is_public=False
+                is_public=False,
             )
             self.db.add(kb)
             self.db.flush()  # 获取ID
@@ -268,14 +262,14 @@ class FileService:
                     original_name=filename,
                     file_path=os.path.basename(file_path),
                     file_type=file_ext,
-                    file_size=file_size
+                    file_size=file_size,
                 )
                 self.db.add(kb_file)
 
             self.db.commit()
             self.db.refresh(kb)
             return kb
-            
+
         except Exception as e:
             self.db.rollback()
             # 清理已创建的目录
@@ -294,7 +288,7 @@ class FileService:
         tags: Optional[str] = None,
     ) -> PersonaCard:
         """上传人设卡
-        
+
         Args:
             files: 文件列表，每个元素为(文件名, 文件内容)元组
             name: 人设卡名称
@@ -303,39 +297,38 @@ class FileService:
             copyright_owner: 版权所有者
             content: 内容
             tags: 标签
-            
+
         Returns:
             PersonaCard: 创建的人设卡对象
         """
         # 验证文件数量
         if len(files) != 1:
             raise FileValidationError(
-                "人设卡配置错误：必须且仅包含一个 bot_config.toml 文件",
-                code="PERSONA_FILE_COUNT_INVALID"
+                "人设卡配置错误：必须且仅包含一个 bot_config.toml 文件", code="PERSONA_FILE_COUNT_INVALID"
             )
 
         # 验证文件
         filename, file_content = files[0]
-        
+
         if filename != "bot_config.toml":
             raise FileValidationError(
                 "人设卡配置错误：配置文件名必须为 bot_config.toml",
                 code="PERSONA_FILE_NAME_INVALID",
-                details={"filename": filename}
+                details={"filename": filename},
             )
 
         if not self._validate_file_type(filename, self.ALLOWED_PERSONA_TYPES):
             raise FileValidationError(
                 f"人设卡配置错误：不支持的文件类型 {filename}，仅支持{', '.join(self.ALLOWED_PERSONA_TYPES)} 文件",
                 code="PERSONA_FILE_TYPE_INVALID",
-                details={"filename": filename}
+                details={"filename": filename},
             )
 
         if not self._validate_file_size(len(file_content)):
             raise FileValidationError(
                 f"人设卡配置错误：文件过大 {filename}，单个文件最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
                 code="PERSONA_FILE_SIZE_EXCEEDED",
-                details={"filename": filename}
+                details={"filename": filename},
             )
 
         # 创建人设卡目录
@@ -358,14 +351,14 @@ class FileService:
                     if not persona_version:
                         raise FileValidationError(
                             "人设卡配置错误：TOML 中未找到版本号字段，请在 bot_config.toml 中添加 version 等版本字段后重试",
-                            code="PERSONA_TOML_VERSION_MISSING"
+                            code="PERSONA_TOML_VERSION_MISSING",
                         )
                 except FileValidationError:
                     raise
                 except Exception:
                     raise FileValidationError(
                         "人设卡配置解析失败：TOML 语法错误，请检查 bot_config.toml 格式是否正确",
-                        code="PERSONA_TOML_PARSE_ERROR"
+                        code="PERSONA_TOML_PARSE_ERROR",
                     )
 
             # 创建人设卡记录
@@ -379,7 +372,7 @@ class FileService:
                 base_path=pc_dir,
                 version=persona_version,
                 is_pending=True,
-                is_public=False
+                is_public=False,
             )
             self.db.add(pc)
             self.db.flush()
@@ -391,14 +384,14 @@ class FileService:
                 original_name=filename,
                 file_path=os.path.basename(file_path),
                 file_type=file_ext,
-                file_size=file_size
+                file_size=file_size,
             )
             self.db.add(pc_file)
 
             self.db.commit()
             self.db.refresh(pc)
             return pc
-            
+
         except Exception as e:
             self.db.rollback()
             # 清理已创建的目录
@@ -410,10 +403,10 @@ class FileService:
 
     def get_knowledge_base_content(self, kb_id: str) -> Dict[str, Any]:
         """获取知识库内容
-        
+
         Args:
             kb_id: 知识库ID
-            
+
         Returns:
             Dict: 包含知识库信息和文件列表的字典
         """
@@ -422,9 +415,7 @@ class FileService:
             raise FileValidationError("知识库不存在", code="KB_NOT_FOUND")
 
         # 获取知识库文件列表
-        kb_files = self.db.query(KnowledgeBaseFile).filter(
-            KnowledgeBaseFile.knowledge_base_id == kb_id
-        ).all()
+        kb_files = self.db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == kb_id).all()
 
         return {
             "knowledge_base": {
@@ -440,19 +431,22 @@ class FileService:
                 "created_at": kb.created_at,
                 "updated_at": kb.updated_at,
             },
-            "files": [{
-                "file_id": file.id,
-                "original_name": file.original_name,
-                "file_size": file.file_size,
-            } for file in kb_files],
+            "files": [
+                {
+                    "file_id": file.id,
+                    "original_name": file.original_name,
+                    "file_size": file.file_size,
+                }
+                for file in kb_files
+            ],
         }
 
     def get_persona_card_content(self, pc_id: str) -> Dict[str, Any]:
         """获取人设卡内容
-        
+
         Args:
             pc_id: 人设卡ID
-            
+
         Returns:
             Dict: 包含人设卡信息和文件列表的字典
         """
@@ -461,9 +455,7 @@ class FileService:
             raise FileValidationError("人设卡不存在", code="PC_NOT_FOUND")
 
         # 获取人设卡文件列表
-        pc_files = self.db.query(PersonaCardFile).filter(
-            PersonaCardFile.persona_card_id == pc_id
-        ).all()
+        pc_files = self.db.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == pc_id).all()
 
         return {
             "persona_card": {
@@ -480,26 +472,24 @@ class FileService:
                 "created_at": pc.created_at,
                 "updated_at": pc.updated_at,
             },
-            "files": [{
-                "file_id": file.id,
-                "original_name": file.original_name,
-                "file_size": file.file_size,
-            } for file in pc_files],
+            "files": [
+                {
+                    "file_id": file.id,
+                    "original_name": file.original_name,
+                    "file_size": file.file_size,
+                }
+                for file in pc_files
+            ],
         }
 
-    def add_files_to_knowledge_base(
-        self,
-        kb_id: str,
-        files: List[tuple[str, bytes]],
-        user_id: str
-    ) -> KnowledgeBase:
+    def add_files_to_knowledge_base(self, kb_id: str, files: List[tuple[str, bytes]], user_id: str) -> KnowledgeBase:
         """向知识库添加文件
-        
+
         Args:
             kb_id: 知识库ID
             files: 文件列表，每个元素为(文件名, 文件内容)元组
             user_id: 用户ID
-            
+
         Returns:
             KnowledgeBase: 更新后的知识库对象
         """
@@ -509,39 +499,33 @@ class FileService:
             raise FileValidationError("知识库不存在", code="KB_NOT_FOUND")
 
         # 获取现有文件
-        current_files = self.db.query(KnowledgeBaseFile).filter(
-            KnowledgeBaseFile.knowledge_base_id == kb_id
-        ).all()
+        current_files = self.db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == kb_id).all()
         current_file_count = len(current_files)
 
         # 检查文件数量限制
         if current_file_count + len(files) > self.MAX_KNOWLEDGE_FILES:
             raise FileValidationError(
                 f"文件数量超过限制，当前{current_file_count}个文件，最多允许{self.MAX_KNOWLEDGE_FILES}个文件",
-                code="FILE_COUNT_EXCEEDED"
+                code="FILE_COUNT_EXCEEDED",
             )
 
         # 检查同名文件
         existing_file_names = {file.original_name for file in current_files}
         for filename, _ in files:
             if filename in existing_file_names:
-                raise FileValidationError(
-                    f"文件名已存在: {filename}",
-                    code="DUPLICATE_FILENAME"
-                )
+                raise FileValidationError(f"文件名已存在: {filename}", code="DUPLICATE_FILENAME")
 
         # 验证文件类型和大小
         for filename, file_content in files:
             if not self._validate_file_type(filename, self.ALLOWED_KNOWLEDGE_TYPES):
                 raise FileValidationError(
                     f"不支持的文件类型: {filename}。仅支持{', '.join(self.ALLOWED_KNOWLEDGE_TYPES)}文件",
-                    code="INVALID_FILE_TYPE"
+                    code="INVALID_FILE_TYPE",
                 )
 
             if not self._validate_file_size(len(file_content)):
                 raise FileValidationError(
-                    f"文件过大: {filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB",
-                    code="FILE_SIZE_EXCEEDED"
+                    f"文件过大: {filename}。最大允许{self.MAX_FILE_SIZE // (1024*1024)}MB", code="FILE_SIZE_EXCEEDED"
                 )
 
         # 获取知识库目录
@@ -562,7 +546,7 @@ class FileService:
                     original_name=filename,
                     file_path=os.path.basename(file_path),
                     file_type=file_ext,
-                    file_size=file_size
+                    file_size=file_size,
                 )
                 self.db.add(kb_file)
 
@@ -571,7 +555,7 @@ class FileService:
             self.db.commit()
             self.db.refresh(kb)
             return kb
-            
+
         except Exception as e:
             self.db.rollback()
             if isinstance(e, (FileValidationError, FileDatabaseError)):
@@ -580,12 +564,12 @@ class FileService:
 
     def delete_file_from_knowledge_base(self, kb_id: str, file_id: str, user_id: str) -> bool:
         """从知识库删除文件
-        
+
         Args:
             kb_id: 知识库ID
             file_id: 文件ID
             user_id: 用户ID
-            
+
         Returns:
             bool: 是否成功删除
         """
@@ -595,10 +579,11 @@ class FileService:
             raise FileValidationError("知识库不存在", code="KB_NOT_FOUND")
 
         # 获取文件
-        kb_file = self.db.query(KnowledgeBaseFile).filter(
-            KnowledgeBaseFile.id == file_id,
-            KnowledgeBaseFile.knowledge_base_id == kb_id
-        ).first()
+        kb_file = (
+            self.db.query(KnowledgeBaseFile)
+            .filter(KnowledgeBaseFile.id == file_id, KnowledgeBaseFile.knowledge_base_id == kb_id)
+            .first()
+        )
         if not kb_file:
             raise FileValidationError("文件不存在", code="FILE_NOT_FOUND")
 
@@ -615,23 +600,23 @@ class FileService:
 
             # 删除数据库记录
             self.db.delete(kb_file)
-            
+
             # 更新知识库时间戳
             kb.updated_at = datetime.now()
             self.db.commit()
             return True
-            
+
         except Exception as e:
             self.db.rollback()
             raise FileDatabaseError(f"删除文件失败: {str(e)}")
 
     def delete_knowledge_base(self, kb_id: str, user_id: str) -> bool:
         """删除整个知识库
-        
+
         Args:
             kb_id: 知识库ID
             user_id: 用户ID
-            
+
         Returns:
             bool: 是否成功删除
         """
@@ -654,10 +639,10 @@ class FileService:
 
     def create_knowledge_base_zip(self, kb_id: str) -> dict:
         """创建知识库的ZIP文件
-        
+
         Args:
             kb_id: 知识库ID
-            
+
         Returns:
             dict: 包含zip_path和zip_filename的字典
         """
@@ -667,9 +652,7 @@ class FileService:
             raise FileValidationError("知识库不存在", code="KB_NOT_FOUND")
 
         # 获取知识库文件列表
-        kb_files = self.db.query(KnowledgeBaseFile).filter(
-            KnowledgeBaseFile.knowledge_base_id == kb_id
-        ).all()
+        kb_files = self.db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == kb_id).all()
 
         # 获取上传者信息
         uploader = self.db.query(User).filter(User.id == kb.uploader_id).first()
@@ -683,10 +666,7 @@ class FileService:
                 missing_files.append(kb_file.original_name)
 
         if missing_files:
-            raise FileValidationError(
-                f"以下文件不存在: {', '.join(missing_files)}",
-                code="FILES_MISSING"
-            )
+            raise FileValidationError(f"以下文件不存在: {', '.join(missing_files)}", code="FILES_MISSING")
 
         # 创建临时ZIP文件
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -695,7 +675,7 @@ class FileService:
         zip_path = os.path.join(temp_dir, zip_filename)
 
         try:
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
                 # 添加知识库文件
                 for kb_file in kb_files:
                     file_full_path = os.path.join(kb.base_path, kb_file.file_path)
@@ -735,10 +715,10 @@ class FileService:
 
     def create_persona_card_zip(self, pc_id: str) -> dict:
         """创建人设卡的ZIP文件
-        
+
         Args:
             pc_id: 人设卡ID
-            
+
         Returns:
             dict: 包含zip_path和zip_filename的字典
         """
@@ -748,9 +728,7 @@ class FileService:
             raise FileValidationError("人设卡不存在", code="PC_NOT_FOUND")
 
         # 获取人设卡文件列表
-        pc_files = self.db.query(PersonaCardFile).filter(
-            PersonaCardFile.persona_card_id == pc_id
-        ).all()
+        pc_files = self.db.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == pc_id).all()
 
         # 获取上传者信息
         uploader = self.db.query(User).filter(User.id == pc.uploader_id).first()
@@ -764,10 +742,7 @@ class FileService:
                 missing_files.append(pc_file.original_name)
 
         if missing_files:
-            raise FileValidationError(
-                f"以下文件不存在: {', '.join(missing_files)}",
-                code="FILES_MISSING"
-            )
+            raise FileValidationError(f"以下文件不存在: {', '.join(missing_files)}", code="FILES_MISSING")
 
         # 创建临时ZIP文件
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -776,7 +751,7 @@ class FileService:
         zip_path = os.path.join(temp_dir, zip_filename)
 
         try:
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
                 # 添加人设卡文件
                 for pc_file in pc_files:
                     file_full_path = os.path.join(pc.base_path, pc_file.file_path)
@@ -816,11 +791,11 @@ class FileService:
 
     def get_knowledge_base_file_path(self, kb_id: str, file_id: str) -> Optional[dict]:
         """获取知识库中指定文件的完整路径
-        
+
         Args:
             kb_id: 知识库ID
             file_id: 文件ID
-            
+
         Returns:
             Optional[dict]: 包含file_name和file_path的字典，如果不存在则返回None
         """
@@ -830,26 +805,24 @@ class FileService:
             return None
 
         # 查找文件
-        kb_file = self.db.query(KnowledgeBaseFile).filter(
-            KnowledgeBaseFile.id == file_id,
-            KnowledgeBaseFile.knowledge_base_id == kb_id
-        ).first()
-        
+        kb_file = (
+            self.db.query(KnowledgeBaseFile)
+            .filter(KnowledgeBaseFile.id == file_id, KnowledgeBaseFile.knowledge_base_id == kb_id)
+            .first()
+        )
+
         if not kb_file:
             return None
-        
-        return {
-            "file_name": kb_file.original_name,
-            "file_path": kb_file.file_path
-        }
+
+        return {"file_name": kb_file.original_name, "file_path": kb_file.file_path}
 
     def get_persona_card_file_path(self, pc_id: str, file_id: str) -> Optional[dict]:
         """获取人设卡中指定文件的信息
-        
+
         Args:
             pc_id: 人设卡ID
             file_id: 文件ID
-            
+
         Returns:
             Optional[dict]: 包含file_id、file_name和file_path的字典，如果不存在则返回None
         """
@@ -859,16 +832,13 @@ class FileService:
             return None
 
         # 查找文件
-        pc_file = self.db.query(PersonaCardFile).filter(
-            PersonaCardFile.id == file_id,
-            PersonaCardFile.persona_card_id == pc_id
-        ).first()
-        
+        pc_file = (
+            self.db.query(PersonaCardFile)
+            .filter(PersonaCardFile.id == file_id, PersonaCardFile.persona_card_id == pc_id)
+            .first()
+        )
+
         if not pc_file:
             return None
-        
-        return {
-            "file_id": pc_file.id,
-            "file_name": pc_file.original_name,
-            "file_path": pc_file.file_path
-        }
+
+        return {"file_id": pc_file.id, "file_name": pc_file.original_name, "file_path": pc_file.file_path}

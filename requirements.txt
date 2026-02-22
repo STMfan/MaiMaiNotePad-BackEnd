@@ -1,22 +1,32 @@
+# 生产环境依赖
+# Production dependencies
+
+# Web 框架
 fastapi==0.129.0
-uvicorn==0.30.3
-python-dotenv==1.2.1
-passlib[bcrypt]==1.7.4
-bcrypt==3.2.2
-pytest==9.0.2
-pytest-xdist==3.6.1
-pytest-cov==6.0.0
-httpx==0.28.1
-requests==2.32.4
-aiofiles==25.1.0
-python-multipart==0.0.22
-PyJWT==2.10.1
-werkzeug==3.1.5
+uvicorn[standard]==0.30.3
+
+# 数据库
 sqlalchemy==2.0.46
+alembic==1.18.4
+
+# 数据验证
 pydantic[email]==2.12.5
 pydantic-settings==2.13.0
+
+# 安全
+bcrypt==4.2.1
+PyJWT==2.10.1
+
+# 工具库
+python-dotenv==1.2.1
+python-multipart==0.0.22
+aiofiles==25.1.0
+requests==2.32.4
 toml==0.10.2
+werkzeug==3.1.5
+
+# 限流
 slowapi==0.1.9
+
+# 图像处理
 Pillow==10.4.0
-alembic==1.18.4
-hypothesis==6.122.4

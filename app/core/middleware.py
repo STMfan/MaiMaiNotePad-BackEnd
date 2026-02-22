@@ -17,10 +17,10 @@ from app.core.logging import app_logger
 def setup_middlewares(app: FastAPI) -> None:
     """
     为 FastAPI 应用配置所有中间件。
-    
+
     Args:
         app: FastAPI 应用实例
-        
+
     中间件执行顺序（从外到内）：
     1. ErrorHandlerMiddleware - 错误处理和请求日志（待添加）
     2. SlowAPIMiddleware - 速率限制
@@ -49,7 +49,7 @@ def setup_middlewares(app: FastAPI) -> None:
         app_logger.debug("CORS 中间件已配置")
 
         app_logger.info("中间件配置完成")
-        
+
     except Exception as e:
         app_logger.error(f"中间件配置失败: {str(e)}")
         raise

@@ -23,7 +23,7 @@ class KnowledgeService:
     def __init__(self, db: Session):
         """
         初始化知识库服务。
-        
+
         Args:
             db: SQLAlchemy 数据库会话
         """
@@ -32,11 +32,11 @@ class KnowledgeService:
     def get_knowledge_base_by_id(self, kb_id: str, include_files: bool = False) -> Optional[KnowledgeBase]:
         """
         根据 ID 获取知识库。
-        
+
         Args:
             kb_id: 知识库 ID
             include_files: 是否包含文件信息
-            
+
         Returns:
             找到返回知识库对象，否则返回 None
         """
@@ -44,7 +44,7 @@ class KnowledgeService:
             kb = self.db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
             return kb
         except Exception as e:
-            logger.error(f'获取知识库失败 ID={kb_id}: {str(e)}')
+            logger.error(f"获取知识库失败 ID={kb_id}: {str(e)}")
             return None
 
     def get_public_knowledge_bases(
@@ -54,11 +54,11 @@ class KnowledgeService:
         name: Optional[str] = None,
         uploader_id: Optional[str] = None,
         sort_by: str = "created_at",
-        sort_order: str = "desc"
+        sort_order: str = "desc",
     ) -> Tuple[List[KnowledgeBase], int]:
         """
         获取公开知识库列表，支持分页、搜索和排序。
-        
+
         Args:
             page: 页码（从 1 开始）
             page_size: 每页数量
@@ -66,20 +66,19 @@ class KnowledgeService:
             uploader_id: 按上传者 ID 筛选（可选）
             sort_by: 排序字段（created_at、updated_at、star_count）
             sort_order: 排序方向（asc、desc）
-            
+
         Returns:
             (知识库列表, 总数) 元组
         """
         try:
             query = self.db.query(KnowledgeBase).filter(
-                KnowledgeBase.is_public == True,
-                KnowledgeBase.is_pending == False
+                KnowledgeBase.is_public == True, KnowledgeBase.is_pending == False
             )
 
             # 应用筛选条件
             if name:
                 query = query.filter(KnowledgeBase.name.ilike(f"%{name}%"))
-            
+
             if uploader_id:
                 query = query.filter(KnowledgeBase.uploader_id == uploader_id)
 
@@ -90,10 +89,10 @@ class KnowledgeService:
             sort_field_map = {
                 "created_at": KnowledgeBase.created_at,
                 "updated_at": KnowledgeBase.updated_at,
-                "star_count": KnowledgeBase.star_count
+                "star_count": KnowledgeBase.star_count,
             }
             sort_field = sort_field_map.get(sort_by, KnowledgeBase.created_at)
-            
+
             if sort_order.lower() == "asc":
                 query = query.order_by(sort_field.asc())
             else:
@@ -105,7 +104,7 @@ class KnowledgeService:
 
             return kbs, total
         except Exception as e:
-            logger.error(f'获取公开知识库列表失败: {str(e)}')
+            logger.error(f"获取公开知识库列表失败: {str(e)}")
             return [], 0
 
     def get_user_knowledge_bases(
@@ -117,11 +116,11 @@ class KnowledgeService:
         tag: Optional[str] = None,
         status: str = "all",
         sort_by: str = "created_at",
-        sort_order: str = "desc"
+        sort_order: str = "desc",
     ) -> Tuple[List[KnowledgeBase], int]:
         """
         获取指定用户上传的知识库列表。
-        
+
         Args:
             user_id: 用户 ID
             page: 页码（从 1 开始）
@@ -131,14 +130,12 @@ class KnowledgeService:
             status: 状态筛选（all/pending/approved/rejected）
             sort_by: 排序字段（created_at/updated_at/name/downloads/star_count）
             sort_order: 排序方向（asc/desc）
-            
+
         Returns:
             (知识库列表, 总数) 元组
         """
         try:
-            kbs = self.db.query(KnowledgeBase).filter(
-                KnowledgeBase.uploader_id == user_id
-            ).all()
+            kbs = self.db.query(KnowledgeBase).filter(KnowledgeBase.uploader_id == user_id).all()
 
             # 按状态筛选
             def match_status(kb):
@@ -184,28 +181,28 @@ class KnowledgeService:
 
             return page_items, total
         except Exception as e:
-            logger.error(f'获取用户 {user_id} 的知识库列表失败: {str(e)}')
+            logger.error(f"获取用户 {user_id} 的知识库列表失败: {str(e)}")
             return [], 0
 
     def save_knowledge_base(self, kb_data: Dict[str, Any]) -> Optional[KnowledgeBase]:
         """
         保存或更新知识库。
-        
+
         Args:
             kb_data: 知识库数据字典
-            
+
         Returns:
             成功返回知识库对象，否则返回 None
         """
         try:
             kb_id = kb_data.get("id")
-            
+
             if kb_id:
                 # 更新已有知识库
                 kb = self.get_knowledge_base_by_id(kb_id)
                 if not kb:
                     return None
-                
+
                 for key, value in kb_data.items():
                     if hasattr(kb, key) and key not in ["id", "created_at"]:
                         setattr(kb, key, value)
@@ -213,61 +210,55 @@ class KnowledgeService:
                 # 创建新知识库
                 kb = KnowledgeBase(**kb_data)
                 self.db.add(kb)
-            
+
             self.db.commit()
             self.db.refresh(kb)
-            
-            logger.info(f'知识库已保存: kb_id={kb.id}')
+
+            logger.info(f"知识库已保存: kb_id={kb.id}")
             return kb
         except Exception as e:
             self.db.rollback()
-            logger.error(f'保存知识库失败: {str(e)}')
+            logger.error(f"保存知识库失败: {str(e)}")
             return None
 
     def check_duplicate_name(self, user_id: str, name: str, exclude_kb_id: Optional[str] = None) -> bool:
         """
         检查用户是否已有同名知识库。
-        
+
         Args:
             user_id: 用户 ID
             name: 知识库名称
             exclude_kb_id: 排除的知识库 ID（用于更新时）
-            
+
         Returns:
             存在重复返回 True，否则返回 False
         """
         try:
             query = self.db.query(KnowledgeBase).filter(
-                KnowledgeBase.uploader_id == user_id,
-                KnowledgeBase.name == name
+                KnowledgeBase.uploader_id == user_id, KnowledgeBase.name == name
             )
-            
+
             if exclude_kb_id:
                 query = query.filter(KnowledgeBase.id != exclude_kb_id)
-            
+
             return query.first() is not None
         except Exception as e:
-            logger.error(f'检查知识库重名失败: {str(e)}')
+            logger.error(f"检查知识库重名失败: {str(e)}")
             return False
 
     def update_knowledge_base(
-        self,
-        kb_id: str,
-        update_data: Dict[str, Any],
-        user_id: str,
-        is_admin: bool = False,
-        is_moderator: bool = False
+        self, kb_id: str, update_data: Dict[str, Any], user_id: str, is_admin: bool = False, is_moderator: bool = False
     ) -> Tuple[bool, str, Optional[KnowledgeBase]]:
         """
         更新知识库信息。
-        
+
         Args:
             kb_id: 知识库 ID
             update_data: 要更新的字段字典
             user_id: 操作用户 ID
             is_admin: 是否为管理员
             is_moderator: 是否为审核员
-            
+
         Returns:
             (是否成功, 提示消息, 知识库对象) 元组
         """
@@ -308,20 +299,20 @@ class KnowledgeService:
             self.db.commit()
             self.db.refresh(kb)
 
-            logger.info(f'知识库已更新: kb_id={kb_id}, user_id={user_id}')
+            logger.info(f"知识库已更新: kb_id={kb_id}, user_id={user_id}")
             return True, "修改知识库成功", kb
         except Exception as e:
             self.db.rollback()
-            logger.error(f'更新知识库 {kb_id} 失败: {str(e)}')
+            logger.error(f"更新知识库 {kb_id} 失败: {str(e)}")
             return False, "修改知识库失败", None
 
     def delete_knowledge_base(self, kb_id: str) -> bool:
         """
         从数据库删除知识库。
-        
+
         Args:
             kb_id: 知识库 ID
-            
+
         Returns:
             成功返回 True，否则返回 False
         """
@@ -333,44 +324,47 @@ class KnowledgeService:
             self.db.delete(kb)
             self.db.commit()
 
-            logger.info(f'知识库已删除: kb_id={kb_id}')
+            logger.info(f"知识库已删除: kb_id={kb_id}")
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'删除知识库 {kb_id} 失败: {str(e)}')
+            logger.error(f"删除知识库 {kb_id} 失败: {str(e)}")
             return False
 
     def is_starred(self, user_id: str, kb_id: str) -> bool:
         """
         检查用户是否已收藏该知识库。
-        
+
         Args:
             user_id: 用户 ID
             kb_id: 知识库 ID
-            
+
         Returns:
             已收藏返回 True，否则返回 False
         """
         try:
             from app.models.database import StarRecord
-            record = self.db.query(StarRecord).filter(
-                StarRecord.user_id == user_id,
-                StarRecord.target_id == kb_id,
-                StarRecord.target_type == "knowledge"
-            ).first()
+
+            record = (
+                self.db.query(StarRecord)
+                .filter(
+                    StarRecord.user_id == user_id, StarRecord.target_id == kb_id, StarRecord.target_type == "knowledge"
+                )
+                .first()
+            )
             return record is not None
         except Exception as e:
-            logger.error(f'检查收藏状态失败: {str(e)}')
+            logger.error(f"检查收藏状态失败: {str(e)}")
             return False
 
     def add_star(self, user_id: str, kb_id: str) -> bool:
         """
         收藏知识库。
-        
+
         Args:
             user_id: 用户 ID
             kb_id: 知识库 ID
-            
+
         Returns:
             成功返回 True，已收藏返回 False
         """
@@ -381,13 +375,13 @@ class KnowledgeService:
 
             from app.models.database import StarRecord
             import uuid
-            
+
             star = StarRecord(
                 id=str(uuid.uuid4()),
                 user_id=user_id,
                 target_id=kb_id,
                 target_type="knowledge",
-                created_at=datetime.now()
+                created_at=datetime.now(),
             )
             self.db.add(star)
 
@@ -398,32 +392,34 @@ class KnowledgeService:
 
             self.db.commit()
 
-            logger.info(f'已收藏: user_id={user_id}, kb_id={kb_id}')
+            logger.info(f"已收藏: user_id={user_id}, kb_id={kb_id}")
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'收藏知识库失败: {str(e)}')
+            logger.error(f"收藏知识库失败: {str(e)}")
             return False
 
     def remove_star(self, user_id: str, kb_id: str) -> bool:
         """
         取消收藏知识库。
-        
+
         Args:
             user_id: 用户 ID
             kb_id: 知识库 ID
-            
+
         Returns:
             成功返回 True，未收藏返回 False
         """
         try:
             from app.models.database import StarRecord
-            
-            star = self.db.query(StarRecord).filter(
-                StarRecord.user_id == user_id,
-                StarRecord.target_id == kb_id,
-                StarRecord.target_type == "knowledge"
-            ).first()
+
+            star = (
+                self.db.query(StarRecord)
+                .filter(
+                    StarRecord.user_id == user_id, StarRecord.target_id == kb_id, StarRecord.target_type == "knowledge"
+                )
+                .first()
+            )
 
             if not star:
                 return False
@@ -437,20 +433,20 @@ class KnowledgeService:
 
             self.db.commit()
 
-            logger.info(f'已取消收藏: user_id={user_id}, kb_id={kb_id}')
+            logger.info(f"已取消收藏: user_id={user_id}, kb_id={kb_id}")
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'取消收藏知识库失败: {str(e)}')
+            logger.error(f"取消收藏知识库失败: {str(e)}")
             return False
 
     def increment_downloads(self, kb_id: str) -> bool:
         """
         递增知识库下载次数。
-        
+
         Args:
             kb_id: 知识库 ID
-            
+
         Returns:
             成功返回 True，否则返回 False
         """
@@ -462,56 +458,49 @@ class KnowledgeService:
             kb.downloads = (kb.downloads or 0) + 1
             self.db.commit()
 
-            logger.info(f'下载次数已递增: kb_id={kb_id}, count={kb.downloads}')
+            logger.info(f"下载次数已递增: kb_id={kb_id}, count={kb.downloads}")
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'递增知识库 {kb_id} 下载次数失败: {str(e)}')
+            logger.error(f"递增知识库 {kb_id} 下载次数失败: {str(e)}")
             return False
 
     def get_files_by_knowledge_base_id(self, kb_id: str) -> List[KnowledgeBaseFile]:
         """
         获取知识库的所有文件。
-        
+
         Args:
             kb_id: 知识库 ID
-            
+
         Returns:
             知识库文件对象列表
         """
         try:
-            files = self.db.query(KnowledgeBaseFile).filter(
-                KnowledgeBaseFile.knowledge_base_id == kb_id
-            ).all()
+            files = self.db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == kb_id).all()
             return files
         except Exception as e:
-            logger.error(f'获取知识库 {kb_id} 的文件列表失败: {str(e)}')
+            logger.error(f"获取知识库 {kb_id} 的文件列表失败: {str(e)}")
             return []
 
     def create_upload_record(
-        self,
-        uploader_id: str,
-        target_id: str,
-        name: str,
-        description: str,
-        status: str = "success"
+        self, uploader_id: str, target_id: str, name: str, description: str, status: str = "success"
     ) -> Optional[str]:
         """
         创建知识库上传记录。
-        
+
         Args:
             uploader_id: 上传者用户 ID
             target_id: 知识库 ID
             name: 知识库名称
             description: 知识库描述
             status: 上传状态（success/pending）
-            
+
         Returns:
             成功返回上传记录 ID，否则返回 None
         """
         try:
             import uuid
-            
+
             record = UploadRecord(
                 id=str(uuid.uuid4()),
                 uploader_id=uploader_id,
@@ -520,50 +509,49 @@ class KnowledgeService:
                 name=name,
                 description=description,
                 status=status,
-                created_at=datetime.now()
+                created_at=datetime.now(),
             )
             self.db.add(record)
             self.db.commit()
 
-            logger.info(f'上传记录已创建: target_id={target_id}, status={status}')
+            logger.info(f"上传记录已创建: target_id={target_id}, status={status}")
             return record.id
         except Exception as e:
             self.db.rollback()
-            logger.error(f'创建上传记录失败: {str(e)}')
+            logger.error(f"创建上传记录失败: {str(e)}")
             return None
 
     def delete_upload_records_by_target(self, target_id: str) -> bool:
         """
         删除知识库的上传记录。
-        
+
         Args:
             target_id: 知识库 ID
-            
+
         Returns:
             成功返回 True，否则返回 False
         """
         try:
             self.db.query(UploadRecord).filter(
-                UploadRecord.target_id == target_id,
-                UploadRecord.target_type == "knowledge"
+                UploadRecord.target_id == target_id, UploadRecord.target_type == "knowledge"
             ).delete()
             self.db.commit()
 
-            logger.info(f'上传记录已删除: target_id={target_id}')
+            logger.info(f"上传记录已删除: target_id={target_id}")
             return True
         except Exception as e:
             self.db.rollback()
-            logger.error(f'删除上传记录失败 {target_id}: {str(e)}')
+            logger.error(f"删除上传记录失败 {target_id}: {str(e)}")
             return False
 
     def resolve_uploader_id(self, uploader_identifier: str) -> Optional[str]:
         """
         将上传者标识解析为用户 ID。
         支持用户 ID 或用户名。
-        
+
         Args:
             uploader_identifier: 用户 ID 或用户名
-            
+
         Returns:
             找到返回用户 ID，否则返回 None
         """
@@ -572,13 +560,13 @@ class KnowledgeService:
             user = self.db.query(User).filter(User.id == uploader_identifier).first()
             if user:
                 return user.id
-            
+
             # 再按用户名查找
             user = self.db.query(User).filter(User.username == uploader_identifier).first()
             if user:
                 return user.id
-            
+
             return None
         except Exception as e:
-            logger.error(f'解析上传者标识失败 {uploader_identifier}: {str(e)}')
+            logger.error(f"解析上传者标识失败 {uploader_identifier}: {str(e)}")
             return None

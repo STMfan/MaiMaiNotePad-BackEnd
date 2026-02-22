@@ -188,10 +188,19 @@ MaiMaiNotePad-BackEnd/
 git clone https://github.com/STMfan/MaiMaiNotePad-BackEnd.git
 cd MaiMaiNotePad/MaiMaiNotePad-BackEnd
 
-# 2. 安装依赖
+# 2. 创建虚拟环境（推荐）
+python -m venv venv
+source venv/bin/activate  # macOS/Linux
+# 或 venv\Scripts\activate  # Windows
+
+# 3. 安装依赖
+# 开发环境（包含测试工具）
+pip install -r requirements-dev.txt
+
+# 或生产环境（仅运行时依赖）
 pip install -r requirements.txt
 
-# 3. 启动管理工具（交互式菜单）
+# 4. 启动管理工具（交互式菜单）
 ./manage.sh
 ```
 
@@ -902,6 +911,22 @@ def test_create_user(db_session):
     assert user.username == "testuser"
     assert user.email == "test@example.com"
 ```
+
+### 代码质量
+
+项目使用多个代码质量工具确保代码规范：
+
+```bash
+# 运行所有代码质量检查
+./manage.sh lint
+
+# 或单独运行
+black app tests scripts/python      # 代码格式化
+flake8 app tests scripts/python     # 代码风格检查
+mypy app                            # 类型检查
+```
+
+详细说明请参考：[代码质量工具文档](docs/development/代码质量工具.md)
 
 ### 数据库迁移
 

@@ -8,6 +8,6 @@ from .config import *
 from .data_factory import *
 
 __all__ = [
-    'config',
-    'data_factory',
+    "config",
+    "data_factory",
 ]

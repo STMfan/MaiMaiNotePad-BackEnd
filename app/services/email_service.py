@@ -11,7 +11,7 @@ from app.core.config import settings
 
 class EmailService:
     """SMTP 邮件发送服务"""
-    
+
     def __init__(self):
         """使用配置初始化邮件服务"""
         self.mail_host = settings.MAIL_HOST
@@ -19,16 +19,16 @@ class EmailService:
         self.mail_port = settings.MAIL_PORT
         self.mail_pwd = settings.MAIL_PWD
         self.mail_timeout = settings.MAIL_TIMEOUT
-    
+
     def send_email(self, receiver: str, subject: str, content: str) -> None:
         """
         向指定收件人发送邮件
-        
+
         Args:
             receiver: 收件人邮箱地址
             subject: 邮件主题
             content: 邮件正文（纯文本）
-            
+
         Raises:
             RuntimeError: 邮件发送失败时抛出
         """
@@ -59,8 +59,7 @@ class EmailService:
         except smtplib.SMTPAuthenticationError as e:
             raise RuntimeError(f"邮件发送失败: 邮箱认证失败 - {str(e)}")
         except smtplib.SMTPConnectError as e:
-            raise RuntimeError(
-                f"邮件发送失败: 无法连接到SMTP服务器 {self.mail_host}:{self.mail_port} - {str(e)}")
+            raise RuntimeError(f"邮件发送失败: 无法连接到SMTP服务器 {self.mail_host}:{self.mail_port} - {str(e)}")
         except smtplib.SMTPException as e:
             raise RuntimeError(f"邮件发送失败: SMTP错误 - {str(e)}")
         except Exception as e:
@@ -81,14 +80,14 @@ class EmailService:
 def send_email(receiver: str, subject: str, content: str) -> None:
     """
     使用 EmailService 发送邮件
-    
+
     提供向后兼容的便捷函数。
-    
+
     Args:
         receiver: 收件人邮箱地址
         subject: 邮件主题
         content: 邮件正文（纯文本）
-        
+
     Raises:
         RuntimeError: 邮件发送失败时抛出
     """

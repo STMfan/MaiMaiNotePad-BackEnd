@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class ExceptionType:
     """异常类型常量"""
+
     DATABASE = "database"
     VALIDATION = "validation"
     PERMISSION = "permission"
@@ -27,10 +28,10 @@ class ExceptionType:
 class ExceptionInjector:
     """
     异常注入器类
-    
+
     用于在测试中注入各种类型的异常，以测试异常处理逻辑。
     支持临时注入和自动恢复，使用上下文管理器接口。
-    
+
     Example:
         >>> injector = ExceptionInjector()
         >>> with injector.inject_database_error("query"):
@@ -38,24 +39,24 @@ class ExceptionInjector:
         ...     result = service.get_user_by_id("test_id")
         ...     assert result is None
     """
-    
+
     def __init__(self):
         """初始化异常注入器"""
         self._active_patches: Dict[str, Any] = {}
         self._original_values: Dict[str, Any] = {}
-    
+
     @contextmanager
     def inject_database_error(
         self,
         operation: str = "query",
         error_type: Type[Exception] = SQLAlchemyError,
-        error_message: str = "Database operation failed"
+        error_message: str = "Database operation failed",
     ):
         """
         注入数据库异常
-        
+
         在指定的数据库操作中注入异常，用于测试数据库错误处理。
-        
+
         Args:
             operation: 数据库操作类型，可选值：
                 - "query": 查询操作
@@ -73,140 +74,136 @@ class ExceptionInjector:
                 - "all": 所有操作
             error_type: 异常类型，默认为 SQLAlchemyError
             error_message: 异常消息
-        
+
         Yields:
             None
-        
+
         Example:
             >>> with injector.inject_database_error("query"):
             ...     result = user_service.get_user_by_id("test_id")
             ...     assert result is None
         """
         patches = []
-        
+
         try:
             if operation in ["query", "all"]:
                 # Mock Session.query 方法
-                query_patch = patch('sqlalchemy.orm.Session.query')
+                query_patch = patch("sqlalchemy.orm.Session.query")
                 mock_query = query_patch.start()
                 mock_query.side_effect = error_type(error_message)
                 patches.append(query_patch)
                 logger.debug(f"Injected database error for query operation: {error_message}")
-            
+
             if operation in ["commit", "all"]:
                 # Mock Session.commit 方法
-                commit_patch = patch('sqlalchemy.orm.Session.commit')
+                commit_patch = patch("sqlalchemy.orm.Session.commit")
                 mock_commit = commit_patch.start()
                 mock_commit.side_effect = error_type(error_message)
                 patches.append(commit_patch)
                 logger.debug(f"Injected database error for commit operation: {error_message}")
-            
+
             if operation in ["add", "all"]:
                 # Mock Session.add 方法
-                add_patch = patch('sqlalchemy.orm.Session.add')
+                add_patch = patch("sqlalchemy.orm.Session.add")
                 mock_add = add_patch.start()
                 mock_add.side_effect = error_type(error_message)
                 patches.append(add_patch)
                 logger.debug(f"Injected database error for add operation: {error_message}")
-            
+
             if operation in ["delete", "all"]:
                 # Mock Session.delete 方法
-                delete_patch = patch('sqlalchemy.orm.Session.delete')
+                delete_patch = patch("sqlalchemy.orm.Session.delete")
                 mock_delete = delete_patch.start()
                 mock_delete.side_effect = error_type(error_message)
                 patches.append(delete_patch)
                 logger.debug(f"Injected database error for delete operation: {error_message}")
-            
+
             if operation in ["update", "all"]:
                 # Mock Session.execute 方法（用于更新操作）
-                execute_patch = patch('sqlalchemy.orm.Session.execute')
+                execute_patch = patch("sqlalchemy.orm.Session.execute")
                 mock_execute = execute_patch.start()
                 mock_execute.side_effect = error_type(error_message)
                 patches.append(execute_patch)
                 logger.debug(f"Injected database error for update operation: {error_message}")
-            
+
             if operation in ["refresh", "all"]:
                 # Mock Session.refresh 方法
-                refresh_patch = patch('sqlalchemy.orm.Session.refresh')
+                refresh_patch = patch("sqlalchemy.orm.Session.refresh")
                 mock_refresh = refresh_patch.start()
                 mock_refresh.side_effect = error_type(error_message)
                 patches.append(refresh_patch)
                 logger.debug(f"Injected database error for refresh operation: {error_message}")
-            
+
             if operation in ["flush", "all"]:
                 # Mock Session.flush 方法
-                flush_patch = patch('sqlalchemy.orm.Session.flush')
+                flush_patch = patch("sqlalchemy.orm.Session.flush")
                 mock_flush = flush_patch.start()
                 mock_flush.side_effect = error_type(error_message)
                 patches.append(flush_patch)
                 logger.debug(f"Injected database error for flush operation: {error_message}")
-            
+
             if operation in ["rollback", "all"]:
                 # Mock Session.rollback 方法
-                rollback_patch = patch('sqlalchemy.orm.Session.rollback')
+                rollback_patch = patch("sqlalchemy.orm.Session.rollback")
                 mock_rollback = rollback_patch.start()
                 mock_rollback.side_effect = error_type(error_message)
                 patches.append(rollback_patch)
                 logger.debug(f"Injected database error for rollback operation: {error_message}")
-            
+
             if operation in ["scalar", "all"]:
                 # Mock Query.scalar 方法
-                scalar_patch = patch('sqlalchemy.orm.Query.scalar')
+                scalar_patch = patch("sqlalchemy.orm.Query.scalar")
                 mock_scalar = scalar_patch.start()
                 mock_scalar.side_effect = error_type(error_message)
                 patches.append(scalar_patch)
                 logger.debug(f"Injected database error for scalar operation: {error_message}")
-            
+
             if operation in ["first", "all"]:
                 # Mock Query.first 方法
-                first_patch = patch('sqlalchemy.orm.Query.first')
+                first_patch = patch("sqlalchemy.orm.Query.first")
                 mock_first = first_patch.start()
                 mock_first.side_effect = error_type(error_message)
                 patches.append(first_patch)
                 logger.debug(f"Injected database error for first operation: {error_message}")
-            
+
             if operation in ["filter", "all"]:
                 # Mock Query.filter 方法
-                filter_patch = patch('sqlalchemy.orm.Query.filter')
+                filter_patch = patch("sqlalchemy.orm.Query.filter")
                 mock_filter = filter_patch.start()
                 mock_filter.side_effect = error_type(error_message)
                 patches.append(filter_patch)
                 logger.debug(f"Injected database error for filter operation: {error_message}")
-            
+
             if operation in ["count", "all"]:
                 # Mock Query.count 方法
-                count_patch = patch('sqlalchemy.orm.Query.count')
+                count_patch = patch("sqlalchemy.orm.Query.count")
                 mock_count = count_patch.start()
                 mock_count.side_effect = error_type(error_message)
                 patches.append(count_patch)
                 logger.debug(f"Injected database error for count operation: {error_message}")
-            
+
             yield
-            
+
         finally:
             # 停止所有 patches
             for p in patches:
                 p.stop()
             logger.debug("Database error injection cleaned up")
-    
+
     @contextmanager
-    def inject_integrity_error(
-        self,
-        constraint: str = "unique_constraint",
-        error_message: Optional[str] = None
-    ):
+    def inject_integrity_error(self, constraint: str = "unique_constraint", error_message: Optional[str] = None):
         """
         注入数据库完整性约束错误
-        
+
         用于测试唯一约束、外键约束等违反时的处理。
-        
+
         Args:
             constraint: 约束类型（如 "unique_constraint", "foreign_key"）
             error_message: 自定义错误消息
-        
+
         Yields:
             None
-        
+
         Example:
             >>> with injector.inject_integrity_error("unique_constraint"):
             ...     result = user_service.create_user("duplicate", "test@example.com", "password")
@@ -214,32 +211,25 @@ class ExceptionInjector:
         """
         if error_message is None:
             error_message = f"Integrity constraint violation: {constraint}"
-        
+
         # 使用通用的 SQLAlchemyError 代替 IntegrityError
         # 因为 IntegrityError 需要特殊的初始化参数
-        with self.inject_database_error(
-            operation="commit",
-            error_type=SQLAlchemyError,
-            error_message=error_message
-        ):
+        with self.inject_database_error(operation="commit", error_type=SQLAlchemyError, error_message=error_message):
             yield
-    
+
     @contextmanager
-    def inject_operational_error(
-        self,
-        error_message: str = "Database connection lost"
-    ):
+    def inject_operational_error(self, error_message: str = "Database connection lost"):
         """
         注入数据库操作错误
-        
+
         用于测试数据库连接丢失、超时等操作错误。
-        
+
         Args:
             error_message: 错误消息
-        
+
         Yields:
             None
-        
+
         Example:
             >>> with injector.inject_operational_error():
             ...     result = user_service.get_all_users()
@@ -247,25 +237,16 @@ class ExceptionInjector:
         """
         # OperationalError 需要特殊的初始化参数
         # 使用通用的 SQLAlchemyError 代替
-        with self.inject_database_error(
-            operation="query",
-            error_type=SQLAlchemyError,
-            error_message=error_message
-        ):
+        with self.inject_database_error(operation="query", error_type=SQLAlchemyError, error_message=error_message):
             yield
-    
+
     @contextmanager
-    def inject_validation_error(
-        self,
-        field: str,
-        error_message: Optional[str] = None,
-        error_type: str = "value_error"
-    ):
+    def inject_validation_error(self, field: str, error_message: Optional[str] = None, error_type: str = "value_error"):
         """
         注入验证错误
-        
+
         用于测试数据验证失败时的处理。支持多种验证错误场景。
-        
+
         Args:
             field: 验证失败的字段名
             error_message: 自定义错误消息
@@ -277,21 +258,21 @@ class ExceptionInjector:
                 - "length_error": 长度错误
                 - "range_error": 范围错误
                 - "custom_validation": 自定义验证错误（使用 app.error_handlers.ValidationError）
-        
+
         Yields:
             None
-        
+
         Example:
             >>> # 测试值错误
             >>> with injector.inject_validation_error("email", error_type="value_error"):
             ...     result = user_service.create_user("test", "invalid-email", "password")
             ...     assert result is None
-            
+
             >>> # 测试必填字段
             >>> with injector.inject_validation_error("username", error_type="required_error"):
             ...     result = user_service.create_user("", "test@example.com", "password")
             ...     assert result is None
-            
+
             >>> # 测试自定义验证错误
             >>> with injector.inject_validation_error("role", error_type="custom_validation"):
             ...     result = admin_service.change_role(user_id, "invalid_role")
@@ -310,78 +291,78 @@ class ExceptionInjector:
                 error_message = f"Value out of range for field '{field}'"
             else:
                 error_message = f"Validation failed for field: {field}"
-        
+
         patches = []
-        
+
         try:
             if error_type == "custom_validation":
                 # 注入自定义 ValidationError（来自 app.core.error_handlers）
                 try:
                     from app.core.error_handlers import ValidationError as CustomValidationError
-                    
+
                     # Mock 可能抛出 ValidationError 的函数
                     # 这里我们 mock 一个通用的验证函数
-                    validation_patch = patch('app.core.error_handlers.ValidationError')
+                    validation_patch = patch("app.core.error_handlers.ValidationError")
                     mock_validation = validation_patch.start()
                     mock_validation.side_effect = CustomValidationError(error_message)
                     patches.append(validation_patch)
-                    
+
                 except ImportError:
                     # 如果无法导入自定义 ValidationError，使用 ValueError
                     logger.warning("Could not import custom ValidationError, using ValueError instead")
-                    validation_patch = patch('pydantic.BaseModel.model_validate')
+                    validation_patch = patch("pydantic.BaseModel.model_validate")
                     mock_validate = validation_patch.start()
                     mock_validate.side_effect = ValueError(error_message)
                     patches.append(validation_patch)
-            
+
             elif error_type == "type_error":
                 # 注入类型错误
-                validation_patch = patch('pydantic.BaseModel.model_validate')
+                validation_patch = patch("pydantic.BaseModel.model_validate")
                 mock_validate = validation_patch.start()
                 mock_validate.side_effect = TypeError(error_message)
                 patches.append(validation_patch)
-            
+
             elif error_type == "required_error":
                 # 注入必填字段错误
-                validation_patch = patch('pydantic.BaseModel.model_validate')
+                validation_patch = patch("pydantic.BaseModel.model_validate")
                 mock_validate = validation_patch.start()
                 mock_validate.side_effect = ValueError(error_message)
                 patches.append(validation_patch)
-            
+
             elif error_type in ["format_error", "length_error", "range_error"]:
                 # 注入格式、长度或范围错误
-                validation_patch = patch('pydantic.BaseModel.model_validate')
+                validation_patch = patch("pydantic.BaseModel.model_validate")
                 mock_validate = validation_patch.start()
                 mock_validate.side_effect = ValueError(error_message)
                 patches.append(validation_patch)
-            
+
             else:
                 # 默认：注入 ValueError
-                validation_patch = patch('pydantic.BaseModel.model_validate')
+                validation_patch = patch("pydantic.BaseModel.model_validate")
                 mock_validate = validation_patch.start()
                 mock_validate.side_effect = ValueError(error_message)
                 patches.append(validation_patch)
-            
+
             logger.debug(f"Injected validation error (type: {error_type}) for field '{field}': {error_message}")
             yield
-            
+
         finally:
             for p in patches:
                 p.stop()
             logger.debug("Validation error injection cleaned up")
-    
+
     @contextmanager
     def inject_permission_error(
         self,
         error_message: str = "Permission denied",
         permission_type: str = "password_verify",
-        role: Optional[str] = None
+        role: Optional[str] = None,
     ):
         """
         注入权限错误
-        
+
         用于测试权限检查失败时的处理。支持多种权限场景。
-        
+
         Args:
             error_message: 错误消息
             permission_type: 权限类型，可选值：
@@ -393,56 +374,54 @@ class ExceptionInjector:
                 - "resource_access": 资源访问权限失败
                 - "http_403": HTTP 403 权限不足异常
             role: 当 permission_type 为 "role_check" 时，指定要检查的角色
-        
+
         Yields:
             None
-        
+
         Example:
             >>> # 测试密码验证失败
             >>> with injector.inject_permission_error():
             ...     with pytest.raises(PermissionError):
             ...         user_service.promote_to_admin("user_id", "wrong_password")
-            
+
             >>> # 测试管理员权限检查失败
             >>> with injector.inject_permission_error(permission_type="admin"):
             ...     response = client.get("/api/admin/users")
             ...     assert response.status_code == 403
-            
+
             >>> # 测试角色检查失败
             >>> with injector.inject_permission_error(permission_type="role_check", role="admin"):
             ...     result = service.check_user_role(user_id, "admin")
             ...     assert result is False
-            
+
             >>> # 测试资源访问权限失败
             >>> with injector.inject_permission_error(permission_type="resource_access"):
             ...     result = service.can_access_resource(user_id, resource_id)
             ...     assert result is False
         """
         patches = []
-        
+
         try:
             if permission_type == "password_verify":
                 # Mock 密码验证失败
-                permission_patch = patch('app.core.security.verify_password')
+                permission_patch = patch("app.core.security.verify_password")
                 mock_verify = permission_patch.start()
                 mock_verify.return_value = False
                 patches.append(permission_patch)
                 logger.debug(f"Injected password verification failure: {error_message}")
-            
+
             elif permission_type == "admin":
                 # Mock 管理员权限检查失败
                 # 方法1: Mock get_admin_user 依赖
                 from fastapi import HTTPException, status
-                admin_patch = patch('app.api.deps.get_admin_user')
+
+                admin_patch = patch("app.api.deps.get_admin_user")
                 mock_admin = admin_patch.start()
-                mock_admin.side_effect = HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=error_message
-                )
+                mock_admin.side_effect = HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_message)
                 patches.append(admin_patch)
-                
+
                 # 方法2: Mock 用户的 is_admin 属性
-                user_patch = patch('app.api.deps.get_current_user')
+                user_patch = patch("app.api.deps.get_current_user")
                 mock_user = user_patch.start()
                 mock_user.return_value = {
                     "id": "test_user_id",
@@ -451,24 +430,22 @@ class ExceptionInjector:
                     "role": "user",
                     "is_admin": False,
                     "is_moderator": False,
-                    "is_super_admin": False
+                    "is_super_admin": False,
                 }
                 patches.append(user_patch)
                 logger.debug(f"Injected admin permission failure: {error_message}")
-            
+
             elif permission_type == "moderator":
                 # Mock 审核员权限检查失败
                 from fastapi import HTTPException, status
-                moderator_patch = patch('app.api.deps.get_moderator_user')
+
+                moderator_patch = patch("app.api.deps.get_moderator_user")
                 mock_moderator = moderator_patch.start()
-                mock_moderator.side_effect = HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=error_message
-                )
+                mock_moderator.side_effect = HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_message)
                 patches.append(moderator_patch)
-                
+
                 # Mock 用户的 is_moderator 属性
-                user_patch = patch('app.api.deps.get_current_user')
+                user_patch = patch("app.api.deps.get_current_user")
                 mock_user = user_patch.start()
                 mock_user.return_value = {
                     "id": "test_user_id",
@@ -477,14 +454,14 @@ class ExceptionInjector:
                     "role": "user",
                     "is_admin": False,
                     "is_moderator": False,
-                    "is_super_admin": False
+                    "is_super_admin": False,
                 }
                 patches.append(user_patch)
                 logger.debug(f"Injected moderator permission failure: {error_message}")
-            
+
             elif permission_type == "super_admin":
                 # Mock 超级管理员权限检查失败
-                user_patch = patch('app.api.deps.get_current_user')
+                user_patch = patch("app.api.deps.get_current_user")
                 mock_user = user_patch.start()
                 mock_user.return_value = {
                     "id": "test_user_id",
@@ -493,16 +470,16 @@ class ExceptionInjector:
                     "role": "admin",
                     "is_admin": True,
                     "is_moderator": True,
-                    "is_super_admin": False  # 不是超级管理员
+                    "is_super_admin": False,  # 不是超级管理员
                 }
                 patches.append(user_patch)
                 logger.debug(f"Injected super_admin permission failure: {error_message}")
-            
+
             elif permission_type == "role_check":
                 # Mock 角色检查失败
                 if role:
                     # Mock 用户角色不匹配
-                    user_patch = patch('app.api.deps.get_current_user')
+                    user_patch = patch("app.api.deps.get_current_user")
                     mock_user = user_patch.start()
                     mock_user.return_value = {
                         "id": "test_user_id",
@@ -511,78 +488,70 @@ class ExceptionInjector:
                         "role": "user",  # 普通用户
                         "is_admin": False,
                         "is_moderator": False,
-                        "is_super_admin": False
+                        "is_super_admin": False,
                     }
                     patches.append(user_patch)
                     logger.debug(f"Injected role check failure for role '{role}': {error_message}")
                 else:
                     logger.warning("role_check permission type requires 'role' parameter")
-            
+
             elif permission_type == "resource_access":
                 # Mock 资源访问权限失败
                 # 这是一个通用的权限检查失败，可以用于各种资源访问场景
                 # 使用一个通用的 mock 来模拟权限检查返回 False
                 # 注意：这个 mock 需要在实际使用时根据具体的权限检查方法进行调整
-                
+
                 # 方法1: Mock HTTPException 抛出 403 错误
                 from fastapi import HTTPException, status
-                access_patch = patch('app.api.deps.get_current_user')
+
+                access_patch = patch("app.api.deps.get_current_user")
                 mock_access = access_patch.start()
-                mock_access.side_effect = HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=error_message
-                )
+                mock_access.side_effect = HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_message)
                 patches.append(access_patch)
                 logger.debug(f"Injected resource access permission failure: {error_message}")
-            
+
             elif permission_type == "http_403":
                 # Mock HTTP 403 权限不足异常
                 from fastapi import HTTPException, status
-                http_patch = patch('app.api.deps.get_current_user')
+
+                http_patch = patch("app.api.deps.get_current_user")
                 mock_http = http_patch.start()
-                mock_http.side_effect = HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=error_message
-                )
+                mock_http.side_effect = HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_message)
                 patches.append(http_patch)
                 logger.debug(f"Injected HTTP 403 permission error: {error_message}")
-            
+
             else:
                 # 默认：使用密码验证失败
                 logger.warning(f"Unknown permission_type '{permission_type}', using default 'password_verify'")
-                permission_patch = patch('app.core.security.verify_password')
+                permission_patch = patch("app.core.security.verify_password")
                 mock_verify = permission_patch.start()
                 mock_verify.return_value = False
                 patches.append(permission_patch)
-            
+
             yield
-            
+
         finally:
             for p in patches:
                 p.stop()
             logger.debug("Permission error injection cleaned up")
-    
+
     @contextmanager
-    def inject_network_error(
-        self,
-        error_type: str = "timeout",
-        error_message: Optional[str] = None
-    ):
+    def inject_network_error(self, error_type: str = "timeout", error_message: Optional[str] = None):
         """
         注入网络错误
-        
+
         用于测试网络操作失败时的处理。
-        
+
         Args:
             error_type: 错误类型，可选值：
                 - "timeout": 超时错误
                 - "connection": 连接错误
                 - "dns": DNS解析错误
             error_message: 自定义错误消息
-        
+
         Yields:
             None
-        
+
         Example:
             >>> with injector.inject_network_error("timeout"):
             ...     result = email_service.send_email("test@example.com", "subject", "body")
@@ -590,7 +559,7 @@ class ExceptionInjector:
         """
         if error_message is None:
             error_message = f"Network {error_type} error"
-        
+
         try:
             if error_type == "timeout":
                 exception = TimeoutError(error_message)
@@ -600,30 +569,26 @@ class ExceptionInjector:
                 exception = OSError(error_message)
             else:
                 exception = Exception(error_message)
-            
+
             # Mock 网络相关的操作
-            network_patch = patch('httpx.AsyncClient.post')
+            network_patch = patch("httpx.AsyncClient.post")
             mock_post = network_patch.start()
             mock_post.side_effect = exception
-            
+
             logger.debug(f"Injected network error ({error_type}): {error_message}")
             yield
-            
+
         finally:
             network_patch.stop()
             logger.debug("Network error injection cleaned up")
-    
+
     @contextmanager
-    def inject_file_system_error(
-        self,
-        operation: str = "read",
-        error_message: str = "File system operation failed"
-    ):
+    def inject_file_system_error(self, operation: str = "read", error_message: str = "File system operation failed"):
         """
         注入文件系统错误
-        
+
         用于测试文件操作失败时的处理。
-        
+
         Args:
             operation: 文件操作类型，可选值：
                 - "read": 读取操作
@@ -631,66 +596,63 @@ class ExceptionInjector:
                 - "delete": 删除操作
                 - "exists": 存在性检查
             error_message: 错误消息
-        
+
         Yields:
             None
-        
+
         Example:
             >>> with injector.inject_file_system_error("write"):
             ...     result = file_service.save_file("test.txt", b"content")
             ...     assert result is False
         """
         patches = []
-        
+
         try:
             if operation == "read":
-                read_patch = patch('builtins.open')
+                read_patch = patch("builtins.open")
                 mock_open = read_patch.start()
                 mock_open.side_effect = IOError(error_message)
                 patches.append(read_patch)
-            
+
             elif operation == "write":
-                write_patch = patch('builtins.open')
+                write_patch = patch("builtins.open")
                 mock_open = write_patch.start()
                 mock_open.side_effect = IOError(error_message)
                 patches.append(write_patch)
-            
+
             elif operation == "delete":
-                delete_patch = patch('os.remove')
+                delete_patch = patch("os.remove")
                 mock_remove = delete_patch.start()
                 mock_remove.side_effect = OSError(error_message)
                 patches.append(delete_patch)
-            
+
             elif operation == "exists":
-                exists_patch = patch('os.path.exists')
+                exists_patch = patch("os.path.exists")
                 mock_exists = exists_patch.start()
                 mock_exists.return_value = False
                 patches.append(exists_patch)
-            
+
             logger.debug(f"Injected file system error for {operation} operation: {error_message}")
             yield
-            
+
         finally:
             for p in patches:
                 p.stop()
             logger.debug("File system error injection cleaned up")
-    
+
     @contextmanager
-    def inject_encoding_error(
-        self,
-        error_message: str = "Encoding/decoding failed"
-    ):
+    def inject_encoding_error(self, error_message: str = "Encoding/decoding failed"):
         """
         注入编码/解码错误
-        
+
         用于测试字符编码问题的处理。
-        
+
         Args:
             error_message: 错误消息
-        
+
         Yields:
             None
-        
+
         Example:
             >>> with injector.inject_encoding_error():
             ...     result = process_text("invalid_utf8")
@@ -698,39 +660,34 @@ class ExceptionInjector:
         """
         try:
             # Mock encode/decode 方法
-            encode_patch = patch('builtins.str.encode')
+            encode_patch = patch("builtins.str.encode")
             mock_encode = encode_patch.start()
-            mock_encode.side_effect = UnicodeEncodeError('utf-8', '', 0, 1, error_message)
-            
+            mock_encode.side_effect = UnicodeEncodeError("utf-8", "", 0, 1, error_message)
+
             logger.debug(f"Injected encoding error: {error_message}")
             yield
-            
+
         finally:
             encode_patch.stop()
             logger.debug("Encoding error injection cleaned up")
-    
+
     @contextmanager
-    def inject_custom_error(
-        self,
-        target: str,
-        exception: Exception,
-        method: str = "side_effect"
-    ):
+    def inject_custom_error(self, target: str, exception: Exception, method: str = "side_effect"):
         """
         注入自定义错误
-        
+
         提供灵活的方式注入任意异常到任意目标。
-        
+
         Args:
             target: 要 mock 的目标（完整路径，如 'app.services.user_service.UserService.get_user_by_id'）
             exception: 要抛出的异常实例
             method: 注入方法，可选值：
                 - "side_effect": 调用时抛出异常
                 - "return_value": 返回异常对象（不抛出）
-        
+
         Yields:
             None
-        
+
         Example:
             >>> custom_error = ValueError("Custom error message")
             >>> with injector.inject_custom_error('app.services.user_service.UserService.get_user_by_id', custom_error):
@@ -740,28 +697,28 @@ class ExceptionInjector:
         try:
             custom_patch = patch(target)
             mock_target = custom_patch.start()
-            
+
             if method == "side_effect":
                 mock_target.side_effect = exception
             elif method == "return_value":
                 mock_target.return_value = exception
             else:
                 raise ValueError(f"Unknown injection method: {method}")
-            
+
             logger.debug(f"Injected custom error to {target}: {exception}")
             yield
-            
+
         finally:
             custom_patch.stop()
             logger.debug(f"Custom error injection cleaned up for {target}")
-    
+
     def restore_normal_behavior(self) -> None:
         """
         恢复正常行为
-        
+
         停止所有活动的 patches，恢复原始行为。
         通常不需要手动调用，因为上下文管理器会自动清理。
-        
+
         Example:
             >>> injector.restore_normal_behavior()
         """
@@ -771,29 +728,26 @@ class ExceptionInjector:
                 logger.debug(f"Stopped patch: {name}")
             except Exception as e:
                 logger.warning(f"Error stopping patch {name}: {e}")
-        
+
         self._active_patches.clear()
         self._original_values.clear()
         logger.info("All patches stopped, normal behavior restored")
-    
+
     @contextmanager
-    def inject_multiple_errors(
-        self,
-        error_configs: list[Dict[str, Any]]
-    ):
+    def inject_multiple_errors(self, error_configs: list[Dict[str, Any]]):
         """
         同时注入多个错误
-        
+
         用于测试复杂的错误场景，其中多个操作可能同时失败。
-        
+
         Args:
             error_configs: 错误配置列表，每个配置是一个字典，包含：
                 - type: 错误类型（database, validation, permission, network, file_system, encoding, custom）
                 - **kwargs: 传递给相应注入方法的参数
-        
+
         Yields:
             None
-        
+
         Example:
             >>> configs = [
             ...     {"type": "database", "operation": "query"},
@@ -804,11 +758,11 @@ class ExceptionInjector:
             ...     pass
         """
         contexts = []
-        
+
         try:
             for config in error_configs:
                 error_type = config.pop("type")
-                
+
                 if error_type == "database":
                     ctx = self.inject_database_error(**config)
                 elif error_type == "validation":
@@ -825,13 +779,13 @@ class ExceptionInjector:
                     ctx = self.inject_custom_error(**config)
                 else:
                     raise ValueError(f"Unknown error type: {error_type}")
-                
+
                 contexts.append(ctx)
                 ctx.__enter__()
-            
+
             logger.debug(f"Injected {len(contexts)} errors simultaneously")
             yield
-            
+
         finally:
             for ctx in reversed(contexts):
                 try:
@@ -839,59 +793,52 @@ class ExceptionInjector:
                 except Exception as e:
                     logger.warning(f"Error cleaning up context: {e}")
             logger.debug("Multiple error injection cleaned up")
-    
-    def create_mock_with_error(
-        self,
-        error: Exception,
-        call_count: int = 1
-    ) -> MagicMock:
+
+    def create_mock_with_error(self, error: Exception, call_count: int = 1) -> MagicMock:
         """
         创建一个会在指定次数后抛出错误的 mock
-        
+
         用于测试重试逻辑或间歇性错误。
-        
+
         Args:
             error: 要抛出的异常
             call_count: 在第几次调用时抛出异常（从1开始）
-        
+
         Returns:
             MagicMock: 配置好的 mock 对象
-        
+
         Example:
             >>> mock = injector.create_mock_with_error(ValueError("Error"), call_count=2)
             >>> mock()  # 第一次调用正常
             >>> mock()  # 第二次调用抛出异常
         """
         mock = MagicMock()
-        
+
         def side_effect(*args, **kwargs):
             if mock.call_count >= call_count:
                 raise error
             return None
-        
+
         mock.side_effect = side_effect
         logger.debug(f"Created mock that will raise {error} on call {call_count}")
         return mock
-    
+
     def create_intermittent_error_mock(
-        self,
-        error: Exception,
-        success_count: int = 1,
-        failure_count: int = 1
+        self, error: Exception, success_count: int = 1, failure_count: int = 1
     ) -> MagicMock:
         """
         创建一个间歇性失败的 mock
-        
+
         模拟不稳定的服务或网络连接。
-        
+
         Args:
             error: 要抛出的异常
             success_count: 成功调用次数
             failure_count: 失败调用次数
-        
+
         Returns:
             MagicMock: 配置好的 mock 对象
-        
+
         Example:
             >>> mock = injector.create_intermittent_error_mock(
             ...     ConnectionError("Network error"),
@@ -905,15 +852,15 @@ class ExceptionInjector:
         """
         mock = MagicMock()
         call_counter = [0]
-        
+
         def side_effect(*args, **kwargs):
             call_counter[0] += 1
             cycle_position = (call_counter[0] - 1) % (success_count + failure_count)
-            
+
             if cycle_position >= success_count:
                 raise error
             return None
-        
+
         mock.side_effect = side_effect
         logger.debug(f"Created intermittent error mock: {success_count} success, {failure_count} failure")
         return mock
@@ -923,10 +870,10 @@ class ExceptionInjector:
 def create_injector() -> ExceptionInjector:
     """
     创建异常注入器实例
-    
+
     Returns:
         ExceptionInjector: 新的注入器实例
-    
+
     Example:
         >>> injector = create_injector()
         >>> with injector.inject_database_error("query"):

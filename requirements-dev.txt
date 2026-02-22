@@ -1,0 +1,23 @@
+# 开发和测试环境依赖
+# Development and testing dependencies
+
+# 首先安装生产环境依赖
+-r requirements.txt
+
+# 测试框架
+pytest==9.0.2
+pytest-xdist==3.6.1
+pytest-cov==6.0.0
+pytest-asyncio==0.25.2
+
+# 属性测试
+hypothesis==6.122.4
+
+# HTTP 测试客户端
+httpx==0.28.1
+
+# 代码质量工具
+flake8==7.1.1
+black==24.10.0
+mypy==1.13.0
+types-toml==0.10.8.20240310  # toml 类型存根

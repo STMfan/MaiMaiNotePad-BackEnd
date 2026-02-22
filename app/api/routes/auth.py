@@ -1,4 +1,5 @@
 """认证路由模块 - 处理用户登录、注册、密码重置等认证相关的API端点"""
+
 from fastapi import APIRouter, Depends, Form, Request
 from typing import Dict, Any
 import hashlib
@@ -14,9 +15,7 @@ from app.models.schemas import (
     TokenResponse,
 )
 from app.core.logging import app_logger, log_exception, log_database_operation
-from app.core.error_handlers import (
-    APIError, ValidationError, AuthenticationError
-)
+from app.core.error_handlers import APIError, ValidationError, AuthenticationError
 from sqlalchemy.orm import Session
 
 # 创建路由器
@@ -26,14 +25,8 @@ router = APIRouter()
 # 认证相关路由（登录、注册、密码重置等）
 
 
-@router.post(
-    "/token",
-    response_model=BaseResponse[LoginResponse]
-)
-async def login(
-    request: Request,
-    db: Session = Depends(get_db)
-):
+@router.post("/token", response_model=BaseResponse[LoginResponse])
+async def login(request: Request, db: Session = Depends(get_db)):
     """用户登录获取访问令牌，支持JSON和表单数据格式（带速率限制和账户锁定）"""
     try:
         # 获取Content-Type
@@ -67,13 +60,9 @@ async def login(
         result = auth_service.authenticate_user(username, password)
 
         if result:
-            app_logger.info(
-                f"Login successful: user_id={result['user']['id']}, role={result['user']['role']}")
-            
-            return Success(
-                message="登录成功",
-                data=result
-            )
+            app_logger.info(f"Login successful: user_id={result['user']['id']}, role={result['user']['role']}")
+
+            return Success(message="登录成功", data=result)
 
         # 登录失败（统一错误消息，防止用户枚举）
         app_logger.warning(f"Login failed: username_hash={username_hash}")
@@ -86,14 +75,8 @@ async def login(
         raise APIError("登录过程中发生错误")
 
 
-@router.post(
-    "/refresh",
-    response_model=BaseResponse[TokenResponse]
-)
-async def refresh_token(
-    request: Request,
-    db: Session = Depends(get_db)
-):
+@router.post("/refresh", response_model=BaseResponse[TokenResponse])
+async def refresh_token(request: Request, db: Session = Depends(get_db)):
     """刷新访问令牌"""
     try:
         # 获取Content-Type
@@ -116,10 +99,7 @@ async def refresh_token(
 
         app_logger.info(f"Token refreshed: user_id={result.get('user_id', 'unknown')}")
 
-        return Success(
-            message="令牌刷新成功",
-            data=result
-        )
+        return Success(message="令牌刷新成功", data=result)
 
     except (AuthenticationError, ValidationError):
         raise
@@ -128,14 +108,8 @@ async def refresh_token(
         raise APIError("刷新令牌过程中发生错误")
 
 
-@router.post(
-    "/send_verification_code",
-    response_model=BaseResponse[None]
-)
-async def send_verification_code(
-    email: str = Form(...),
-    db: Session = Depends(get_db)
-):
+@router.post("/send_verification_code", response_model=BaseResponse[None])
+async def send_verification_code(email: str = Form(...), db: Session = Depends(get_db)):
     """发送注册验证码"""
     try:
         # 统一转换为小写
@@ -147,7 +121,7 @@ async def send_verification_code(
             raise ValidationError("邮箱格式无效")
 
         auth_service = AuthService(db)
-        
+
         # 2. 检查频率限制
         if not auth_service.check_email_rate_limit(email):
             raise APIError("请求发送验证码过于频繁，请稍后重试")
@@ -155,17 +129,9 @@ async def send_verification_code(
         # 3. 生成并发送验证码
         code_id = auth_service.send_verification_code(email)
 
-        log_database_operation(
-            app_logger,
-            "create",
-            "verification_code",
-            record_id=code_id,
-            success=True
-        )
+        log_database_operation(app_logger, "create", "verification_code", record_id=code_id, success=True)
 
-        return Success(
-            message="验证码已发送"
-        )
+        return Success(message="验证码已发送")
 
     except Exception as e:
         log_exception(app_logger, "Send verification code error", exception=e)
@@ -181,31 +147,22 @@ async def send_verification_code(
             raise APIError(f"发送验证码失败: {error_msg}")
 
 
-@router.post(
-    "/user/check_register",
-    response_model=BaseResponse[None]
-)
-async def check_register(
-    username: str = Form(...),
-    email: str = Form(...),
-    db: Session = Depends(get_db)
-):
+@router.post("/user/check_register", response_model=BaseResponse[None])
+async def check_register(username: str = Form(...), email: str = Form(...), db: Session = Depends(get_db)):
     """检查用户名和邮箱是否可以注册"""
     try:
         if not username or not email:
             raise ValidationError("有未填写的字段")
 
         email = email.lower()
-        
+
         auth_service = AuthService(db)
         message = auth_service.check_register_legality(username, email)
-        
+
         if message != "ok":
             raise ValidationError(message)
 
-        return Success(
-            message="可以注册"
-        )
+        return Success(message="可以注册")
     except ValidationError:
         raise
     except Exception as e:
@@ -213,14 +170,8 @@ async def check_register(
         raise APIError("检查注册信息失败")
 
 
-@router.post(
-    "/send_reset_password_code",
-    response_model=BaseResponse[None]
-)
-async def send_reset_password_code(
-    email: str = Form(...),
-    db: Session = Depends(get_db)
-):
+@router.post("/send_reset_password_code", response_model=BaseResponse[None])
+async def send_reset_password_code(email: str = Form(...), db: Session = Depends(get_db)):
     """发送重置密码验证码"""
     try:
         # 统一转换为小写
@@ -232,7 +183,7 @@ async def send_reset_password_code(
             raise ValidationError("邮箱格式无效")
 
         auth_service = AuthService(db)
-        
+
         # 2. 检查邮箱是否已注册
         user_service = UserService(db)
         user = user_service.get_user_by_email(email)
@@ -246,19 +197,12 @@ async def send_reset_password_code(
         # 4. 生成并发送验证码
         code_id = auth_service.send_reset_password_code(email)
 
-        log_database_operation(
-            app_logger,
-            "create",
-            "reset_password_code",
-            record_id=code_id,
-            success=True
-        )
+        log_database_operation(app_logger, "create", "reset_password_code", record_id=code_id, success=True)
 
         return Success(message="重置密码验证码已发送")
 
     except Exception as e:
-        log_exception(
-            app_logger, "Send reset password code error", exception=e)
+        log_exception(app_logger, "Send reset password code error", exception=e)
         error_msg = str(e)
         # 提取更详细的错误信息
         if "Connection unexpectedly closed" in error_msg:
@@ -271,15 +215,12 @@ async def send_reset_password_code(
             raise APIError(f"发送重置密码验证码失败: {error_msg}")
 
 
-@router.post(
-    "/reset_password",
-    response_model=BaseResponse[None]
-)
+@router.post("/reset_password", response_model=BaseResponse[None])
 async def reset_password(
     email: str = Form(...),
     verification_code: str = Form(...),
     new_password: str = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """通过邮箱验证码重置密码"""
     try:
@@ -296,37 +237,27 @@ async def reset_password(
             raise ValidationError("密码长度不能少于6位")
 
         auth_service = AuthService(db)
-        
+
         # 3. 验证邮箱验证码并重置密码
         if not auth_service.reset_password(email, verification_code, new_password):
             raise APIError("重置密码失败，请检查邮箱是否正确")
 
-        log_database_operation(
-            app_logger,
-            "update",
-            "user_password",
-            success=True
-        )
+        log_database_operation(app_logger, "update", "user_password", success=True)
 
-        return Success(
-            message="密码重置成功"
-        )
+        return Success(message="密码重置成功")
 
     except Exception as e:
         log_exception(app_logger, "Reset password error", exception=e)
         raise APIError("重置密码失败")
 
 
-@router.post(
-    "/user/register",
-    response_model=BaseResponse[None]
-)
+@router.post("/user/register", response_model=BaseResponse[None])
 async def user_register(
     username: str = Form(...),
     password: str = Form(...),
     email: str = Form(...),
     verification_code: str = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """用户注册"""
     try:
@@ -337,7 +268,7 @@ async def user_register(
         email = email.lower()
 
         auth_service = AuthService(db)
-        
+
         # 检查注册合法性
         message = auth_service.check_register_legality(username, email)
         if message != "ok":
@@ -352,17 +283,9 @@ async def user_register(
         if not new_user:
             raise APIError("注册失败，系统错误，请稍后重试")
 
-        log_database_operation(
-            app_logger,
-            "create",
-            "user",
-            user_id=new_user.id,
-            success=True
-        )
+        log_database_operation(app_logger, "create", "user", user_id=new_user.id, success=True)
 
-        return Success(
-            message="注册成功"
-        )
+        return Success(message="注册成功")
     except ValidationError:
         raise
     except Exception as e:

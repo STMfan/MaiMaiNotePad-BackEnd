@@ -26,31 +26,31 @@ from app.core.security import verify_password, get_password_hash
 
 def check_superadmin():
     """检查超级管理员账户"""
-    
+
     print("=" * 60)
     print("超级管理员诊断工具")
     print("=" * 60)
     print()
-    
+
     # 1. 检查环境变量
     print("1. 检查环境变量配置")
     print("-" * 60)
-    
-    superadmin_username = os.getenv('SUPERADMIN_USERNAME', 'superadmin')
-    superadmin_pwd = os.getenv('SUPERADMIN_PWD', 'admin123456')
-    external_domain = os.getenv('EXTERNAL_DOMAIN', 'example.com')
-    database_url = os.getenv('DATABASE_URL', 'sqlite:///data/mainnp.db')
-    
+
+    superadmin_username = os.getenv("SUPERADMIN_USERNAME", "superadmin")
+    superadmin_pwd = os.getenv("SUPERADMIN_PWD", "admin123456")
+    external_domain = os.getenv("EXTERNAL_DOMAIN", "example.com")
+    database_url = os.getenv("DATABASE_URL", "sqlite:///data/mainnp.db")
+
     print(f"SUPERADMIN_USERNAME: {superadmin_username}")
     print(f"SUPERADMIN_PWD: {'*' * len(superadmin_pwd)} (长度: {len(superadmin_pwd)})")
     print(f"EXTERNAL_DOMAIN: {external_domain}")
     print(f"DATABASE_URL: {database_url}")
     print()
-    
+
     # 2. 连接数据库
     print("2. 连接数据库")
     print("-" * 60)
-    
+
     try:
         engine = create_engine(database_url)
         SessionLocal = sessionmaker(bind=engine)
@@ -60,22 +60,24 @@ def check_superadmin():
     except Exception as e:
         print(f"❌ 数据库连接失败: {e}")
         return
-    
+
     # 3. 查询超级管理员
     print("3. 查询超级管理员账户")
     print("-" * 60)
-    
+
     try:
         super_admin = db.query(User).filter(User.is_super_admin == True).first()
-        
+
         if not super_admin:
             print("❌ 数据库中没有超级管理员账户")
             print()
             print("建议操作:")
             print("1. 重启应用，系统会自动创建超级管理员")
-            print("2. 或运行: python -c 'from app.services.user_service import UserService; from app.core.database import SessionLocal; db = SessionLocal(); UserService(db).ensure_super_admin_exists()'")
+            print(
+                "2. 或运行: python -c 'from app.services.user_service import UserService; from app.core.database import SessionLocal; db = SessionLocal(); UserService(db).ensure_super_admin_exists()'"
+            )
             return
-        
+
         print("✅ 找到超级管理员账户")
         print(f"   用户ID: {super_admin.id}")
         print(f"   用户名: {super_admin.username}")
@@ -85,20 +87,20 @@ def check_superadmin():
         print(f"   密码版本: {super_admin.password_version}")
         print(f"   创建时间: {super_admin.created_at}")
         print()
-        
+
         # 4. 验证密码
         print("4. 验证密码")
         print("-" * 60)
-        
+
         # 检查用户名是否匹配
         if super_admin.username != superadmin_username:
             print(f"⚠️  警告: 数据库中的用户名 ({super_admin.username}) 与环境变量不匹配 ({superadmin_username})")
             print()
-        
+
         # 验证密码
         # bcrypt 限制密码长度为 72 字节
         pwd_to_verify = superadmin_pwd[:72]
-        
+
         if verify_password(pwd_to_verify, super_admin.hashed_password):
             print("✅ 密码验证成功")
             print()
@@ -124,33 +126,34 @@ def check_superadmin():
             print()
             print("3. 或手动更新密码:")
             print(f"   python scripts/python/update_superadmin_password.py")
-        
+
         # 5. 测试密码哈希
         print()
         print("5. 测试密码哈希")
         print("-" * 60)
-        
+
         test_hash = get_password_hash(pwd_to_verify)
         print(f"当前密码的新哈希: {test_hash[:50]}...")
         print(f"数据库中的哈希: {super_admin.hashed_password[:50]}...")
-        
+
         if test_hash == super_admin.hashed_password:
             print("⚠️  注意: 两次哈希相同（不应该发生，bcrypt 每次都不同）")
         else:
             print("✅ 哈希不同（正常，bcrypt 每次生成不同的盐）")
-        
+
     except Exception as e:
         print(f"❌ 查询失败: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         db.close()
-    
+
     print()
     print("=" * 60)
     print("诊断完成")
     print("=" * 60)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     check_superadmin()

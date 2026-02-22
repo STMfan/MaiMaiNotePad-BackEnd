@@ -50,55 +50,71 @@ REFRESH_TOKEN_EXPIRE_DAYS = settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     验证明文密码与哈希密码是否匹配。
-    
+
     Args:
         plain_password: 明文密码
         hashed_password: 数据库中的哈希密码
-        
+
     Returns:
         bool: 密码匹配返回 True，否则返回 False
     """
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        # bcrypt 需要 bytes 类型
+        password_bytes = plain_password.encode("utf-8")
+        hashed_bytes = hashed_password.encode("utf-8") if isinstance(hashed_password, str) else hashed_password
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
+    except Exception:
+        return False
 
 
 def get_password_hash(password: str) -> str:
     """
     使用 bcrypt 生成密码哈希。
-    
+
     Args:
         password: 明文密码
-        
+
     Returns:
         str: 哈希后的密码
-        
+
+    Raises:
+        ValueError: 如果密码包含空字节
+
     注意:
         bcrypt 最大密码长度为 72 字节
     """
+    # bcrypt 不允许空字节
+    if "\x00" in password:
+        raise ValueError("Password cannot contain null bytes")
+
     # 限制密码长度为 72 字节（bcrypt 限制）
-    return pwd_context.hash(password[:72])
+    password_bytes = password[:72].encode("utf-8")
+    salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode("utf-8")
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """
     创建 JWT 访问令牌。
-    
+
     Args:
         data: 要编码到令牌中的载荷数据
         expires_delta: 可选的自定义过期时间
-        
+
     Returns:
         str: 编码后的 JWT 令牌
     """
     to_encode = data.copy()
-    
+
     # 设置过期时间
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    
+
     to_encode.update({"exp": expire})
-    
+
     # 生成 JWT
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -107,10 +123,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def verify_token(token: str) -> Optional[Dict[str, Any]]:
     """
     验证并解码 JWT 令牌。
-    
+
     Args:
         token: JWT 令牌字符串
-        
+
     Returns:
         Optional[Dict[str, Any]]: 有效则返回解码后的载荷，否则返回 None
     """
@@ -124,38 +140,38 @@ def verify_token(token: str) -> Optional[Dict[str, Any]]:
 def get_user_from_token(token: str) -> Optional[Dict[str, Any]]:
     """
     从 JWT 令牌中提取用户信息。
-    
+
     Args:
         token: JWT 令牌字符串
-        
+
     Returns:
         Optional[Dict[str, Any]]: 有效且未过期则返回用户载荷，否则返回 None
     """
     payload = verify_token(token)
     if payload is None:
         return None
-    
+
     # 检查令牌是否过期
     exp = payload.get("exp")
     if exp is None:
         return None
-    
+
     if datetime.now(timezone.utc) > datetime.fromtimestamp(exp, timezone.utc):
         return None
-    
+
     return payload
 
 
 def create_user_token(user_id: str, username: str, role: str, password_version: int = 0) -> str:
     """
     为用户创建 JWT 访问令牌。
-    
+
     Args:
         user_id: 用户 ID
         username: 用户名
         role: 用户角色
         password_version: 密码版本号，用于令牌失效控制
-        
+
     Returns:
         str: JWT 访问令牌
     """
@@ -165,7 +181,7 @@ def create_user_token(user_id: str, username: str, role: str, password_version: 
             "username": username,
             "role": role,
             "type": "access",
-            "pwd_ver": password_version  # 密码版本号
+            "pwd_ver": password_version,  # 密码版本号
         }
     )
 
@@ -173,17 +189,13 @@ def create_user_token(user_id: str, username: str, role: str, password_version: 
 def create_refresh_token(user_id: str) -> str:
     """
     创建 JWT 刷新令牌。
-    
+
     Args:
         user_id: 用户 ID
-        
+
     Returns:
         str: JWT 刷新令牌
     """
     return create_access_token(
-        data={
-            "sub": user_id,
-            "type": "refresh"
-        },
-        expires_delta=timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        data={"sub": user_id, "type": "refresh"}, expires_delta=timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     )

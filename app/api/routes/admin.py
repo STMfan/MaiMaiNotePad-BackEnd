@@ -19,16 +19,20 @@ from sqlalchemy import func, or_, and_, desc
 from app.api.response_util import Success, Page
 from app.core.database import get_db
 from app.models.database import (
-    User, KnowledgeBase, PersonaCard, UploadRecord, 
-    KnowledgeBaseFile, PersonaCardFile, Message
+    User,
+    KnowledgeBase,
+    PersonaCard,
+    UploadRecord,
+    KnowledgeBaseFile,
+    PersonaCardFile,
+    Message,
 )
-from app.core.error_handlers import (
-    APIError, ValidationError, NotFoundError, ConflictError, DatabaseError
-)
+from app.core.error_handlers import APIError, ValidationError, NotFoundError, ConflictError, DatabaseError
 from app.services.user_service import UserService
 from app.services.knowledge_service import KnowledgeService
 from app.services.persona_service import PersonaService
 from app.services.message_service import MessageService
+
 # 导入错误处理和日志记录模块
 from app.core.logging import app_logger, log_exception, log_api_request, log_database_operation
 from app.api.deps import get_current_user
@@ -39,83 +43,61 @@ router = APIRouter()
 
 # 管理员相关路由（获取统计数据、用户管理、禁言、封禁等）
 @router.get("/stats")
-async def get_admin_stats(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+async def get_admin_stats(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """获取管理员统计数据（仅限admin）"""
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="需要管理员权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         app_logger.info(f"Get admin stats: user_id={current_user.get('id')}")
 
         # 总用户数（只统计活跃用户）
-        total_users = db.query(func.count(User.id)).filter(
-            User.is_active == True).scalar() or 0
+        total_users = db.query(func.count(User.id)).filter(User.is_active == True).scalar() or 0
 
         # 知识库数量（包括待审核）
-        total_knowledge = db.query(
-            func.count(KnowledgeBase.id)).scalar() or 0
+        total_knowledge = db.query(func.count(KnowledgeBase.id)).scalar() or 0
 
         # 人格数量（包括待审核）
-        total_personas = db.query(
-            func.count(PersonaCard.id)).scalar() or 0
+        total_personas = db.query(func.count(PersonaCard.id)).scalar() or 0
 
         # 待审核知识库数量
-        pending_knowledge = db.query(func.count(KnowledgeBase.id)).filter(
-            KnowledgeBase.is_pending == True
-        ).scalar() or 0
+        pending_knowledge = (
+            db.query(func.count(KnowledgeBase.id)).filter(KnowledgeBase.is_pending == True).scalar() or 0
+        )
 
         # 待审核人格数量
-        pending_personas = db.query(func.count(PersonaCard.id)).filter(
-            PersonaCard.is_pending == True
-        ).scalar() or 0
+        pending_personas = db.query(func.count(PersonaCard.id)).filter(PersonaCard.is_pending == True).scalar() or 0
 
         stats = {
             "totalUsers": total_users,
             "totalKnowledge": total_knowledge,
             "totalPersonas": total_personas,
             "pendingKnowledge": pending_knowledge,
-            "pendingPersonas": pending_personas
+            "pendingPersonas": pending_personas,
         }
 
-        log_api_request(app_logger, "GET", "/api/admin/stats",
-                        current_user.get("id"), status_code=200)
+        log_api_request(app_logger, "GET", "/api/admin/stats", current_user.get("id"), status_code=200)
         return Success(data=stats)
 
     except HTTPException:
         raise
     except Exception as e:
         log_exception(app_logger, "Get admin stats error", exception=e)
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取统计数据失败: {str(e)}"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取统计数据失败: {str(e)}")
 
 
 @router.get("/recent-users")
 async def get_recent_users(
-        page_size: int = 10,
-        page: int = 1,
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    page_size: int = 10, page: int = 1, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """获取最近注册的用户列表（仅限admin，支持分页）"""
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="需要管理员权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
-        app_logger.info(
-            f"Get recent users: user_id={current_user.get('id')}, page_size={page_size}, page={page}")
+        app_logger.info(f"Get recent users: user_id={current_user.get('id')}, page_size={page_size}, page={page}")
 
         # 限制page_size范围
         if page_size < 1 or page_size > 100:
@@ -124,29 +106,32 @@ async def get_recent_users(
             page = 1
 
         offset = (page - 1) * page_size
-        users = db.query(User).filter(
-            User.is_active == True
-        ).order_by(
-            desc(User.created_at)
-        ).offset(offset).limit(page_size).all()
+        users = (
+            db.query(User)
+            .filter(User.is_active == True)
+            .order_by(desc(User.created_at))
+            .offset(offset)
+            .limit(page_size)
+            .all()
+        )
 
         user_list = []
         for user in users:
-            role = "admin" if user.is_admin else (
-                "moderator" if user.is_moderator else "user")
-            user_list.append({
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "role": role,
-                "createdAt": user.created_at.isoformat() if user.created_at else None
-            })
+            role = "admin" if user.is_admin else ("moderator" if user.is_moderator else "user")
+            user_list.append(
+                {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "role": role,
+                    "createdAt": user.created_at.isoformat() if user.created_at else None,
+                }
+            )
 
         # 统计总用户数
         total_users = db.query(User).count()
 
-        log_api_request(app_logger, "GET", "/api/admin/recent-users",
-                        current_user.get("id"), status_code=200)
+        log_api_request(app_logger, "GET", "/api/admin/recent-users", current_user.get("id"), status_code=200)
         return Page(
             data=user_list,
             page=page,
@@ -158,33 +143,28 @@ async def get_recent_users(
         raise
     except Exception as e:
         log_exception(app_logger, "Get recent users error", exception=e)
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取最近用户失败: {str(e)}"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取最近用户失败: {str(e)}")
 
 
 # 用户管理API
 @router.get("/users")
 async def get_all_users(
-        page_size: int = 20,
-        page: int = 1,
-        search: Optional[str] = None,
-        role: Optional[str] = None,
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    page_size: int = 20,
+    page: int = 1,
+    search: Optional[str] = None,
+    role: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """获取所有用户列表（仅限admin，支持分页、搜索、角色筛选）"""
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="需要管理员权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         app_logger.info(
-            f"Get all users: user_id={current_user.get('id')}, page={page}, page_size={page_size}, search={search}, role={role}")
+            f"Get all users: user_id={current_user.get('id')}, page={page}, page_size={page_size}, search={search}, role={role}"
+        )
 
         # 限制参数范围
         if page_size < 1 or page_size > 100:
@@ -193,49 +173,41 @@ async def get_all_users(
             page = 1
 
         # 构建查询 - 只查询活跃用户（过滤已删除的用户），并排除超级管理员
-        query = db.query(User).filter(
-            User.is_active == True,
-            User.is_super_admin == False  # noqa: E712
-        )
+        query = db.query(User).filter(User.is_active == True, User.is_super_admin == False)  # noqa: E712
 
         # 搜索过滤（用户名或邮箱）
         if search:
-            search_filter = or_(
-                User.username.ilike(f"%{search}%"),
-                User.email.ilike(f"%{search}%")
-            )
+            search_filter = or_(User.username.ilike(f"%{search}%"), User.email.ilike(f"%{search}%"))
             query = query.filter(search_filter)
 
         # 角色过滤（此处 admin 仅包含普通管理员，不包含超级管理员）
         if role == "admin":
             query = query.filter(User.is_admin == True)  # noqa: E712
         elif role == "moderator":
-            query = query.filter(User.is_moderator ==
-                                 True, User.is_admin == False)
+            query = query.filter(User.is_moderator == True, User.is_admin == False)
         elif role == "user":
-            query = query.filter(User.is_moderator ==
-                                 False, User.is_admin == False)
+            query = query.filter(User.is_moderator == False, User.is_admin == False)
 
         # 获取总数
         total = query.count()
 
         # 分页
         offset = (page - 1) * page_size
-        users = query.order_by(User.created_at.desc()).offset(
-            offset).limit(page_size).all()
+        users = query.order_by(User.created_at.desc()).offset(offset).limit(page_size).all()
 
         user_ids = [user.id for user in users]
 
         last_upload_map = {}
         if user_ids:
-            subquery = db.query(
-                UploadRecord.uploader_id.label("uploader_id"),
-                func.max(UploadRecord.created_at).label("last_upload_at")
-            ).filter(
-                UploadRecord.uploader_id.in_(user_ids)
-            ).group_by(
-                UploadRecord.uploader_id
-            ).subquery()
+            subquery = (
+                db.query(
+                    UploadRecord.uploader_id.label("uploader_id"),
+                    func.max(UploadRecord.created_at).label("last_upload_at"),
+                )
+                .filter(UploadRecord.uploader_id.in_(user_ids))
+                .group_by(UploadRecord.uploader_id)
+                .subquery()
+            )
 
             upload_rows = db.query(subquery.c.uploader_id, subquery.c.last_upload_at).all()
             for row in upload_rows:
@@ -243,40 +215,37 @@ async def get_all_users(
 
         user_list = []
         for user in users:
-            kb_count = db.query(func.count(KnowledgeBase.id)).filter(
-                KnowledgeBase.uploader_id == user.id
-            ).scalar() or 0
-            pc_count = db.query(func.count(PersonaCard.id)).filter(
-                PersonaCard.uploader_id == user.id
-            ).scalar() or 0
+            kb_count = db.query(func.count(KnowledgeBase.id)).filter(KnowledgeBase.uploader_id == user.id).scalar() or 0
+            pc_count = db.query(func.count(PersonaCard.id)).filter(PersonaCard.uploader_id == user.id).scalar() or 0
 
-            role_str = "super_admin" if getattr(user, "is_super_admin", False) else (
-                "admin" if user.is_admin else (
-                    "moderator" if user.is_moderator else "user"
-                )
+            role_str = (
+                "super_admin"
+                if getattr(user, "is_super_admin", False)
+                else ("admin" if user.is_admin else ("moderator" if user.is_moderator else "user"))
             )
             last_upload_at = last_upload_map.get(user.id)
 
-            user_list.append({
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "role": role_str,
-                "is_active": user.is_active,
-                "createdAt": user.created_at.isoformat() if user.created_at else None,
-                "knowledgeCount": kb_count,
-                "personaCount": pc_count,
-                "lastUploadAt": last_upload_at.isoformat() if last_upload_at else None,
-                "lastLoginAt": None,
-                "lockedUntil": user.locked_until.isoformat() if user.locked_until else None,
-                "isMuted": user.is_muted,
-                "mutedUntil": user.muted_until.isoformat() if user.muted_until else None,
-                "banReason": getattr(user, "ban_reason", None),
-                "muteReason": getattr(user, "mute_reason", None)
-            })
+            user_list.append(
+                {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "role": role_str,
+                    "is_active": user.is_active,
+                    "createdAt": user.created_at.isoformat() if user.created_at else None,
+                    "knowledgeCount": kb_count,
+                    "personaCount": pc_count,
+                    "lastUploadAt": last_upload_at.isoformat() if last_upload_at else None,
+                    "lastLoginAt": None,
+                    "lockedUntil": user.locked_until.isoformat() if user.locked_until else None,
+                    "isMuted": user.is_muted,
+                    "mutedUntil": user.muted_until.isoformat() if user.muted_until else None,
+                    "banReason": getattr(user, "ban_reason", None),
+                    "muteReason": getattr(user, "mute_reason", None),
+                }
+            )
 
-        log_api_request(app_logger, "GET", "/api/admin/users",
-                        current_user.get("id"), status_code=200)
+        log_api_request(app_logger, "GET", "/api/admin/users", current_user.get("id"), status_code=200)
         return Page(
             data=user_list,
             page=page,
@@ -288,30 +257,25 @@ async def get_all_users(
         raise
     except Exception as e:
         log_exception(app_logger, "Get all users error", exception=e)
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取用户列表失败: {str(e)}"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取用户列表失败: {str(e)}")
 
 
 @router.put("/users/{user_id}/role")
 async def update_user_role(
-        user_id: str,
-        role_data: dict = Body(...),
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    user_id: str,
+    role_data: dict = Body(...),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """更新用户角色（仅限admin）"""
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="需要管理员权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         app_logger.info(
-            f"Update user role: user_id={user_id}, new_role={role_data.get('role')}, operator={current_user.get('id')}")
+            f"Update user role: user_id={user_id}, new_role={role_data.get('role')}, operator={current_user.get('id')}"
+        )
 
         new_role = role_data.get("role")
         if new_role not in ["user", "moderator", "admin"]:
@@ -337,38 +301,24 @@ async def update_user_role(
 
         # 检查是否是最后一个管理员（只统计活跃管理员，不含超级管理员）
         if user.is_admin and new_role != "admin":
-            admin_count = db.query(func.count(User.id)).filter(
-                User.is_admin == True,
-                User.is_active == True
-            ).scalar() or 0
+            admin_count = (
+                db.query(func.count(User.id)).filter(User.is_admin == True, User.is_active == True).scalar() or 0
+            )
             if admin_count <= 1:
                 raise ValidationError("不能删除最后一个管理员")
 
         # 更新角色
-        user.is_admin = (new_role == "admin")
-        user.is_moderator = (new_role == "moderator")
+        user.is_admin = new_role == "admin"
+        user.is_moderator = new_role == "moderator"
         username = user.username
         db.commit()
 
         log_database_operation(
-            app_logger,
-            "update",
-            "user_role",
-            record_id=user_id,
-            user_id=current_user.get("id"),
-            success=True
+            app_logger, "update", "user_role", record_id=user_id, user_id=current_user.get("id"), success=True
         )
 
-        log_api_request(
-            app_logger, "PUT", f"/api/admin/users/{user_id}/role", current_user.get("id"), status_code=200)
-        return Success(
-            message="用户角色更新成功",
-            data={
-                "id": user_id,
-                "username": username,
-                "role": new_role
-            }
-        )
+        log_api_request(app_logger, "PUT", f"/api/admin/users/{user_id}/role", current_user.get("id"), status_code=200)
+        return Success(message="用户角色更新成功", data={"id": user_id, "username": username, "role": new_role})
 
     except (ValidationError, NotFoundError):
         raise
@@ -376,26 +326,16 @@ async def update_user_role(
         raise
     except Exception as e:
         log_exception(app_logger, "Update user role error", exception=e)
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"更新用户角色失败: {str(e)}"
-        )
-
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"更新用户角色失败: {str(e)}")
 
 
 @router.post("/users/{user_id}/mute")
 async def mute_user(
-        user_id: str,
-        body: dict = Body(...),
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    user_id: str, body: dict = Body(...), current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """禁言用户（仅限admin）"""
     if not current_user.get("is_admin", False):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="需要管理员权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         duration = body.get("duration", "7d")
@@ -453,7 +393,7 @@ async def mute_user(
                 title="禁言通知",
                 content=content,
                 message_type="announcement",
-                summary=None
+                summary=None,
             )
             db.add(message)
             db.commit()
@@ -466,8 +406,8 @@ async def mute_user(
                 "userId": user_id,
                 "isMuted": True,
                 "mutedUntil": muted_until.isoformat() if muted_until else None,
-                "muteReason": reason or ""
-            }
+                "muteReason": reason or "",
+            },
         )
     except (ValidationError, NotFoundError):
         raise
@@ -475,29 +415,17 @@ async def mute_user(
         raise
     except Exception as e:
         log_exception(app_logger, "Mute user error", exception=e)
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"禁言用户失败: {str(e)}"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"禁言用户失败: {str(e)}")
 
 
 @router.post("/users/{user_id}/unmute")
-async def unmute_user(
-        user_id: str,
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
-):
+async def unmute_user(user_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """解除禁言（仅限admin）"""
     if not current_user.get("is_admin", False):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="需要管理员权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
-        app_logger.info(
-            f"解除禁言: user_id={user_id}, operator={current_user.get('id')}"
-        )
+        app_logger.info(f"解除禁言: user_id={user_id}, operator={current_user.get('id')}")
 
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
@@ -528,51 +456,30 @@ async def unmute_user(
                 title="禁言解除通知",
                 content=content,
                 message_type="announcement",
-                summary=None
+                summary=None,
             )
             db.add(message)
             db.commit()
         except Exception as e:
             app_logger.warning(f"Failed to send unmute notification message: {str(e)}")
 
-        return Success(
-            message="用户已解除禁言",
-            data={
-                "userId": user_id,
-                "isMuted": False,
-                "mutedUntil": None
-            }
-        )
+        return Success(message="用户已解除禁言", data={"userId": user_id, "isMuted": False, "mutedUntil": None})
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         log_exception(app_logger, "Unmute user error", exception=e)
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"解除禁言失败: {str(e)}"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"解除禁言失败: {str(e)}")
 
 
 @router.delete("/users/{user_id}")
-async def delete_user(
-        user_id: str,
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
-):
+async def delete_user(user_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """删除用户（仅限admin，软删除）"""
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="需要管理员权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
-        app_logger.info(
-            f"Delete user: user_id={user_id}, operator={current_user.get('id')}")
+        app_logger.info(f"Delete user: user_id={user_id}, operator={current_user.get('id')}")
 
         # 不能删除自己
         if user_id == current_user.get("id"):
@@ -589,10 +496,9 @@ async def delete_user(
 
         # 检查是否是最后一个管理员（只统计活跃管理员）
         if user.is_admin:
-            admin_count = db.query(func.count(User.id)).filter(
-                User.is_admin == True,
-                User.is_active == True
-            ).scalar() or 0
+            admin_count = (
+                db.query(func.count(User.id)).filter(User.is_admin == True, User.is_active == True).scalar() or 0
+            )
             if admin_count <= 1:
                 raise ValidationError("不能删除最后一个管理员")
 
@@ -601,19 +507,11 @@ async def delete_user(
         db.commit()
 
         log_database_operation(
-            app_logger,
-            "delete",
-            "user",
-            record_id=user_id,
-            user_id=current_user.get("id"),
-            success=True
+            app_logger, "delete", "user", record_id=user_id, user_id=current_user.get("id"), success=True
         )
 
-        log_api_request(app_logger, "DELETE",
-                        f"/api/admin/users/{user_id}", current_user.get("id"), status_code=200)
-        return Success(
-            message="用户删除成功"
-        )
+        log_api_request(app_logger, "DELETE", f"/api/admin/users/{user_id}", current_user.get("id"), status_code=200)
+        return Success(message="用户删除成功")
 
     except (ValidationError, NotFoundError):
         raise
@@ -621,31 +519,23 @@ async def delete_user(
         raise
     except Exception as e:
         log_exception(app_logger, "Delete user error", exception=e)
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"删除用户失败: {str(e)}"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"删除用户失败: {str(e)}")
 
 
 @router.post("/users/{user_id}/ban")
 async def ban_user(
-        user_id: str,
-        body: dict = Body(...),
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    user_id: str, body: dict = Body(...), current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """封禁用户（仅限admin），支持按时长封禁"""
     if not current_user.get("is_admin", False):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="需要管理员权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         duration = body.get("duration", "permanent")
         reason = (body.get("reason") or "").strip()
         app_logger.info(
-            f"Ban user: user_id={user_id}, duration={duration}, reason={reason}, operator={current_user.get('id')}")
+            f"Ban user: user_id={user_id}, duration={duration}, reason={reason}, operator={current_user.get('id')}"
+        )
 
         if user_id == current_user.get("id"):
             raise ValidationError("不能封禁自己")
@@ -674,14 +564,9 @@ async def ban_user(
 
         # 检查是否是最后一个管理员（只统计未被永久封禁的活跃管理员）
         if user.is_admin:
-            admin_query = db.query(func.count(User.id)).filter(
-                User.is_admin == True,
-                User.is_active == True
-            )
+            admin_query = db.query(func.count(User.id)).filter(User.is_admin == True, User.is_active == True)
             # 只统计未被永久封禁（locked_until 为空或已经过期）的管理员
-            admin_query = admin_query.filter(
-                (User.locked_until == None) | (User.locked_until <= now)  # noqa: E711
-            )
+            admin_query = admin_query.filter((User.locked_until == None) | (User.locked_until <= now))  # noqa: E711
             admin_count = admin_query.scalar() or 0
             if admin_count <= 1:
                 raise ValidationError("不能封禁最后一个管理员")
@@ -691,12 +576,7 @@ async def ban_user(
         db.commit()
 
         log_database_operation(
-            app_logger,
-            "update",
-            "user",
-            record_id=user_id,
-            user_id=current_user.get("id"),
-            success=True
+            app_logger, "update", "user", record_id=user_id, user_id=current_user.get("id"), success=True
         )
 
         # 发送封禁站内信
@@ -721,26 +601,16 @@ async def ban_user(
                 title="封禁通知",
                 content=content,
                 message_type="announcement",
-                summary=None
+                summary=None,
             )
             db.add(message)
             db.commit()
         except Exception as e:
             app_logger.warning(f"Failed to send ban notification message: {str(e)}")
 
-        log_api_request(
-            app_logger,
-            "POST",
-            f"/api/admin/users/{user_id}/ban",
-            current_user.get("id"),
-            status_code=200
-        )
+        log_api_request(app_logger, "POST", f"/api/admin/users/{user_id}/ban", current_user.get("id"), status_code=200)
         return Success(
-            message="用户封禁成功",
-            data={
-                "locked_until": locked_until.isoformat(),
-                "ban_reason": reason or ""
-            }
+            message="用户封禁成功", data={"locked_until": locked_until.isoformat(), "ban_reason": reason or ""}
         )
 
     except (ValidationError, NotFoundError):
@@ -749,28 +619,17 @@ async def ban_user(
         raise
     except Exception as e:
         log_exception(app_logger, "Ban user error", exception=e)
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"封禁用户失败: {str(e)}"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"封禁用户失败: {str(e)}")
 
 
 @router.post("/users/{user_id}/unban")
-async def unban_user(
-        user_id: str,
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
-):
+async def unban_user(user_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """解封用户（仅限admin）"""
     if not current_user.get("is_admin", False):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="需要管理员权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
-        app_logger.info(
-            f"Unban user: user_id={user_id}, operator={current_user.get('id')}")
+        app_logger.info(f"Unban user: user_id={user_id}, operator={current_user.get('id')}")
 
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
@@ -787,12 +646,7 @@ async def unban_user(
         db.commit()
 
         log_database_operation(
-            app_logger,
-            "update",
-            "user",
-            record_id=user_id,
-            user_id=current_user.get("id"),
-            success=True
+            app_logger, "update", "user", record_id=user_id, user_id=current_user.get("id"), success=True
         )
 
         # 发送解封站内信
@@ -810,7 +664,7 @@ async def unban_user(
                 title="解封通知",
                 content=content,
                 message_type="announcement",
-                summary=None
+                summary=None,
             )
             db.add(message)
             db.commit()
@@ -818,15 +672,9 @@ async def unban_user(
             app_logger.warning(f"Failed to send unban notification message: {str(e)}")
 
         log_api_request(
-            app_logger,
-            "POST",
-            f"/api/admin/users/{user_id}/unban",
-            current_user.get("id"),
-            status_code=200
+            app_logger, "POST", f"/api/admin/users/{user_id}/unban", current_user.get("id"), status_code=200
         )
-        return Success(
-            message="用户已解封"
-        )
+        return Success(message="用户已解封")
 
     except (ValidationError, NotFoundError):
         raise
@@ -834,29 +682,22 @@ async def unban_user(
         raise
     except Exception as e:
         log_exception(app_logger, "Unban user error", exception=e)
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"解封用户失败: {str(e)}"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"解封用户失败: {str(e)}")
 
 
 @router.post("/users")
 async def create_user_by_admin(
-        user_data: dict = Body(...),
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    user_data: dict = Body(...), current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """创建新用户（仅限admin）"""
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="需要管理员权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         app_logger.info(
-            f"Create user by admin: operator={current_user.get('id')}, username={user_data.get('username')}")
+            f"Create user by admin: operator={current_user.get('id')}, username={user_data.get('username')}"
+        )
 
         username = user_data.get("username", "").strip()
         email = user_data.get("email", "").strip().lower()
@@ -885,7 +726,7 @@ async def create_user_by_admin(
 
         # 使用 UserService 创建用户
         user_service = UserService(db)
-        
+
         # 检查用户名和邮箱唯一性
         if user_service.get_user_by_username(username):
             raise ConflictError("用户名已存在")
@@ -898,31 +739,20 @@ async def create_user_by_admin(
             email=email,
             password=password,
             is_admin=(role == "admin"),
-            is_moderator=(role == "moderator")
+            is_moderator=(role == "moderator"),
         )
 
         if not new_user:
             raise DatabaseError("创建用户失败")
 
         log_database_operation(
-            app_logger,
-            "create",
-            "user",
-            record_id=new_user.id,
-            user_id=current_user.get("id"),
-            success=True
+            app_logger, "create", "user", record_id=new_user.id, user_id=current_user.get("id"), success=True
         )
 
-        log_api_request(app_logger, "POST", "/api/admin/users",
-                        current_user.get("id"), status_code=200)
+        log_api_request(app_logger, "POST", "/api/admin/users", current_user.get("id"), status_code=200)
         return Success(
             message="用户创建成功",
-            data={
-                "id": new_user.id,
-                "username": new_user.username,
-                "email": new_user.email,
-                "role": role
-            }
+            data={"id": new_user.id, "username": new_user.username, "email": new_user.email, "role": role},
         )
 
     except (ValidationError, ConflictError, DatabaseError):
@@ -931,7 +761,4 @@ async def create_user_by_admin(
         raise
     except Exception as e:
         log_exception(app_logger, "Create user by admin error", exception=e)
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"创建用户失败: {str(e)}"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"创建用户失败: {str(e)}")

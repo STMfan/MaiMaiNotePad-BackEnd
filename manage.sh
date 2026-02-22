@@ -264,6 +264,63 @@ database_menu() {
     done
 }
 
+code_quality_menu() {
+    while true; do
+        print_header "代码质量检查"
+        echo "  1. 运行所有检查（格式化 + Lint）"
+        echo "  2. 代码格式化（Black）"
+        echo "  3. 代码风格检查（Flake8）"
+        echo "  4. 仅检查格式（不修改）"
+        echo "  0. 返回主菜单"
+        echo ""
+        print_warning "注意：类型检查（Mypy）已暂时禁用，需要修复 SQLAlchemy 类型问题"
+        echo ""
+        
+        read -p "$(echo -e ${CYAN}请选择操作 [0-4]: ${NC})" choice
+        
+        case $choice in
+            0)
+                break
+                ;;
+            1)
+                echo ""
+                print_info "运行代码格式化..."
+                black app tests scripts/python
+                echo ""
+                print_info "运行代码风格检查..."
+                flake8 app tests scripts/python
+                echo ""
+                print_success "所有检查完成"
+                pause
+                ;;
+            2)
+                echo ""
+                print_info "格式化代码..."
+                black app tests scripts/python
+                print_success "代码格式化完成"
+                pause
+                ;;
+            3)
+                echo ""
+                print_info "检查代码风格..."
+                flake8 app tests scripts/python
+                print_success "代码风格检查完成"
+                pause
+                ;;
+            4)
+                echo ""
+                print_info "检查代码格式（不修改）..."
+                black --check --diff app tests scripts/python
+                pause
+                ;;
+            *)
+                print_error "无效的选择"
+                pause
+                ;;
+        esac
+    done
+}
+
 generate_docs() {
     print_header "生成文档"
     echo "  1. 生成错误码文档"
@@ -337,6 +394,8 @@ show_help() {
     echo "  test-int        运行集成测试"
     echo "  test-cov        生成测试覆盖率报告"
     echo "  cleanup         清理项目缓存和临时文件"
+    echo "  lint            运行代码质量检查（格式化 + Lint + 类型检查）"
+    echo "  format          格式化代码（Black）"
     echo "  db-upgrade      升级数据库到最新版本"
     echo "  db-current      查看当前数据库版本"
     echo "  docs-errors     生成错误码文档"
@@ -378,11 +437,12 @@ show_menu() {
     echo -e "${BOLD}${MAGENTA}项目维护${NC}"
     echo "  8. 清理项目（缓存、临时文件）"
     echo "  9. 数据库管理"
-    echo " 10. 生成文档"
+    echo " 10. 代码质量检查"
+    echo " 11. 生成文档"
     echo ""
     
     echo -e "${BOLD}${MAGENTA}高级操作${NC}"
-    echo -e " 11. 清档重置（${RED}⚠️  危险操作${NC}）"
+    echo -e " 12. 清档重置（${RED}⚠️  危险操作${NC}）"
     echo ""
     
     echo -e "${BOLD}${MAGENTA}其他${NC}"
@@ -423,6 +483,23 @@ if [ $# -gt 0 ]; then
         cleanup)
             cleanup_project
             ;;
+        lint)
+            print_header "代码质量检查"
+            echo ""
+            print_info "运行代码格式化..."
+            black app tests scripts/python
+            echo ""
+            print_info "运行代码风格检查..."
+            flake8 app tests scripts/python
+            echo ""
+            print_success "所有检查完成"
+            print_warning "注意：类型检查（Mypy）已暂时禁用"
+            ;;
+        format)
+            print_header "代码格式化"
+            black app tests scripts/python
+            print_success "代码格式化完成"
+            ;;
         db-upgrade)
             print_header "升级数据库"
             ./scripts/shell/alembic.sh upgrade head
@@ -457,7 +534,7 @@ fi
 # 交互式菜单模式
 while true; do
     show_menu
-    read -p "$(echo -e ${CYAN}请选择操作 [0-11/h]: ${NC})" choice
+    read -p "$(echo -e ${CYAN}请选择操作 [0-12/h]: ${NC})" choice
     
     case $choice in
         0)
@@ -493,9 +570,12 @@ while true; do
             database_menu
             ;;
         10)
-            generate_docs
+            code_quality_menu
             ;;
         11)
+            generate_docs
+            ;;
+        12)
             reset_environment
             ;;
         h|H)

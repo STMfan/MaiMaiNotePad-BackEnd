@@ -13,21 +13,21 @@ from app.utils.websocket import message_ws_manager
 async def message_websocket_endpoint(websocket: WebSocket, token: str) -> None:
     """
     消息 WebSocket 端点
-    
+
     处理用户的 WebSocket 连接，用于实时消息推送。
     客户端通过 JWT token 进行认证。
-    
+
     Args:
         websocket: WebSocket 连接对象
         token: JWT 认证令牌
-    
+
     流程:
         1. 验证 JWT token
         2. 建立 WebSocket 连接
         3. 发送初始消息更新
         4. 保持连接并接收客户端消息
         5. 断开连接时清理资源
-    
+
     Example:
         客户端连接: ws://localhost:9278/api/ws/{jwt_token}
     """
@@ -45,7 +45,7 @@ async def message_websocket_endpoint(websocket: WebSocket, token: str) -> None:
 
     # 建立连接
     await message_ws_manager.connect(str(user_id), websocket)
-    
+
     # 发送初始消息更新
     await message_ws_manager.send_message_update(str(user_id))
 

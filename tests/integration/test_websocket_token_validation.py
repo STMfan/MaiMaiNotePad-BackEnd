@@ -33,10 +33,7 @@ class TestWebSocketExpiredToken:
         - security.py get_user_from_token中的过期检查逻辑
         """
         # 创建一个已过期的token（过期时间设置为1秒前）
-        expired_token = create_access_token(
-            data={"sub": test_user.id},
-            expires_delta=timedelta(seconds=-1)
-        )
+        expired_token = create_access_token(data={"sub": test_user.id}, expires_delta=timedelta(seconds=-1))
 
         # 尝试使用过期token建立连接
         with pytest.raises(WebSocketDisconnect) as exc_info:
@@ -56,10 +53,7 @@ class TestWebSocketExpiredToken:
         - 返回状态码1008
         """
         # 创建1小时前过期的token
-        expired_token = create_access_token(
-            data={"sub": test_user.id},
-            expires_delta=timedelta(hours=-1)
-        )
+        expired_token = create_access_token(data={"sub": test_user.id}, expires_delta=timedelta(hours=-1))
 
         with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect(f"/api/ws/{expired_token}"):
@@ -157,10 +151,7 @@ class TestWebSocketWrongSignature:
         """
         # 使用错误的密钥创建token（至少32字节以避免警告）
         wrong_secret = "wrong_secret_key_for_testing_at_least_32_bytes_long"
-        token_data = {
-            "sub": test_user.id,
-            "exp": datetime.now(timezone.utc) + timedelta(minutes=15)
-        }
+        token_data = {"sub": test_user.id, "exp": datetime.now(timezone.utc) + timedelta(minutes=15)}
         wrong_signature_token = jwt.encode(token_data, wrong_secret, algorithm=ALGORITHM)
 
         with pytest.raises(WebSocketDisconnect) as exc_info:
@@ -180,16 +171,16 @@ class TestWebSocketWrongSignature:
         """
         # 创建有效token
         valid_token = create_access_token({"sub": test_user.id})
-        
+
         # 分解token
-        parts = valid_token.split('.')
-        
+        parts = valid_token.split(".")
+
         # 修改payload部分（改变一个字符）
         if len(parts) == 3:
             # 简单地修改payload的最后一个字符
-            modified_payload = parts[1][:-1] + ('a' if parts[1][-1] != 'a' else 'b')
+            modified_payload = parts[1][:-1] + ("a" if parts[1][-1] != "a" else "b")
             tampered_token = f"{parts[0]}.{modified_payload}.{parts[2]}"
-            
+
             with pytest.raises(WebSocketDisconnect) as exc_info:
                 with client.websocket_connect(f"/api/ws/{tampered_token}"):
                     pytest.fail("Connection should have been rejected with tampered payload")
@@ -206,10 +197,7 @@ class TestWebSocketWrongSignature:
         - 返回状态码1008
         """
         # 使用不同的算法创建token
-        token_data = {
-            "sub": test_user.id,
-            "exp": datetime.now(timezone.utc) + timedelta(minutes=15)
-        }
+        token_data = {"sub": test_user.id, "exp": datetime.now(timezone.utc) + timedelta(minutes=15)}
         # 使用HS384算法而不是配置的算法
         # HS384 需要至少48字节的密钥，使用一个足够长的测试密钥
         test_secret_for_hs384 = SECRET_KEY + "_extended_to_48_bytes_for_hs384_algorithm"
@@ -258,10 +246,7 @@ class TestWebSocketTokenMissingClaims:
         - 返回状态码1008
         """
         # 创建sub为None的token
-        token_data = {
-            "sub": None,
-            "exp": datetime.now(timezone.utc) + timedelta(minutes=15)
-        }
+        token_data = {"sub": None, "exp": datetime.now(timezone.utc) + timedelta(minutes=15)}
         token_with_null_sub = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
 
         with pytest.raises(WebSocketDisconnect) as exc_info:
@@ -280,10 +265,7 @@ class TestWebSocketTokenMissingClaims:
         - 返回状态码1008
         """
         # 创建sub为空字符串的token
-        token_data = {
-            "sub": "",
-            "exp": datetime.now(timezone.utc) + timedelta(minutes=15)
-        }
+        token_data = {"sub": "", "exp": datetime.now(timezone.utc) + timedelta(minutes=15)}
         token_with_empty_sub = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
 
         with pytest.raises(WebSocketDisconnect) as exc_info:
@@ -304,21 +286,18 @@ class TestWebSocketTokenEdgeCases:
         - 创建sub包含特殊字符的token
         - token本身是有效的，可以成功连接
         - 连接建立后能正常工作（即使用户不存在）
-        
+
         注意：这个测试验证token验证逻辑不会因为特殊字符而失败
         """
         # 创建包含特殊字符的sub
-        token_data = {
-            "sub": "user@#$%^&*()",
-            "exp": datetime.now(timezone.utc) + timedelta(minutes=15)
-        }
+        token_data = {"sub": "user@#$%^&*()", "exp": datetime.now(timezone.utc) + timedelta(minutes=15)}
         special_char_token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
 
         # token验证应该成功，能建立连接
         with client.websocket_connect(f"/api/ws/{special_char_token}") as ws:
             # 验证连接成功建立
             assert ws is not None
-            
+
             # 接收初始消息（即使用户不存在，也会发送消息）
             message = ws.receive_json()
             assert message is not None
@@ -334,17 +313,14 @@ class TestWebSocketTokenEdgeCases:
         """
         # 创建非常长的sub
         long_sub = "a" * 1000
-        token_data = {
-            "sub": long_sub,
-            "exp": datetime.now(timezone.utc) + timedelta(minutes=15)
-        }
+        token_data = {"sub": long_sub, "exp": datetime.now(timezone.utc) + timedelta(minutes=15)}
         long_sub_token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
 
         # token验证应该成功，能建立连接
         with client.websocket_connect(f"/api/ws/{long_sub_token}") as ws:
             # 验证连接成功建立
             assert ws is not None
-            
+
             # 接收初始消息
             message = ws.receive_json()
             assert message is not None
@@ -359,16 +335,13 @@ class TestWebSocketTokenEdgeCases:
         - 能接收到初始消息
         """
         # 创建1秒后过期的token
-        almost_expired_token = create_access_token(
-            data={"sub": test_user.id},
-            expires_delta=timedelta(seconds=1)
-        )
+        almost_expired_token = create_access_token(data={"sub": test_user.id}, expires_delta=timedelta(seconds=1))
 
         # 应该能成功连接
         with client.websocket_connect(f"/api/ws/{almost_expired_token}") as ws:
             # 验证连接成功
             assert ws is not None
-            
+
             # 接收初始消息
             message = ws.receive_json()
             assert message is not None
@@ -384,18 +357,15 @@ class TestWebSocketTokenEdgeCases:
         - 能接收到初始消息
         """
         # 创建包含额外声明的token
-        token_with_extra_claims = create_access_token({
-            "sub": test_user.id,
-            "username": test_user.username,
-            "role": "user",
-            "custom_field": "custom_value"
-        })
+        token_with_extra_claims = create_access_token(
+            {"sub": test_user.id, "username": test_user.username, "role": "user", "custom_field": "custom_value"}
+        )
 
         # 应该能成功连接
         with client.websocket_connect(f"/api/ws/{token_with_extra_claims}") as ws:
             # 验证连接成功
             assert ws is not None
-            
+
             # 接收初始消息
             message = ws.receive_json()
             assert message is not None

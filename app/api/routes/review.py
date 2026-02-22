@@ -40,20 +40,16 @@ router = APIRouter()
 
 
 # 审核相关路由（获取待审核内容、审核通过、审核拒绝等）
-@router.get(
-    "/review/knowledge/pending",
-    response_model=PageResponse[dict]
-)
+@router.get("/review/knowledge/pending", response_model=PageResponse[dict])
 async def get_pending_knowledge_bases(
-        page: int = Query(1, ge=1, description="页码，默认为1"),
-        page_size: int = Query(10, ge=1, le=100, description="每页数量，默认为10，最大100"),
-        name: Optional[str] = Query(None, description="按名称搜索"),
-        uploader_id: Optional[str] = Query(None, description="按上传者ID筛选"),
-        sort_by: str = Query(
-            "created_at", description="排序字段，可选：created_at, updated_at, star_count"),
-        sort_order: str = Query("desc", description="排序方式，可选：asc, desc"),
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    page: int = Query(1, ge=1, description="页码，默认为1"),
+    page_size: int = Query(10, ge=1, le=100, description="每页数量，默认为10，最大100"),
+    name: Optional[str] = Query(None, description="按名称搜索"),
+    uploader_id: Optional[str] = Query(None, description="按上传者ID筛选"),
+    sort_by: str = Query("created_at", description="排序字段，可选：created_at, updated_at, star_count"),
+    sort_order: str = Query("desc", description="排序方式，可选：asc, desc"),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """获取待审核的知识库（需要admin或moderator权限），支持分页、搜索、按上传者筛选和排序"""
     # 验证权限：admin 或 moderator（包含 super_admin）
@@ -61,69 +57,61 @@ async def get_pending_knowledge_bases(
     is_moderator = bool(current_user.get("is_moderator"))
     role = current_user.get("role", "user")
     if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="没有审核权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="没有审核权限")
 
     try:
         # Query pending knowledge bases
         query = db.query(KnowledgeBase).filter(KnowledgeBase.is_pending == True)
-        
+
         # Apply filters
         if name:
             query = query.filter(KnowledgeBase.name.ilike(f"%{name}%"))
         if uploader_id:
             query = query.filter(KnowledgeBase.uploader_id == uploader_id)
-        
+
         # Get total
         total = query.count()
-        
+
         # Apply sorting
         sort_field_map = {
             "created_at": KnowledgeBase.created_at,
             "updated_at": KnowledgeBase.updated_at,
-            "star_count": KnowledgeBase.star_count
+            "star_count": KnowledgeBase.star_count,
         }
         sort_field = sort_field_map.get(sort_by, KnowledgeBase.created_at)
-        
+
         if sort_order.lower() == "asc":
             query = query.order_by(sort_field.asc())
         else:
             query = query.order_by(sort_field.desc())
-        
+
         # Apply pagination
         offset = (page - 1) * page_size
         kbs = query.offset(offset).limit(page_size).all()
-        
+
         return Page(
             message="获取待审核知识库成功",
             data=[kb.to_dict() for kb in kbs],
             page=page,
             page_size=page_size,
-            total=total
+            total=total,
         )
     except Exception as e:
         raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取待审核知识库失败: {str(e)}"
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取待审核知识库失败: {str(e)}"
         )
 
 
-@router.get(
-    "/review/persona/pending",
-    response_model=PageResponse[dict]
-)
+@router.get("/review/persona/pending", response_model=PageResponse[dict])
 async def get_pending_persona_cards(
-        page: int = Query(1, ge=1, description="页码，默认为1"),
-        page_size: int = Query(10, ge=1, le=100, description="每页数量，默认为10，最大100"),
-        name: Optional[str] = Query(None, description="按名称搜索"),
-        uploader_id: Optional[str] = Query(None, description="按上传者ID筛选"),
-        sort_by: str = Query(
-            "created_at", description="排序字段，可选：created_at, updated_at, star_count"),
-        sort_order: str = Query("desc", description="排序方式，可选：asc, desc"),
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    page: int = Query(1, ge=1, description="页码，默认为1"),
+    page_size: int = Query(10, ge=1, le=100, description="每页数量，默认为10，最大100"),
+    name: Optional[str] = Query(None, description="按名称搜索"),
+    uploader_id: Optional[str] = Query(None, description="按上传者ID筛选"),
+    sort_by: str = Query("created_at", description="排序字段，可选：created_at, updated_at, star_count"),
+    sort_order: str = Query("desc", description="排序方式，可选：asc, desc"),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """获取待审核的人设卡（需要admin或moderator权限），支持分页、搜索、按上传者筛选和排序"""
     # 验证权限：admin 或 moderator（包含 super_admin）
@@ -131,63 +119,54 @@ async def get_pending_persona_cards(
     is_moderator = bool(current_user.get("is_moderator"))
     role = current_user.get("role", "user")
     if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="没有审核权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="没有审核权限")
 
     try:
         # Query pending persona cards
         query = db.query(PersonaCard).filter(PersonaCard.is_pending == True)
-        
+
         # Apply filters
         if name:
             query = query.filter(PersonaCard.name.ilike(f"%{name}%"))
         if uploader_id:
             query = query.filter(PersonaCard.uploader_id == uploader_id)
-        
+
         # Get total
         total = query.count()
-        
+
         # Apply sorting
         sort_field_map = {
             "created_at": PersonaCard.created_at,
             "updated_at": PersonaCard.updated_at,
-            "star_count": PersonaCard.star_count
+            "star_count": PersonaCard.star_count,
         }
         sort_field = sort_field_map.get(sort_by, PersonaCard.created_at)
-        
+
         if sort_order.lower() == "asc":
             query = query.order_by(sort_field.asc())
         else:
             query = query.order_by(sort_field.desc())
-        
+
         # Apply pagination
         offset = (page - 1) * page_size
         pcs = query.offset(offset).limit(page_size).all()
-        
+
         return Page(
             message="获取待审核人设卡成功",
             data=[pc.to_dict() for pc in pcs],
             page=page,
             page_size=page_size,
-            total=total
+            total=total,
         )
     except Exception as e:
         raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取待审核人设卡失败: {str(e)}"
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取待审核人设卡失败: {str(e)}"
         )
 
 
-@router.post(
-    "/review/knowledge/{kb_id}/approve",
-    response_model=BaseResponse[None]
-)
+@router.post("/review/knowledge/{kb_id}/approve", response_model=BaseResponse[None])
 async def approve_knowledge_base(
-        kb_id: str,
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    kb_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """审核通过知识库（需要admin或moderator权限）"""
     # 验证权限：admin 或 moderator（包含 super_admin）
@@ -195,19 +174,13 @@ async def approve_knowledge_base(
     is_moderator = bool(current_user.get("is_moderator"))
     role = current_user.get("role", "user")
     if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="没有审核权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="没有审核权限")
 
     try:
         service = KnowledgeService(db)
         kb = service.get_knowledge_base_by_id(kb_id)
         if not kb:
-            raise HTTPException(
-                status_code=HTTPStatus.HTTP_404_NOT_FOUND,
-                detail="知识库不存在"
-            )
+            raise HTTPException(status_code=HTTPStatus.HTTP_404_NOT_FOUND, detail="知识库不存在")
 
         # 更新状态
         kb.is_public = True
@@ -219,17 +192,17 @@ async def approve_knowledge_base(
 
         # 更新上传记录状态
         try:
-            upload_record = db.query(UploadRecord).filter(
-                UploadRecord.target_id == kb_id,
-                UploadRecord.target_type == "knowledge"
-            ).first()
+            upload_record = (
+                db.query(UploadRecord)
+                .filter(UploadRecord.target_id == kb_id, UploadRecord.target_type == "knowledge")
+                .first()
+            )
             if upload_record:
                 upload_record.status = "approved"
                 db.commit()
         except Exception as e:
-            app_logger.warning(
-                f"Failed to update upload record status: {str(e)}")
-        
+            app_logger.warning(f"Failed to update upload record status: {str(e)}")
+
         # 发送审核通过通知并通过 WebSocket 推送
         try:
             if kb.uploader_id:
@@ -237,35 +210,27 @@ async def approve_knowledge_base(
                     recipient_id=kb.uploader_id,
                     sender_id=current_user.get("id", ""),
                     title="知识库审核通过",
-                    content=f"您上传的知识库《{kb.name}》已通过审核并公开至知识库广场。"
+                    content=f"您上传的知识库《{kb.name}》已通过审核并公开至知识库广场。",
                 )
                 db.add(message)
                 db.commit()
                 await message_ws_manager.broadcast_user_update({kb.uploader_id})
         except Exception as e:
-            app_logger.warning(
-                f"Failed to send approve notification for knowledge base {kb_id}: {str(e)}"
-            )
+            app_logger.warning(f"Failed to send approve notification for knowledge base {kb_id}: {str(e)}")
 
         return Success(message="审核通过，已发送通知")
     except HTTPException as e:
         raise e
     except Exception as e:
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"审核知识库失败: {str(e)}"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"审核知识库失败: {str(e)}")
 
 
-@router.post(
-    "/review/knowledge/{kb_id}/reject",
-    response_model=BaseResponse[None]
-)
+@router.post("/review/knowledge/{kb_id}/reject", response_model=BaseResponse[None])
 async def reject_knowledge_base(
-        kb_id: str,
-        reason: str = Body(..., embed=True),
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    kb_id: str,
+    reason: str = Body(..., embed=True),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """审核拒绝知识库（需要admin或moderator权限）"""
     # 验证权限：admin 或 moderator（包含 super_admin）
@@ -273,19 +238,13 @@ async def reject_knowledge_base(
     is_moderator = bool(current_user.get("is_moderator"))
     role = current_user.get("role", "user")
     if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="没有审核权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="没有审核权限")
 
     try:
         service = KnowledgeService(db)
         kb = service.get_knowledge_base_by_id(kb_id)
         if not kb:
-            raise HTTPException(
-                status_code=HTTPStatus.HTTP_404_NOT_FOUND,
-                detail="知识库不存在"
-            )
+            raise HTTPException(status_code=HTTPStatus.HTTP_404_NOT_FOUND, detail="知识库不存在")
 
         # 更新状态
         kb.is_public = False
@@ -297,23 +256,23 @@ async def reject_knowledge_base(
 
         # 更新上传记录状态
         try:
-            upload_record = db.query(UploadRecord).filter(
-                UploadRecord.target_id == kb_id,
-                UploadRecord.target_type == "knowledge"
-            ).first()
+            upload_record = (
+                db.query(UploadRecord)
+                .filter(UploadRecord.target_id == kb_id, UploadRecord.target_type == "knowledge")
+                .first()
+            )
             if upload_record:
                 upload_record.status = "rejected"
                 db.commit()
         except Exception as e:
-            app_logger.warning(
-                f"Failed to update upload record status: {str(e)}")
+            app_logger.warning(f"Failed to update upload record status: {str(e)}")
 
         # 发送拒绝通知
         message = Message(
             recipient_id=kb.uploader_id,
             sender_id=current_user.get("id", ""),
             title="知识库审核未通过",
-            content=f"您上传的知识库《{kb.name}》未通过审核。\n\n拒绝原因：{reason}"
+            content=f"您上传的知识库《{kb.name}》未通过审核。\n\n拒绝原因：{reason}",
         )
 
         db.add(message)
@@ -324,28 +283,18 @@ async def reject_knowledge_base(
             if kb.uploader_id:
                 await message_ws_manager.broadcast_user_update({kb.uploader_id})
         except Exception as e:
-            app_logger.warning(
-                f"Failed to send reject notification for knowledge base {kb_id}: {str(e)}"
-            )
+            app_logger.warning(f"Failed to send reject notification for knowledge base {kb_id}: {str(e)}")
 
         return Success(message="审核拒绝，已发送通知")
     except HTTPException as e:
         raise e
     except Exception as e:
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"审核知识库失败: {str(e)}"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"审核知识库失败: {str(e)}")
 
 
-@router.post(
-    "/review/persona/{pc_id}/approve",
-    response_model=BaseResponse[None]
-)
+@router.post("/review/persona/{pc_id}/approve", response_model=BaseResponse[None])
 async def approve_persona_card(
-        pc_id: str,
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    pc_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """审核通过人设卡（需要admin或moderator权限）"""
     # 验证权限：admin 或 moderator（包含 super_admin）
@@ -353,19 +302,13 @@ async def approve_persona_card(
     is_moderator = bool(current_user.get("is_moderator"))
     role = current_user.get("role", "user")
     if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="没有审核权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="没有审核权限")
 
     try:
         service = PersonaService(db)
         pc = service.get_persona_card_by_id(pc_id)
         if not pc:
-            raise HTTPException(
-                status_code=HTTPStatus.HTTP_404_NOT_FOUND,
-                detail="人设卡不存在"
-            )
+            raise HTTPException(status_code=HTTPStatus.HTTP_404_NOT_FOUND, detail="人设卡不存在")
 
         # 更新状态
         pc.is_public = True
@@ -377,17 +320,17 @@ async def approve_persona_card(
 
         # 更新上传记录状态
         try:
-            upload_record = db.query(UploadRecord).filter(
-                UploadRecord.target_id == pc_id,
-                UploadRecord.target_type == "persona"
-            ).first()
+            upload_record = (
+                db.query(UploadRecord)
+                .filter(UploadRecord.target_id == pc_id, UploadRecord.target_type == "persona")
+                .first()
+            )
             if upload_record:
                 upload_record.status = "approved"
                 db.commit()
         except Exception as e:
-            app_logger.warning(
-                f"Failed to update upload record status: {str(e)}")
-        
+            app_logger.warning(f"Failed to update upload record status: {str(e)}")
+
         # 发送审核通过通知并通过 WebSocket 推送
         try:
             if pc.uploader_id:
@@ -395,35 +338,27 @@ async def approve_persona_card(
                     recipient_id=pc.uploader_id,
                     sender_id=current_user.get("id", ""),
                     title="人设卡审核通过",
-                    content=f"您上传的人设卡《{pc.name}》已通过审核并公开至人设广场。"
+                    content=f"您上传的人设卡《{pc.name}》已通过审核并公开至人设广场。",
                 )
                 db.add(message)
                 db.commit()
                 await message_ws_manager.broadcast_user_update({pc.uploader_id})
         except Exception as e:
-            app_logger.warning(
-                f"Failed to send approve notification for persona card {pc_id}: {str(e)}"
-            )
+            app_logger.warning(f"Failed to send approve notification for persona card {pc_id}: {str(e)}")
 
         return Success(message="审核通过，已发送通知")
     except HTTPException as e:
         raise e
     except Exception as e:
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"审核人设卡失败: {str(e)}"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"审核人设卡失败: {str(e)}")
 
 
-@router.post(
-    "/review/persona/{pc_id}/reject",
-    response_model=BaseResponse[None]
-)
+@router.post("/review/persona/{pc_id}/reject", response_model=BaseResponse[None])
 async def reject_persona_card(
-        pc_id: str,
-        reason: str = Body(..., embed=True),
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    pc_id: str,
+    reason: str = Body(..., embed=True),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """审核拒绝人设卡（需要admin或moderator权限）"""
     # 验证权限：admin 或 moderator（包含 super_admin）
@@ -431,19 +366,13 @@ async def reject_persona_card(
     is_moderator = bool(current_user.get("is_moderator"))
     role = current_user.get("role", "user")
     if not (is_admin or is_moderator or role in ["admin", "moderator", "super_admin"]):
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="没有审核权限"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="没有审核权限")
 
     try:
         service = PersonaService(db)
         pc = service.get_persona_card_by_id(pc_id)
         if not pc:
-            raise HTTPException(
-                status_code=HTTPStatus.HTTP_404_NOT_FOUND,
-                detail="人设卡不存在"
-            )
+            raise HTTPException(status_code=HTTPStatus.HTTP_404_NOT_FOUND, detail="人设卡不存在")
 
         # 更新状态
         pc.is_public = False
@@ -455,23 +384,23 @@ async def reject_persona_card(
 
         # 更新上传记录状态
         try:
-            upload_record = db.query(UploadRecord).filter(
-                UploadRecord.target_id == pc_id,
-                UploadRecord.target_type == "persona"
-            ).first()
+            upload_record = (
+                db.query(UploadRecord)
+                .filter(UploadRecord.target_id == pc_id, UploadRecord.target_type == "persona")
+                .first()
+            )
             if upload_record:
                 upload_record.status = "rejected"
                 db.commit()
         except Exception as e:
-            app_logger.warning(
-                f"Failed to update upload record status: {str(e)}")
+            app_logger.warning(f"Failed to update upload record status: {str(e)}")
 
         # 发送拒绝通知
         message = Message(
             recipient_id=pc.uploader_id,
             sender_id=current_user.get("id", ""),
             title="人设卡审核未通过",
-            content=f"您上传的人设卡《{pc.name}》未通过审核。\n\n拒绝原因：{reason}"
+            content=f"您上传的人设卡《{pc.name}》未通过审核。\n\n拒绝原因：{reason}",
         )
 
         db.add(message)
@@ -482,15 +411,10 @@ async def reject_persona_card(
             if pc.uploader_id:
                 await message_ws_manager.broadcast_user_update({pc.uploader_id})
         except Exception as e:
-            app_logger.warning(
-                f"Failed to send reject notification for persona card {pc_id}: {str(e)}"
-            )
+            app_logger.warning(f"Failed to send reject notification for persona card {pc_id}: {str(e)}")
 
         return Success(message="审核拒绝，已发送通知")
     except HTTPException as e:
         raise e
     except Exception as e:
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"审核人设卡失败: {str(e)}"
-        )
+        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"审核人设卡失败: {str(e)}")

@@ -19,13 +19,13 @@ os.environ["TEST_LANGUAGE"] = "en"
 # 这确保当 app.main 被导入时，它使用测试数据库而不是生产数据库
 # pytest_configure 会为每个 worker 覆盖这个值
 if "DATABASE_URL" not in os.environ:
-    worker_id = os.environ.get('PYTEST_XDIST_WORKER', 'master')
-    os.environ['DATABASE_URL'] = f"sqlite:///./tests/test_{worker_id}.db"
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
+    os.environ["DATABASE_URL"] = f"sqlite:///./tests/test_{worker_id}.db"
 
 # 设置测试专用的上传目录（在导入应用代码之前）
 # 这确保当 app.core.config 被导入时，它使用测试上传目录而不是生产目录
 if "UPLOAD_DIR" not in os.environ:
-    os.environ['UPLOAD_DIR'] = 'test_uploads'
+    os.environ["UPLOAD_DIR"] = "test_uploads"
 
 # 从 .test_env 或 .test_env.template 加载测试配置
 from tests.fixtures.config import test_config
@@ -34,48 +34,52 @@ from tests.fixtures.config import test_config
 # Pytest Configuration Options
 # ============================================================================
 
+
 def pytest_addoption(parser):
     """Add custom command line options"""
     parser.addoption(
         "--run-parallel-isolation",
         action="store_true",
         default=False,
-        help="Run parallel isolation tests (normally skipped in main test suite)"
+        help="Run parallel isolation tests (normally skipped in main test suite)",
     )
+
 
 # ============================================================================
 # Pytest Hooks for Per-Worker Database Isolation
 # ============================================================================
 
+
 def pytest_configure(config):
     """配置 pytest，为每个 worker 创建独立的数据库和上传目录"""
-    worker_id = os.environ.get('PYTEST_XDIST_WORKER', 'master')
-    
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
+
     # 为每个 worker 使用独立的数据库文件（在 tests 目录内）
     test_db_url = f"sqlite:///./tests/test_{worker_id}.db"
-    os.environ['DATABASE_URL'] = test_db_url
-    
+    os.environ["DATABASE_URL"] = test_db_url
+
     # 确保测试专用的上传目录已设置（应该在模块级别已经设置了）
-    if 'UPLOAD_DIR' not in os.environ:
-        os.environ['UPLOAD_DIR'] = 'test_uploads'
-    
+    if "UPLOAD_DIR" not in os.environ:
+        os.environ["UPLOAD_DIR"] = "test_uploads"
+
     print(f"Worker {worker_id} using database: {test_db_url}")
     print(f"Worker {worker_id} using upload directory: {os.environ['UPLOAD_DIR']}")
-    
+
     # 确保测试数据库有表结构
     # 这样即使测试直接创建 TestClient 而不使用 fixture，也能正常工作
     from sqlalchemy import create_engine, inspect
     from app.models.database import Base
+
     engine = create_engine(test_db_url, connect_args={"check_same_thread": False})
-    
+
     # 检查表是否已存在，避免重复创建
     inspector = inspect(engine)
     existing_tables = inspector.get_table_names()
-    
+
     if not existing_tables:
         # 只在表不存在时创建
         Base.metadata.create_all(bind=engine)
-    
+
     engine.dispose()
 
 
@@ -84,16 +88,16 @@ def pytest_collection_modifyitems(config, items):
     # 将 serial 标记的测试移到最后，并确保它们在同一个 worker 中串行运行
     serial_tests = []
     parallel_tests = []
-    
+
     for item in items:
-        if item.get_closest_marker('serial'):
+        if item.get_closest_marker("serial"):
             serial_tests.append(item)
             # 添加 xdist_group 标记，确保所有 serial 测试在同一个 worker 中运行
             # 这样它们就会真正串行执行
             item.add_marker(pytest.mark.xdist_group(name="serial_group"))
         else:
             parallel_tests.append(item)
-    
+
     # 重新排序：先并行测试，后串行测试
     items[:] = parallel_tests + serial_tests
 
@@ -103,33 +107,33 @@ def pytest_sessionfinish(session, exitstatus):
     import glob
     import time
     import shutil
-    
-    worker_id = os.environ.get('PYTEST_XDIST_WORKER', 'master')
-    
+
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
+
     def safe_remove_file(file_path: str, max_retries: int = 3, retry_delay: float = 0.1) -> bool:
         """
         安全删除文件，带重试逻辑和文件存在性检查
-        
+
         Args:
             file_path: 要删除的文件路径
             max_retries: 最大重试次数
             retry_delay: 重试间隔（秒）
-        
+
         Returns:
             bool: 删除成功返回 True，失败返回 False
         """
         path = Path(file_path)
-        
+
         # 检查文件是否存在
         if not path.exists():
             return True  # 文件不存在，视为成功
-        
+
         # 尝试删除文件，带重试逻辑
         for attempt in range(max_retries):
             try:
                 # 检查文件是否仍在使用（通过尝试打开文件）
                 try:
-                    with open(path, 'a'):
+                    with open(path, "a"):
                         pass  # 文件可以打开，说明没有被独占锁定
                 except (IOError, OSError):
                     # 文件被锁定，等待后重试
@@ -139,11 +143,11 @@ def pytest_sessionfinish(session, exitstatus):
                     else:
                         print(f"  ⚠ File still in use, skipping: {file_path}")
                         return False
-                
+
                 # 删除文件
                 path.unlink()
                 return True
-                
+
             except FileNotFoundError:
                 # 文件在检查后被其他进程删除，视为成功
                 return True
@@ -153,38 +157,38 @@ def pytest_sessionfinish(session, exitstatus):
                 else:
                     print(f"  ✗ Failed to remove {file_path} after {max_retries} attempts: {e}")
                     return False
-        
+
         return False
-    
+
     # 清理当前 worker 的数据库文件（在 tests 目录内）
     # 非 master worker 只清理自己的数据库文件
-    if worker_id != 'master':
+    if worker_id != "master":
         db_patterns = [
             f"./tests/test_{worker_id}.db",
             f"./tests/test_{worker_id}.db-shm",
             f"./tests/test_{worker_id}.db-wal",
         ]
-        
+
         for pattern in db_patterns:
             for file_path in glob.glob(pattern):
                 if safe_remove_file(file_path):
                     print(f"✓ Worker {worker_id} cleaned up: {file_path}")
-    
+
     # 如果是主进程（master），清理所有遗留的测试文件
     # Master worker 负责清理全局文件和所有 worker 的数据库文件
-    if worker_id == 'master':
+    if worker_id == "master":
         # 先清理自己的数据库文件
         master_db_patterns = [
             "./tests/test_master.db",
             "./tests/test_master.db-shm",
             "./tests/test_master.db-wal",
         ]
-        
+
         for pattern in master_db_patterns:
             for file_path in glob.glob(pattern):
                 if safe_remove_file(file_path):
                     print(f"✓ Master cleaned up: {file_path}")
-        
+
         # 清理所有遗留的测试文件（包括其他 worker 的数据库文件）
         cleanup_patterns = [
             "./tests/test_gw*.db",  # Worker 数据库文件
@@ -195,29 +199,30 @@ def pytest_sessionfinish(session, exitstatus):
             "./tests/test_results_*.log",
             "./tests/tests.log",
         ]
-        
+
         print("\n🧹 Master cleaning up test artifacts...")
         cleaned_count = 0
-        
+
         for pattern in cleanup_patterns:
             for file_path in glob.glob(pattern):
                 if safe_remove_file(file_path):
                     cleaned_count += 1
                     print(f"  ✓ Removed: {file_path}")
-        
+
         if cleaned_count > 0:
             print(f"✨ Cleaned up {cleaned_count} test artifact(s)\n")
         else:
             print("✨ No test artifacts to clean up\n")
-        
+
         # 清理测试上传目录
-        upload_dir = os.environ.get('UPLOAD_DIR', 'test_uploads')
+        upload_dir = os.environ.get("UPLOAD_DIR", "test_uploads")
         if os.path.exists(upload_dir):
             try:
                 shutil.rmtree(upload_dir)
                 print(f"✨ Cleaned up test upload directory: {upload_dir}\n")
             except Exception as e:
                 print(f"⚠ Failed to clean up upload directory {upload_dir}: {e}\n")
+
 
 # ============================================================================
 # Configuration
@@ -226,9 +231,9 @@ def pytest_sessionfinish(session, exitstatus):
 # 优化测试环境的密码哈希速度
 # 从配置文件读取 bcrypt rounds，如果未设置则默认为 4（测试环境）
 # 这样可以显著提升测试速度（21倍提升：451s → 21s）
-if "PASSLIB_BCRYPT_ROUNDS" not in os.environ:
-    bcrypt_rounds = test_config.get("PASSLIB_BCRYPT_ROUNDS", "4")
-    os.environ["PASSLIB_BCRYPT_ROUNDS"] = bcrypt_rounds
+if "BCRYPT_ROUNDS" not in os.environ:
+    bcrypt_rounds = test_config.get("BCRYPT_ROUNDS", "4")
+    os.environ["BCRYPT_ROUNDS"] = bcrypt_rounds
 
 # 配置 hypothesis 配置文件用于基于属性的测试
 # CI 配置文件：100 次迭代，详细输出以获得详细的测试结果
@@ -237,16 +242,11 @@ settings.register_profile(
     max_examples=100,
     verbosity=Verbosity.verbose,
     deadline=None,  # 禁用截止时间以避免 CI 中的不稳定测试
-    suppress_health_check=[HealthCheck.too_slow]
+    suppress_health_check=[HealthCheck.too_slow],
 )
 
 # 开发配置文件：10 次迭代，在开发过程中获得更快的反馈
-settings.register_profile(
-    "dev",
-    max_examples=10,
-    verbosity=Verbosity.normal,
-    deadline=None
-)
+settings.register_profile("dev", max_examples=10, verbosity=Verbosity.normal, deadline=None)
 
 # 默认配置文件：使用 CI 配置文件以确保至少 100 次迭代
 # 可以通过 HYPOTHESIS_PROFILE 环境变量覆盖
@@ -254,9 +254,19 @@ settings.load_profile(test_config.get("HYPOTHESIS_PROFILE", "ci"))
 
 # 设置环境变量后导入
 from app.models.database import (
-    Base, User, EmailVerification, KnowledgeBase, KnowledgeBaseFile,
-    PersonaCard, PersonaCardFile, Message, StarRecord, UploadRecord,
-    DownloadRecord, Comment, CommentReaction
+    Base,
+    User,
+    EmailVerification,
+    KnowledgeBase,
+    KnowledgeBaseFile,
+    PersonaCard,
+    PersonaCardFile,
+    Message,
+    StarRecord,
+    UploadRecord,
+    DownloadRecord,
+    Comment,
+    CommentReaction,
 )
 from app.core.database import get_db
 from app.core.security import get_password_hash
@@ -272,14 +282,15 @@ from tests.helpers.boundary_generator import BoundaryValueGenerator
 # 使用 worker-specific 字典以避免并行测试中的状态污染
 _PASSWORD_HASH_CACHE = {}
 
+
 def get_cached_password_hash(password: str) -> str:
     """获取缓存的密码哈希，如果不存在则计算并缓存"""
-    worker_id = os.environ.get('PYTEST_XDIST_WORKER', 'master')
-    
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
+
     # 为每个 worker 创建独立的缓存
     if worker_id not in _PASSWORD_HASH_CACHE:
         _PASSWORD_HASH_CACHE[worker_id] = {}
-    
+
     worker_cache = _PASSWORD_HASH_CACHE[worker_id]
     if password not in worker_cache:
         worker_cache[password] = get_password_hash(password)
@@ -292,43 +303,39 @@ def get_cached_password_hash(password: str) -> str:
 _DB_ENGINE_CACHE = {}
 _SESSION_FACTORY_CACHE = {}
 
+
 def get_cached_db_engine():
     """获取缓存的数据库引擎"""
-    worker_id = os.environ.get('PYTEST_XDIST_WORKER', 'master')
-    
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
+
     # 为每个 worker 创建独立的引擎
     if worker_id not in _DB_ENGINE_CACHE:
         _DB_ENGINE_CACHE[worker_id] = create_engine(
-            os.environ["DATABASE_URL"], 
-            connect_args={"timeout": 30, "check_same_thread": False}
+            os.environ["DATABASE_URL"], connect_args={"timeout": 30, "check_same_thread": False}
         )
-        
+
         # 为 SQLite 启用 WAL 模式以提高并发性能
         @event.listens_for(_DB_ENGINE_CACHE[worker_id], "connect")
         def set_sqlite_pragma(dbapi_conn, connection_record):
             cursor = dbapi_conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL")
             cursor.close()
-        
+
         # 创建所有表（只需要一次）
         Base.metadata.create_all(bind=_DB_ENGINE_CACHE[worker_id])
-    
+
     return _DB_ENGINE_CACHE[worker_id]
 
 
 def get_cached_session_factory():
     """获取缓存的会话工厂"""
-    worker_id = os.environ.get('PYTEST_XDIST_WORKER', 'master')
-    
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
+
     # 为每个 worker 创建独立的会话工厂
     if worker_id not in _SESSION_FACTORY_CACHE:
         engine = get_cached_db_engine()
-        _SESSION_FACTORY_CACHE[worker_id] = sessionmaker(
-            autocommit=False, 
-            autoflush=False, 
-            bind=engine
-        )
-    
+        _SESSION_FACTORY_CACHE[worker_id] = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
     return _SESSION_FACTORY_CACHE[worker_id]
 
 
@@ -340,7 +347,7 @@ def override_get_db():
     try:
         db = SessionLocal()
         # 调试：验证我们使用的是正确的数据库
-        worker_id = os.environ.get('PYTEST_XDIST_WORKER', 'master')
+        worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
         db_url = os.environ.get("DATABASE_URL", "unknown")
         print(f"[override_get_db] Worker: {worker_id}, DB URL: {db_url}")
         yield db
@@ -355,7 +362,7 @@ def test_db() -> Session:
     SessionLocal = get_cached_session_factory()
     # 使用简单的会话，不使用事务隔离，用于集成测试
     session = SessionLocal()
-    
+
     try:
         yield session
     finally:
@@ -363,15 +370,15 @@ def test_db() -> Session:
             # 首先回滚所有事务，确保会话处于干净状态
             # 无论事务是否活动，都执行回滚以确保完全清理
             session.rollback()
-            
+
             # 然后分离所有对象，避免在删除时刷新已删除的对象
             session.expunge_all()
-            
+
             # 测试后清理所有数据（按外键依赖的相反顺序）
             # 先删除子表（有外键的表），再删除父表
             # 正确的删除顺序（遵循外键约束）：
-            # CommentReaction → Comment → DownloadRecord → UploadRecord → 
-            # EmailVerification → StarRecord → Message → PersonaCardFile → 
+            # CommentReaction → Comment → DownloadRecord → UploadRecord →
+            # EmailVerification → StarRecord → Message → PersonaCardFile →
             # PersonaCard → KnowledgeBaseFile → KnowledgeBase → User
             try:
                 session.query(CommentReaction).delete()  # 依赖 Comment
@@ -417,10 +424,10 @@ def factory(test_db: Session):
 def boundary_generator():
     """
     提供 BoundaryValueGenerator 实例作为 pytest fixture
-    
+
     使用 session 作用域以在所有测试中重用同一个实例，
     因为生成器是无状态的，可以安全地共享。
-    
+
     Example:
         def test_my_function(boundary_generator):
             boundaries = boundary_generator.generate_string_boundaries()
@@ -435,7 +442,7 @@ def boundary_generator():
 def null_boundaries(boundary_generator):
     """
     提供空值边界值的 pytest fixture
-    
+
     Example:
         def test_null_handling(null_boundaries):
             for boundary in null_boundaries:
@@ -449,7 +456,7 @@ def null_boundaries(boundary_generator):
 def string_boundaries(boundary_generator):
     """
     提供字符串边界值的 pytest fixture（默认最大长度 10000）
-    
+
     Example:
         def test_string_processing(string_boundaries):
             for boundary in string_boundaries:
@@ -464,7 +471,7 @@ def string_boundaries(boundary_generator):
 def integer_boundaries(boundary_generator):
     """
     提供整数边界值的 pytest fixture
-    
+
     Example:
         def test_integer_validation(integer_boundaries):
             for boundary in integer_boundaries:
@@ -478,7 +485,7 @@ def integer_boundaries(boundary_generator):
 def float_boundaries(boundary_generator):
     """
     提供浮点数边界值的 pytest fixture
-    
+
     Example:
         def test_float_calculation(float_boundaries):
             for boundary in float_boundaries:
@@ -493,7 +500,7 @@ def float_boundaries(boundary_generator):
 def list_boundaries(boundary_generator):
     """
     提供列表边界值的 pytest fixture
-    
+
     Example:
         def test_list_processing(list_boundaries):
             for boundary in list_boundaries:
@@ -507,7 +514,7 @@ def list_boundaries(boundary_generator):
 def dict_boundaries(boundary_generator):
     """
     提供字典边界值的 pytest fixture
-    
+
     Example:
         def test_dict_processing(dict_boundaries):
             for boundary in dict_boundaries:
@@ -532,7 +539,7 @@ def test_user(test_db: Session):
         is_moderator=False,
         is_super_admin=False,
         created_at=datetime.now(),
-        password_version=0
+        password_version=0,
     )
     test_db.add(user)
     test_db.commit()
@@ -554,7 +561,7 @@ def admin_user(test_db: Session):
         is_moderator=False,
         is_super_admin=False,
         created_at=datetime.now(),
-        password_version=0
+        password_version=0,
     )
     test_db.add(user)
     test_db.commit()
@@ -576,7 +583,7 @@ def moderator_user(test_db: Session):
         is_moderator=True,
         is_super_admin=False,
         created_at=datetime.now(),
-        password_version=0
+        password_version=0,
     )
     test_db.add(user)
     test_db.commit()
@@ -598,7 +605,7 @@ def super_admin_user(test_db: Session):
         is_moderator=True,
         is_super_admin=True,
         created_at=datetime.now(),
-        password_version=0
+        password_version=0,
     )
     test_db.add(user)
     test_db.commit()
@@ -609,7 +616,7 @@ def super_admin_user(test_db: Session):
 # 仅在应用存在时导入（用于集成测试）
 try:
     from app.main import app
-    
+
     @pytest.fixture(scope="function")
     def client():
         """创建未认证的测试客户端"""
@@ -627,7 +634,7 @@ try:
             finally:
                 # 清理这个特定的依赖覆盖
                 app.dependency_overrides.pop(get_db, None)
-    
+
     @pytest.fixture(scope="function")
     def authenticated_client(test_user, test_db):
         """创建已认证的测试客户端"""
@@ -636,37 +643,36 @@ try:
         with TestClient(app) as client:
             # 为这个客户端设置独立的依赖覆盖
             app.dependency_overrides[get_db] = override_get_db
-            
+
             try:
                 # test_user fixture 已经提交到数据库，无需重复提交
                 test_db.refresh(test_user)
-                
+
                 # 使用 test_user 的用户名登录以获取令牌
                 response = client.post(
-                    "/api/auth/token",
-                    data={"username": test_user.username, "password": "testpassword123"}
+                    "/api/auth/token", data={"username": test_user.username, "password": "testpassword123"}
                 )
-                
+
                 # 检查登录是否成功
                 if response.status_code != 200:
                     raise Exception(f"登录失败: {response.status_code} - {response.text}")
-                
+
                 resp_data = response.json()
-                
+
                 # 处理两种响应格式（有和没有 "data" 包装器）
                 if "data" in resp_data:
                     token = resp_data["data"]["access_token"]
                 else:
                     token = resp_data["access_token"]
-                
+
                 # 设置认证头
                 client.headers.update({"Authorization": f"Bearer {token}"})
-                
+
                 yield client
             finally:
                 # 清理这个特定的依赖覆盖
                 app.dependency_overrides.pop(get_db, None)
-    
+
     @pytest.fixture(scope="function")
     def admin_client(admin_user, test_db):
         """创建已认证的管理员测试客户端"""
@@ -675,37 +681,36 @@ try:
         with TestClient(app) as client:
             # 为这个客户端设置独立的依赖覆盖
             app.dependency_overrides[get_db] = override_get_db
-            
+
             try:
                 # admin_user fixture 已经提交到数据库，无需重复提交
                 test_db.refresh(admin_user)
-                
+
                 # 使用 admin_user 的用户名登录以获取令牌
                 response = client.post(
-                    "/api/auth/token",
-                    data={"username": admin_user.username, "password": "adminpassword123"}
+                    "/api/auth/token", data={"username": admin_user.username, "password": "adminpassword123"}
                 )
-                
+
                 # 检查登录是否成功
                 if response.status_code != 200:
                     raise Exception(f"管理员登录失败: {response.status_code} - {response.text}")
-                
+
                 resp_data = response.json()
-                
+
                 # 处理两种响应格式（有和没有 "data" 包装器）
                 if "data" in resp_data:
                     token = resp_data["data"]["access_token"]
                 else:
                     token = resp_data["access_token"]
-                
+
                 # 设置认证头
                 client.headers.update({"Authorization": f"Bearer {token}"})
-                
+
                 yield client
             finally:
                 # 清理这个特定的依赖覆盖
                 app.dependency_overrides.pop(get_db, None)
-    
+
     @pytest.fixture(scope="function")
     def moderator_client(moderator_user, test_db):
         """创建已认证的审核员测试客户端"""
@@ -714,37 +719,36 @@ try:
         with TestClient(app) as client:
             # 为这个客户端设置独立的依赖覆盖
             app.dependency_overrides[get_db] = override_get_db
-            
+
             try:
                 # moderator_user fixture 已经提交到数据库，无需重复提交
                 test_db.refresh(moderator_user)
-                
+
                 # 使用 moderator_user 的用户名登录以获取令牌
                 response = client.post(
-                    "/api/auth/token",
-                    data={"username": moderator_user.username, "password": "moderatorpassword123"}
+                    "/api/auth/token", data={"username": moderator_user.username, "password": "moderatorpassword123"}
                 )
-                
+
                 # 检查登录是否成功
                 if response.status_code != 200:
                     raise Exception(f"审核员登录失败: {response.status_code} - {response.text}")
-                
+
                 resp_data = response.json()
-                
+
                 # 处理两种响应格式（有和没有 "data" 包装器）
                 if "data" in resp_data:
                     token = resp_data["data"]["access_token"]
                 else:
                     token = resp_data["access_token"]
-                
+
                 # 设置认证头
                 client.headers.update({"Authorization": f"Bearer {token}"})
-                
+
                 yield client
             finally:
                 # 清理这个特定的依赖覆盖
                 app.dependency_overrides.pop(get_db, None)
-    
+
     @pytest.fixture(scope="function")
     def super_admin_client(super_admin_user, test_db):
         """创建已认证的超级管理员测试客户端"""
@@ -753,36 +757,36 @@ try:
         with TestClient(app) as client:
             # 为这个客户端设置独立的依赖覆盖
             app.dependency_overrides[get_db] = override_get_db
-            
+
             try:
                 # super_admin_user fixture 已经提交到数据库，无需重复提交
                 test_db.refresh(super_admin_user)
-                
+
                 # 登录以获取令牌（使用 super_admin_user 的实际用户名）
                 response = client.post(
-                    "/api/auth/token",
-                    data={"username": super_admin_user.username, "password": "superadminpassword123"}
+                    "/api/auth/token", data={"username": super_admin_user.username, "password": "superadminpassword123"}
                 )
-                
+
                 # 检查登录是否成功
                 if response.status_code != 200:
                     raise Exception(f"超级管理员登录失败: {response.status_code} - {response.text}")
-                
+
                 resp_data = response.json()
-                
+
                 # 处理两种响应格式（有和没有 "data" 包装器）
                 if "data" in resp_data:
                     token = resp_data["data"]["access_token"]
                 else:
                     token = resp_data["access_token"]
-                
+
                 # 创建带认证头的客户端
                 client.headers.update({"Authorization": f"Bearer {token}"})
-                
+
                 yield client
             finally:
                 # 清理这个特定的依赖覆盖
                 app.dependency_overrides.pop(get_db, None)
+
 except ImportError:
     # 应用不可用，跳过集成测试 fixtures
     pass
@@ -793,7 +797,7 @@ def assert_error_response(response, expected_status_codes, expected_message_keyw
     """
     用于检查 API 错误响应的辅助函数。
     处理 FastAPI 验证错误（422 带 'detail'）和自定义 API 错误（带 'error'）。
-    
+
     参数：
         response: 来自 TestClient 的响应对象
         expected_status_codes: 预期状态码的整数或整数列表
@@ -804,13 +808,14 @@ def assert_error_response(response, expected_status_codes, expected_message_keyw
         expected_status_codes = [expected_status_codes]
     if isinstance(expected_message_keywords, str):
         expected_message_keywords = [expected_message_keywords]
-    
+
     # 检查状态码
-    assert response.status_code in expected_status_codes, \
-        f"预期状态码在 {expected_status_codes} 中，得到 {response.status_code}"
-    
+    assert (
+        response.status_code in expected_status_codes
+    ), f"预期状态码在 {expected_status_codes} 中，得到 {response.status_code}"
+
     data = response.json()
-    
+
     # 处理 FastAPI 验证错误（422）
     if "detail" in data:
         # FastAPI 验证错误格式：{"detail": [...]}
@@ -825,30 +830,22 @@ def assert_error_response(response, expected_status_codes, expected_message_keyw
             combined_message = " ".join(error_messages).lower()
         else:
             combined_message = str(detail).lower()
-        
+
         # 检查是否有任何关键字匹配
-        keyword_found = any(
-            keyword.lower() in combined_message 
-            for keyword in expected_message_keywords
-        )
-        
-        assert keyword_found, \
-            f"预期 {expected_message_keywords} 中的一个在错误消息中，得到：{data}"
-    
+        keyword_found = any(keyword.lower() in combined_message for keyword in expected_message_keywords)
+
+        assert keyword_found, f"预期 {expected_message_keywords} 中的一个在错误消息中，得到：{data}"
+
     # 处理自定义 API 错误
     elif "error" in data:
         # 自定义错误格式：{"success": False, "error": {"message": "..."}}
         error_message = data["error"].get("message", "").lower()
-        
+
         # 检查是否有任何关键字匹配
-        keyword_found = any(
-            keyword.lower() in error_message 
-            for keyword in expected_message_keywords
-        )
-        
-        assert keyword_found, \
-            f"预期 {expected_message_keywords} 中的一个在错误消息中，得到：{error_message}"
-    
+        keyword_found = any(keyword.lower() in error_message for keyword in expected_message_keywords)
+
+        assert keyword_found, f"预期 {expected_message_keywords} 中的一个在错误消息中，得到：{error_message}"
+
     else:
         # 未知错误格式
         raise AssertionError(f"未知的错误响应格式：{data}")
@@ -858,17 +855,18 @@ def assert_error_response(response, expected_status_codes, expected_message_keyw
 # Boundary Testing Helper Functions and Decorators
 # ============================================================================
 
+
 def with_boundary_values(param_type: str, **kwargs):
     """
     装饰器：使用边界值自动参数化测试函数
-    
+
     这个装饰器会自动生成边界值并将测试函数参数化，
     使得测试函数可以针对所有边界值运行。
-    
+
     Args:
         param_type: 参数类型 ("string", "integer", "float", "list", "dict", etc.)
         **kwargs: 传递给边界值生成器的额外参数（如 max_length, min_value 等）
-    
+
     Example:
         @with_boundary_values("string", max_length=50)
         def test_username_validation(boundary_value):
@@ -879,9 +877,10 @@ def with_boundary_values(param_type: str, **kwargs):
                 result = validate_username(boundary_value.value)
                 assert isinstance(result, str)
     """
+
     def decorator(test_func):
         generator = BoundaryValueGenerator()
-        
+
         # 根据类型生成边界值
         if param_type == "string":
             boundaries = generator.generate_string_boundaries(**kwargs)
@@ -897,35 +896,33 @@ def with_boundary_values(param_type: str, **kwargs):
             boundaries = generator.generate_null_values()
         else:
             raise ValueError(f"Unsupported parameter type: {param_type}")
-        
+
         # 使用 pytest.mark.parametrize 参数化测试
-        return pytest.mark.parametrize(
-            "boundary_value",
-            boundaries,
-            ids=[bv.description for bv in boundaries]
-        )(test_func)
-    
+        return pytest.mark.parametrize("boundary_value", boundaries, ids=[bv.description for bv in boundaries])(
+            test_func
+        )
+
     return decorator
 
 
 def assert_boundary_behavior(boundary_value, test_func, *args, **kwargs):
     """
     辅助函数：根据边界值的预期行为执行测试并进行断言
-    
+
     这个函数会根据 boundary_value.expected_behavior 自动选择正确的断言方式：
     - "handle_gracefully": 期望函数正常执行，不抛出异常
     - "raise_exception": 期望函数抛出异常
     - "return_none": 期望函数返回 None
-    
+
     Args:
         boundary_value: BoundaryValue 实例
         test_func: 要测试的函数
         *args: 传递给测试函数的位置参数
         **kwargs: 传递给测试函数的关键字参数
-    
+
     Returns:
         函数的返回值（如果成功执行）
-    
+
     Example:
         def test_process_data(boundary_generator):
             boundaries = boundary_generator.generate_string_boundaries()
@@ -943,13 +940,13 @@ def assert_boundary_behavior(boundary_value, test_func, *args, **kwargs):
         with pytest.raises(Exception):
             test_func(*args, **kwargs)
         return None
-    
+
     elif boundary_value.expected_behavior == "return_none":
         # 期望返回 None
         result = test_func(*args, **kwargs)
         assert result is None, f"Expected None for {boundary_value.description}, got {result}"
         return result
-    
+
     else:  # "handle_gracefully"
         # 期望正常处理
         try:
@@ -965,23 +962,23 @@ def assert_boundary_behavior(boundary_value, test_func, *args, **kwargs):
 def generate_null_test_cases(function: Callable, param_name: str, include_nested: bool = True):
     """
     便捷函数：为指定函数和参数生成空值测试用例
-    
+
     这是 BoundaryValueGenerator.generate_null_test_cases 的便捷包装器，
     可以直接在测试中使用而无需创建生成器实例。
-    
+
     Args:
         function: 要测试的函数
         param_name: 参数名称
         include_nested: 是否包含嵌套结构中的空值测试
-    
+
     Returns:
         List[Dict[str, Any]]: 空值测试用例列表
-    
+
     Example:
         def test_user_creation():
             def create_user(username, email):
                 return {"username": username, "email": email}
-            
+
             test_cases = generate_null_test_cases(create_user, "username")
             for test_case in test_cases:
                 result = create_user(test_case["param_value"], "test@example.com")
@@ -992,32 +989,28 @@ def generate_null_test_cases(function: Callable, param_name: str, include_nested
 
 
 def generate_max_value_test_cases(
-    function: Callable,
-    param_name: str,
-    param_type: str,
-    max_value: Optional[Union[int, float, str]] = None,
-    **kwargs
+    function: Callable, param_name: str, param_type: str, max_value: Optional[Union[int, float, str]] = None, **kwargs
 ):
     """
     便捷函数：为指定函数和参数生成最大值测试用例
-    
+
     这是 BoundaryValueGenerator.generate_max_value_test_cases 的便捷包装器。
-    
+
     Args:
         function: 要测试的函数
         param_name: 参数名称
         param_type: 参数类型 ("string", "integer", "float", "list", "dict")
         max_value: 最大值限制
         **kwargs: 额外参数
-    
+
     Returns:
         List[Dict[str, Any]]: 最大值测试用例列表
-    
+
     Example:
         def test_age_validation():
             def validate_age(age):
                 return 0 <= age <= 150
-            
+
             test_cases = generate_max_value_test_cases(
                 validate_age, "age", "integer", max_value=150
             )
@@ -1026,36 +1019,34 @@ def generate_max_value_test_cases(
                 # 验证逻辑
     """
     generator = BoundaryValueGenerator()
-    return generator.generate_max_value_test_cases(
-        function, param_name, param_type, max_value, **kwargs
-    )
+    return generator.generate_max_value_test_cases(function, param_name, param_type, max_value, **kwargs)
 
 
 def generate_concurrent_test_cases(
     function: Callable,
     num_threads: Optional[Union[int, List[int]]] = None,
     num_operations: Optional[Union[int, List[int]]] = None,
-    operation_type: str = "mixed"
+    operation_type: str = "mixed",
 ):
     """
     便捷函数：为指定函数生成并发测试用例
-    
+
     这是 BoundaryValueGenerator.generate_concurrent_test_cases 的便捷包装器。
-    
+
     Args:
         function: 要测试的函数
         num_threads: 并发线程数
         num_operations: 每个线程的操作次数
         operation_type: 操作类型 ("read", "write", "mixed", etc.)
-    
+
     Returns:
         List[Dict[str, Any]]: 并发测试用例列表
-    
+
     Example:
         def test_concurrent_counter():
             def increment(counter):
                 counter["value"] += 1
-            
+
             test_cases = generate_concurrent_test_cases(
                 increment, num_threads=[2, 10], operation_type="write"
             )
@@ -1064,6 +1055,4 @@ def generate_concurrent_test_cases(
                 pass
     """
     generator = BoundaryValueGenerator()
-    return generator.generate_concurrent_test_cases(
-        function, num_threads, num_operations, operation_type
-    )
+    return generator.generate_concurrent_test_cases(function, num_threads, num_operations, operation_type)

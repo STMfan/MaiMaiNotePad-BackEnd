@@ -10,7 +10,7 @@ UPLOAD_DIR=test_uploads
 JWT_SECRET_KEY=test_jwt_secret_key_for_testing_only
 
 # 密码哈希配置（使用较少的 rounds 加速测试）
-PASSLIB_BCRYPT_ROUNDS=4
+BCRYPT_ROUNDS=4
 
 # 测试配置
 HYPOTHESIS_PROFILE=ci

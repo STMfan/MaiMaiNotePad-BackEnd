@@ -1,4 +1,5 @@
 """用户路由模块 - 处理用户信息、头像、收藏、上传历史等用户相关的API端点"""
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request, Body, Query
 from typing import Dict, Any, Optional
 import os
@@ -16,14 +17,14 @@ from app.models.schemas import (
     AvatarInfo,
 )
 from app.utils.avatar import (
-    validate_image_file, save_avatar_file,
-    delete_avatar_file, ensure_avatar_dir, generate_initial_avatar
+    validate_image_file,
+    save_avatar_file,
+    delete_avatar_file,
+    ensure_avatar_dir,
+    generate_initial_avatar,
 )
 from app.core.logging import app_logger, log_exception, log_file_operation, log_database_operation
-from app.core.error_handlers import (
-    APIError, ValidationError, AuthenticationError,
-    NotFoundError, DatabaseError
-)
+from app.core.error_handlers import APIError, ValidationError, AuthenticationError, NotFoundError, DatabaseError
 from sqlalchemy.orm import Session
 
 # 创建路由器
@@ -33,14 +34,8 @@ router = APIRouter()
 # 用户相关路由（个人信息、头像、收藏、上传历史等）
 
 
-@router.get(
-    "/me",
-    response_model=BaseResponse[CurrentUserResponse]
-)
-async def read_users_me(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+@router.get("/me", response_model=BaseResponse[CurrentUserResponse])
+async def read_users_me(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """获取当前用户信息"""
     try:
         user_id = current_user.get("id", "")
@@ -48,7 +43,7 @@ async def read_users_me(
 
         user_service = UserService(db)
         user = user_service.get_user_by_id(user_id)
-        
+
         avatar_url = None
         avatar_updated_at = None
         is_muted = False
@@ -73,22 +68,19 @@ async def read_users_me(
                 avatar_updated_at=avatar_updated_at,
                 is_muted=is_muted,
                 muted_until=muted_until,
-            )
+            ),
         )
     except Exception as e:
         log_exception(app_logger, "Get user info error", exception=e)
         raise APIError("获取用户信息失败")
 
 
-@router.put(
-    "/me/password",
-    response_model=BaseResponse[None]
-)
+@router.put("/me/password", response_model=BaseResponse[None])
 async def change_password(
     password_data: dict = Body(...),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
-    request: Request = None
+    request: Request = None,
 ):
     """修改密码（带速率限制：每分钟最多5次尝试）"""
     try:
@@ -118,9 +110,9 @@ async def change_password(
 
         # 验证当前密码
         from app.core.security import verify_password, get_password_hash
+
         if not verify_password(current_password, user.hashed_password):
-            app_logger.warning(
-                f"Password change failed: wrong current password, user_id={user_id}")
+            app_logger.warning(f"Password change failed: wrong current password, user_id={user_id}")
             raise AuthenticationError("当前密码错误")
 
         # 检查新密码是否与当前密码相同
@@ -135,19 +127,11 @@ async def change_password(
         db.commit()
         db.refresh(user)
 
-        log_database_operation(
-            app_logger,
-            "update",
-            "user_password",
-            success=True,
-            user_id=user_id
-        )
+        log_database_operation(app_logger, "update", "user_password", success=True, user_id=user_id)
 
         app_logger.info(f"Password changed successfully: user_id={user_id}")
 
-        return Success(
-            message="密码修改成功，请重新登录"
-        )
+        return Success(message="密码修改成功，请重新登录")
 
     except (ValidationError, AuthenticationError, NotFoundError, DatabaseError):
         raise
@@ -156,14 +140,9 @@ async def change_password(
         raise APIError("修改密码失败")
 
 
-@router.post(
-    "/me/avatar",
-    response_model=BaseResponse[AvatarInfo]
-)
+@router.post("/me/avatar", response_model=BaseResponse[AvatarInfo])
 async def upload_avatar(
-    avatar: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    avatar: UploadFile = File(...), current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """上传/更新头像"""
     try:
@@ -180,8 +159,8 @@ async def upload_avatar(
 
         # 获取文件扩展名
         file_ext = os.path.splitext(avatar.filename)[1].lower()
-        if file_ext not in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
-            file_ext = '.jpg'  # 默认使用jpg
+        if file_ext not in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
+            file_ext = ".jpg"  # 默认使用jpg
 
         user_service = UserService(db)
         user = user_service.get_user_by_id(user_id)
@@ -194,8 +173,7 @@ async def upload_avatar(
 
         # 处理并保存头像
         ensure_avatar_dir()
-        file_path, thumbnail_path = save_avatar_file(
-            user_id, content, file_ext)
+        file_path, thumbnail_path = save_avatar_file(user_id, content, file_ext)
 
         # 更新数据库
         user.avatar_path = file_path
@@ -208,23 +186,13 @@ async def upload_avatar(
             delete_avatar_file(file_path)
             raise DatabaseError("保存头像信息失败")
 
-        log_file_operation(
-            app_logger,
-            "upload",
-            file_path,
-            user_id=user_id,
-            success=True
-        )
+        log_file_operation(app_logger, "upload", file_path, user_id=user_id, success=True)
 
-        app_logger.info(
-            f"头像上传成功: user_id={user_id}, path={file_path}")
+        app_logger.info(f"头像上传成功: user_id={user_id}, path={file_path}")
 
         return Success(
             message="头像上传成功",
-            data=AvatarInfo(
-                avatar_url=f"/{file_path}",
-                avatar_updated_at=user.avatar_updated_at.isoformat()
-            )
+            data=AvatarInfo(avatar_url=f"/{file_path}", avatar_updated_at=user.avatar_updated_at.isoformat()),
         )
 
     except (ValidationError, NotFoundError, DatabaseError):
@@ -234,14 +202,8 @@ async def upload_avatar(
         raise APIError("上传头像失败")
 
 
-@router.delete(
-    "/me/avatar",
-    response_model=BaseResponse[None]
-)
-async def delete_avatar_endpoint(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+@router.delete("/me/avatar", response_model=BaseResponse[None])
+async def delete_avatar_endpoint(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """删除头像（恢复为默认头像）"""
     try:
         user_id = current_user.get("id", "")
@@ -265,19 +227,11 @@ async def delete_avatar_endpoint(
             db.rollback()
             raise DatabaseError("保存头像信息失败")
 
-        log_file_operation(
-            app_logger,
-            "delete",
-            "avatar",
-            success=True,
-            user_id=user_id
-        )
+        log_file_operation(app_logger, "delete", "avatar", success=True, user_id=user_id)
 
         app_logger.info(f"Avatar deleted successfully: user_id={user_id}")
 
-        return Success(
-            message="头像已删除，已恢复为默认头像"
-        )
+        return Success(message="头像已删除，已恢复为默认头像")
 
     except (NotFoundError, DatabaseError):
         raise
@@ -287,11 +241,7 @@ async def delete_avatar_endpoint(
 
 
 @router.get("/{user_id}/avatar")
-async def get_user_avatar(
-    user_id: str,
-    size: int = 200,
-    db: Session = Depends(get_db)
-):
+async def get_user_avatar(user_id: str, size: int = 200, db: Session = Depends(get_db)):
     """获取用户头像（如果不存在则生成首字母头像）"""
     try:
         from fastapi.responses import Response, FileResponse
@@ -308,8 +258,7 @@ async def get_user_avatar(
         avatar_bytes = generate_initial_avatar(username, size)
 
         ensure_avatar_dir()
-        file_path, thumbnail_path = save_avatar_file(
-            user_id, avatar_bytes, ".jpg")
+        file_path, thumbnail_path = save_avatar_file(user_id, avatar_bytes, ".jpg")
 
         user.avatar_path = file_path
         user.avatar_updated_at = datetime.now()
@@ -320,21 +269,11 @@ async def get_user_avatar(
             delete_avatar_file(file_path)
             raise DatabaseError("保存头像信息失败")
 
-        log_file_operation(
-            app_logger,
-            "upload",
-            file_path,
-            user_id=user_id,
-            success=True
-        )
+        log_file_operation(app_logger, "upload", file_path, user_id=user_id, success=True)
 
-        app_logger.info(
-            f"默认首字母头像生成并保存成功: user_id={user_id}, path={file_path}")
+        app_logger.info(f"默认首字母头像生成并保存成功: user_id={user_id}, path={file_path}")
 
-        return Response(
-            content=avatar_bytes,
-            media_type="image/png"
-        )
+        return Response(content=avatar_bytes, media_type="image/png")
 
     except NotFoundError:
         raise
@@ -344,10 +283,7 @@ async def get_user_avatar(
 
 
 # 用户Star记录相关路由
-@router.get(
-    "/stars",
-    response_model=PageResponse[dict]
-)
+@router.get("/stars", response_model=PageResponse[dict])
 async def get_user_stars(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -356,45 +292,40 @@ async def get_user_stars(
     page_size: int = Query(20, description="每页条数，最大50"),
     sort_by: str = Query("created_at", description="排序字段: created_at / star_count"),
     sort_order: str = Query("desc", description="排序方向: asc / desc"),
-    type: str = Query("all", description="收藏类型: knowledge / persona")
+    type: str = Query("all", description="收藏类型: knowledge / persona"),
 ):
     """获取用户Star的知识库和人设卡"""
     user_id = current_user.get("id", "")
     try:
         app_logger.info(
             f"Get user stars: user_id={user_id}, include_details={include_details}, "
-            f"page={page}, page_size={page_size}, sort_by={sort_by}, sort_order={sort_order}, type={type}")
+            f"page={page}, page_size={page_size}, sort_by={sort_by}, sort_order={sort_order}, type={type}"
+        )
 
         # 限制page_size的最大值
         page_size = min(page_size, 50)
 
         # 查询用户的Star记录
         from app.models.database import StarRecord, KnowledgeBase, PersonaCard
-        
-        stars = db.query(StarRecord).filter(
-            StarRecord.user_id == user_id
-        ).all()
+
+        stars = db.query(StarRecord).filter(StarRecord.user_id == user_id).all()
 
         # 根据类型过滤
         if type != "all":
             stars = [star for star in stars if star.target_type == type]
 
         # 排序处理
-        reverse_order = (sort_order == "desc")
+        reverse_order = sort_order == "desc"
         if sort_by == "star_count":
             # 按Star数量排序需要获取目标对象的信息
             star_items = []
             for star in stars:
                 if star.target_type == "knowledge":
-                    kb = db.query(KnowledgeBase).filter(
-                        KnowledgeBase.id == star.target_id
-                    ).first()
+                    kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == star.target_id).first()
                     if kb and kb.is_public:
                         star_items.append((star, kb.star_count))
                 elif star.target_type == "persona":
-                    pc = db.query(PersonaCard).filter(
-                        PersonaCard.id == star.target_id
-                    ).first()
+                    pc = db.query(PersonaCard).filter(PersonaCard.id == star.target_id).first()
                     if pc and pc.is_public:
                         star_items.append((star, pc.star_count))
 
@@ -409,9 +340,7 @@ async def get_user_stars(
         result = []
         for star in stars:
             if star.target_type == "knowledge":
-                kb = db.query(KnowledgeBase).filter(
-                    KnowledgeBase.id == star.target_id
-                ).first()
+                kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == star.target_id).first()
                 if kb and kb.is_public:
                     item = {
                         "id": star.id,
@@ -420,7 +349,7 @@ async def get_user_stars(
                         "name": kb.name,
                         "description": kb.description,
                         "star_count": kb.star_count,
-                        "created_at": star.created_at.isoformat()
+                        "created_at": star.created_at.isoformat(),
                     }
                     # 如果需要完整详情，调用to_dict
                     if include_details:
@@ -428,9 +357,7 @@ async def get_user_stars(
                         item.update(kb_dict)
                     result.append(item)
             elif star.target_type == "persona":
-                pc = db.query(PersonaCard).filter(
-                    PersonaCard.id == star.target_id
-                ).first()
+                pc = db.query(PersonaCard).filter(PersonaCard.id == star.target_id).first()
                 if pc and pc.is_public:
                     item = {
                         "id": star.id,
@@ -439,7 +366,7 @@ async def get_user_stars(
                         "name": pc.name,
                         "description": pc.description,
                         "star_count": pc.star_count,
-                        "created_at": star.created_at.isoformat()
+                        "created_at": star.created_at.isoformat(),
                     }
                     # 如果需要完整详情，调用to_dict
                     if include_details:
@@ -454,23 +381,11 @@ async def get_user_stars(
         page_items = result[start_idx:end_idx]
 
         # 记录数据库操作成功
-        log_database_operation(
-            app_logger,
-            "read",
-            "star",
-            user_id=user_id,
-            success=True
-        )
+        log_database_operation(app_logger, "read", "star", user_id=user_id, success=True)
 
         app_logger.info(f"Returning {len(page_items)} items out of {total} total items")
 
-        return Page(
-            data=page_items,
-            page=page,
-            page_size=page_size,
-            total=total,
-            message="获取收藏记录成功"
-        )
+        return Page(data=page_items, page=page, page_size=page_size, total=total, message="获取收藏记录成功")
     except DatabaseError:
         raise
     except HTTPException:
@@ -478,33 +393,25 @@ async def get_user_stars(
         raise
     except Exception as e:
         log_exception(app_logger, "Get user stars error", exception=e)
-        log_database_operation(
-            app_logger,
-            "read",
-            "star",
-            user_id=user_id,
-            success=False,
-            error_message=str(e)
-        )
+        log_database_operation(app_logger, "read", "star", user_id=user_id, success=False, error_message=str(e))
         raise APIError("获取收藏记录失败")
 
 
 # 用户上传历史和统计接口
-@router.get(
-    "/me/upload-history",
-    response_model=PageResponse[dict]
-)
+@router.get("/me/upload-history", response_model=PageResponse[dict])
 async def get_my_upload_history(
     page: int = Query(1, description="页码，从1开始"),
     page_size: int = Query(20, description="每页条数，最大100"),
     status: Optional[str] = Query(None, description="状态过滤：approved, rejected, pending"),
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """获取当前用户的个人上传历史记录（分页）"""
     try:
         user_id = current_user.get("id", "")
-        app_logger.info(f"Get user upload history: user_id={user_id}, page={page}, page_size={page_size}, status={status}")
+        app_logger.info(
+            f"Get user upload history: user_id={user_id}, page={page}, page_size={page_size}, status={status}"
+        )
 
         # 限制参数范围
         if page_size < 1 or page_size > 100:
@@ -514,7 +421,8 @@ async def get_my_upload_history(
 
         user_service = UserService(db)
         upload_records = user_service.get_upload_records_by_uploader(
-            user_id, page=page, page_size=page_size, status=status)
+            user_id, page=page, page_size=page_size, status=status
+        )
 
         # 构建返回数据
         history_list = []
@@ -538,41 +446,34 @@ async def get_my_upload_history(
                 target_exists = pc is not None
 
             # 获取文件大小
-            total_file_size = user_service.get_total_file_size_by_target(
-                record.target_id,
-                record.target_type
-            )
+            total_file_size = user_service.get_total_file_size_by_target(record.target_id, record.target_type)
             has_files = total_file_size > 0
 
             # 构建记录信息
-            history_list.append({
-                "id": record.id,
-                "target_id": record.target_id,
-                "type": record.target_type,
-                "name": record.name,
-                "description": record.description,
-                "status": status_text,
-                "created_at": record.created_at.isoformat() if record.created_at else None,
-                "updated_at": record.updated_at.isoformat() if record.updated_at else None,
-                "target_exists": target_exists,
-                "has_files": has_files,
-                # 前端期望的字段
-                "fileType": record.target_type,
-                "fileName": record.name,
-                "fileSize": total_file_size,
-                "uploadedAt": record.created_at.isoformat() if record.created_at else None
-            })
+            history_list.append(
+                {
+                    "id": record.id,
+                    "target_id": record.target_id,
+                    "type": record.target_type,
+                    "name": record.name,
+                    "description": record.description,
+                    "status": status_text,
+                    "created_at": record.created_at.isoformat() if record.created_at else None,
+                    "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+                    "target_exists": target_exists,
+                    "has_files": has_files,
+                    # 前端期望的字段
+                    "fileType": record.target_type,
+                    "fileName": record.name,
+                    "fileSize": total_file_size,
+                    "uploadedAt": record.created_at.isoformat() if record.created_at else None,
+                }
+            )
 
         # 获取总数量
         total_count = user_service.get_upload_records_count_by_uploader(user_id, status=status)
 
-        log_database_operation(
-            app_logger,
-            "read",
-            "upload_record",
-            user_id=user_id,
-            success=True
-        )
+        log_database_operation(app_logger, "read", "upload_record", user_id=user_id, success=True)
 
         app_logger.info(f"Returning {len(history_list)} items out of {total_count} total items")
 
@@ -587,24 +488,13 @@ async def get_my_upload_history(
     except Exception as e:
         log_exception(app_logger, "Get user upload history error", exception=e)
         log_database_operation(
-            app_logger,
-            "read",
-            "upload_record",
-            user_id=current_user.get("id", ""),
-            success=False,
-            error_message=str(e)
+            app_logger, "read", "upload_record", user_id=current_user.get("id", ""), success=False, error_message=str(e)
         )
         raise APIError("获取上传历史失败")
 
 
-@router.get(
-    "/me/upload-stats",
-    response_model=BaseResponse[dict]
-)
-async def get_my_upload_stats(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+@router.get("/me/upload-stats", response_model=BaseResponse[dict])
+async def get_my_upload_stats(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """获取当前用户的个人上传统计"""
     try:
         user_id = current_user.get("id", "")
@@ -613,13 +503,7 @@ async def get_my_upload_stats(
         user_service = UserService(db)
         stats = user_service.get_upload_stats_by_uploader(user_id)
 
-        log_database_operation(
-            app_logger,
-            "read",
-            "upload_stats",
-            user_id=user_id,
-            success=True
-        )
+        log_database_operation(app_logger, "read", "upload_stats", user_id=user_id, success=True)
 
         app_logger.info(f"Upload stats for user {user_id}")
 
@@ -632,37 +516,24 @@ async def get_my_upload_stats(
                 "failed": stats["failed"],
                 "knowledge": stats["knowledge"],
                 "persona": stats["persona"],
-            }
+            },
         )
 
     except Exception as e:
         log_exception(app_logger, "Get user upload stats error", exception=e)
-        log_database_operation(
-            app_logger,
-            "read",
-            "upload_stats",
-            user_id=user_id,
-            success=False,
-            error_message=str(e)
-        )
+        log_database_operation(app_logger, "read", "upload_stats", user_id=user_id, success=False, error_message=str(e))
         raise APIError("获取上传统计失败")
 
 
-@router.get(
-    "/me/dashboard-stats",
-    response_model=BaseResponse[dict]
-)
-async def get_my_dashboard_stats(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+@router.get("/me/dashboard-stats", response_model=BaseResponse[dict])
+async def get_my_dashboard_stats(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """获取当前用户的个人数据概览统计"""
     try:
         user_id = current_user.get("id", "")
         app_logger.info(f"Get user dashboard stats: user_id={user_id}")
 
         user_service = UserService(db)
-        
+
         # 上传统计
         upload_stats = user_service.get_upload_stats_by_uploader(user_id)
         total_uploads = upload_stats.get("total", 0)
@@ -673,19 +544,17 @@ async def get_my_dashboard_stats(
         from sqlalchemy import func
         from app.models.database import KnowledgeBase, PersonaCard
 
-        kb_downloads = db.query(func.sum(KnowledgeBase.downloads)).filter(
-            KnowledgeBase.uploader_id == user_id
-        ).scalar() or 0
-        pc_downloads = db.query(func.sum(PersonaCard.downloads)).filter(
-            PersonaCard.uploader_id == user_id
-        ).scalar() or 0
+        kb_downloads = (
+            db.query(func.sum(KnowledgeBase.downloads)).filter(KnowledgeBase.uploader_id == user_id).scalar() or 0
+        )
+        pc_downloads = (
+            db.query(func.sum(PersonaCard.downloads)).filter(PersonaCard.uploader_id == user_id).scalar() or 0
+        )
 
-        kb_stars = db.query(func.sum(KnowledgeBase.star_count)).filter(
-            KnowledgeBase.uploader_id == user_id
-        ).scalar() or 0
-        pc_stars = db.query(func.sum(PersonaCard.star_count)).filter(
-            PersonaCard.uploader_id == user_id
-        ).scalar() or 0
+        kb_stars = (
+            db.query(func.sum(KnowledgeBase.star_count)).filter(KnowledgeBase.uploader_id == user_id).scalar() or 0
+        )
+        pc_stars = db.query(func.sum(PersonaCard.star_count)).filter(PersonaCard.uploader_id == user_id).scalar() or 0
 
         data = {
             "totalUploads": total_uploads,
@@ -699,18 +568,9 @@ async def get_my_dashboard_stats(
             "personaStars": pc_stars,
         }
 
-        log_database_operation(
-            app_logger,
-            "read",
-            "dashboard_stats",
-            user_id=user_id,
-            success=True
-        )
+        log_database_operation(app_logger, "read", "dashboard_stats", user_id=user_id, success=True)
 
-        return Success(
-            message="获取个人数据概览成功",
-            data=data
-        )
+        return Success(message="获取个人数据概览成功", data=data)
 
     except Exception as e:
         log_exception(app_logger, "Get user dashboard stats error", exception=e)
@@ -720,19 +580,16 @@ async def get_my_dashboard_stats(
             "dashboard_stats",
             user_id=current_user.get("id", ""),
             success=False,
-            error_message=str(e)
+            error_message=str(e),
         )
         raise APIError("获取个人数据概览失败")
 
 
-@router.get(
-    "/me/dashboard-trends",
-    response_model=BaseResponse[dict]
-)
+@router.get("/me/dashboard-trends", response_model=BaseResponse[dict])
 async def get_my_dashboard_trends(
     days: int = Query(30, ge=1, le=90, description="统计天数，默认30天，最大90天"),
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """获取当前用户最近N天的下载与收藏趋势"""
     try:

@@ -34,10 +34,10 @@ router = APIRouter()
     "/comments",
 )
 async def get_comments(
-        target_type: str = Query(..., description="目标类型: knowledge/persona"),
-        target_id: str = Query(..., description="目标ID"),
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    target_type: str = Query(..., description="目标类型: knowledge/persona"),
+    target_id: str = Query(..., description="目标ID"),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """获取评论列表（包含一级与二级评论）"""
     if target_type not in ["knowledge", "persona"]:
@@ -45,13 +45,14 @@ async def get_comments(
 
     try:
         app_logger.info(
-            f"Get comments: target_type={target_type}, target_id={target_id}, user_id={current_user.get('id')}")
+            f"Get comments: target_type={target_type}, target_id={target_id}, user_id={current_user.get('id')}"
+        )
 
-        query = db.query(Comment).filter(
-            Comment.target_type == target_type,
-            Comment.target_id == target_id,
-            Comment.is_deleted == False
-        ).order_by(Comment.created_at.asc())
+        query = (
+            db.query(Comment)
+            .filter(Comment.target_type == target_type, Comment.target_id == target_id, Comment.is_deleted == False)
+            .order_by(Comment.created_at.asc())
+        )
 
         comments = query.all()
 
@@ -66,33 +67,36 @@ async def get_comments(
         reactions_map = {}
         if current_user_id and comments:
             comment_ids = [c.id for c in comments]
-            reaction_rows = db.query(CommentReaction).filter(
-                CommentReaction.comment_id.in_(comment_ids),
-                CommentReaction.user_id == current_user_id,
-            ).all()
+            reaction_rows = (
+                db.query(CommentReaction)
+                .filter(
+                    CommentReaction.comment_id.in_(comment_ids),
+                    CommentReaction.user_id == current_user_id,
+                )
+                .all()
+            )
             for r in reaction_rows:
                 reactions_map[r.comment_id] = r.reaction_type
 
         result: List[dict] = []
         for c in comments:
             user = users.get(c.user_id)
-            result.append({
-                "id": c.id,
-                "userId": c.user_id,
-                "username": user.username if user else "",
-                "avatarUpdatedAt": user.avatar_updated_at.isoformat() if user and user.avatar_updated_at else None,
-                "parentId": c.parent_id,
-                "content": c.content,
-                "createdAt": c.created_at.isoformat() if c.created_at else None,
-                "likeCount": c.like_count or 0,
-                "dislikeCount": c.dislike_count or 0,
-                "myReaction": reactions_map.get(c.id)
-            })
+            result.append(
+                {
+                    "id": c.id,
+                    "userId": c.user_id,
+                    "username": user.username if user else "",
+                    "avatarUpdatedAt": user.avatar_updated_at.isoformat() if user and user.avatar_updated_at else None,
+                    "parentId": c.parent_id,
+                    "content": c.content,
+                    "createdAt": c.created_at.isoformat() if c.created_at else None,
+                    "likeCount": c.like_count or 0,
+                    "dislikeCount": c.dislike_count or 0,
+                    "myReaction": reactions_map.get(c.id),
+                }
+            )
 
-        return Success(
-            message="获取评论成功",
-            data=result
-        )
+        return Success(message="获取评论成功", data=result)
     except Exception as e:
         log_exception(app_logger, "Get comments error", exception=e)
         raise APIError("获取评论失败")
@@ -102,9 +106,7 @@ async def get_comments(
     "/comments",
 )
 async def create_comment(
-        data: dict = Body(...),
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    data: dict = Body(...), current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """创建评论或回复（受禁言限制）"""
     content = (data.get("content") or "").strip()
@@ -152,11 +154,11 @@ async def create_comment(
 
         parent = None
         if parent_id:
-            parent = db.query(Comment).filter(
-                Comment.id == parent_id,
-                Comment.target_type == target_type,
-                Comment.target_id == target_id
-            ).first()
+            parent = (
+                db.query(Comment)
+                .filter(Comment.id == parent_id, Comment.target_type == target_type, Comment.target_id == target_id)
+                .first()
+            )
             if not parent:
                 raise ValidationError("父级评论不存在")
 
@@ -193,6 +195,7 @@ async def create_comment(
             body = f"{user.username} 评论了你的内容：{snippet}"
 
         from app.models.database import Message
+
         for rid in recipients:
             try:
                 message = Message(
@@ -206,7 +209,7 @@ async def create_comment(
                 db.add(message)
             except Exception:
                 continue
-        
+
         db.commit()
 
         if recipients:
@@ -225,7 +228,7 @@ async def create_comment(
                 "likeCount": comment.like_count or 0,
                 "dislikeCount": comment.dislike_count or 0,
                 "myReaction": None,
-            }
+            },
         )
     except (ValidationError, AuthorizationError, NotFoundError):
         raise
@@ -238,10 +241,10 @@ async def create_comment(
     "/comments/{comment_id}/react",
 )
 async def react_comment(
-        comment_id: str,
-        data: dict = Body(...),
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    comment_id: str,
+    data: dict = Body(...),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """对评论进行点赞或踩，支持撤销"""
     action = (data.get("action") or "").strip().lower()
@@ -253,17 +256,15 @@ async def react_comment(
         raise AuthorizationError("用户未登录")
 
     try:
-        comment = db.query(Comment).filter(
-            Comment.id == comment_id,
-            Comment.is_deleted == False
-        ).first()
+        comment = db.query(Comment).filter(Comment.id == comment_id, Comment.is_deleted == False).first()
         if not comment:
             raise NotFoundError("评论不存在或已删除")
 
-        reaction = db.query(CommentReaction).filter(
-            CommentReaction.comment_id == comment_id,
-            CommentReaction.user_id == user_id
-        ).first()
+        reaction = (
+            db.query(CommentReaction)
+            .filter(CommentReaction.comment_id == comment_id, CommentReaction.user_id == user_id)
+            .first()
+        )
 
         before_type: Optional[str] = reaction.reaction_type if reaction else None
         after_type: Optional[str] = None
@@ -284,11 +285,7 @@ async def react_comment(
                     comment.dislike_count = max((comment.dislike_count or 0) - 1, 0)
                     reaction.reaction_type = "like"
                 else:
-                    reaction = CommentReaction(
-                        user_id=user_id,
-                        comment_id=comment_id,
-                        reaction_type="like"
-                    )
+                    reaction = CommentReaction(user_id=user_id, comment_id=comment_id, reaction_type="like")
                     db.add(reaction)
                 comment.like_count = (comment.like_count or 0) + 1
                 after_type = "like"
@@ -301,11 +298,7 @@ async def react_comment(
                     comment.like_count = max((comment.like_count or 0) - 1, 0)
                     reaction.reaction_type = "dislike"
                 else:
-                    reaction = CommentReaction(
-                        user_id=user_id,
-                        comment_id=comment_id,
-                        reaction_type="dislike"
-                    )
+                    reaction = CommentReaction(user_id=user_id, comment_id=comment_id, reaction_type="dislike")
                     db.add(reaction)
                 comment.dislike_count = (comment.dislike_count or 0) + 1
                 after_type = "dislike"
@@ -322,9 +315,7 @@ async def react_comment(
                 my_reaction = None
 
         should_notify = (
-            after_type in ["like", "dislike"]
-            and after_type != before_type
-            and str(user_id) != str(comment.user_id)
+            after_type in ["like", "dislike"] and after_type != before_type and str(user_id) != str(comment.user_id)
         )
 
         recipient_id = str(comment.user_id)
@@ -336,6 +327,7 @@ async def react_comment(
             body = f"{sender_name} 对你的评论进行了{'点赞' if after_type == 'like' else '踩'}：{snippet}"
             try:
                 from app.models.database import Message
+
                 message = Message(
                     sender_id=str(user_id),
                     recipient_id=recipient_id,
@@ -357,7 +349,7 @@ async def react_comment(
                 "likeCount": comment.like_count or 0,
                 "dislikeCount": comment.dislike_count or 0,
                 "myReaction": my_reaction,
-            }
+            },
         )
     except (ValidationError, AuthorizationError, NotFoundError):
         raise
@@ -370,9 +362,7 @@ async def react_comment(
     "/comments/{comment_id}",
 )
 async def delete_comment(
-        comment_id: str,
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    comment_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """删除评论（软删除，支持级联删除二级评论）"""
     try:
@@ -390,13 +380,9 @@ async def delete_comment(
 
         if not can_delete:
             if comment.target_type == "knowledge":
-                target = db.query(KnowledgeBase).filter(
-                    KnowledgeBase.id == comment.target_id
-                ).first()
+                target = db.query(KnowledgeBase).filter(KnowledgeBase.id == comment.target_id).first()
             else:
-                target = db.query(PersonaCard).filter(
-                    PersonaCard.id == comment.target_id
-                ).first()
+                target = db.query(PersonaCard).filter(PersonaCard.id == comment.target_id).first()
             if target and str(getattr(target, "uploader_id", "")) == str(user_id):
                 can_delete = True
 
@@ -409,18 +395,13 @@ async def delete_comment(
         comment.is_deleted = True
 
         if comment.parent_id is None:
-            children = db.query(Comment).filter(
-                Comment.parent_id == comment.id
-            ).all()
+            children = db.query(Comment).filter(Comment.parent_id == comment.id).all()
             for child in children:
                 child.is_deleted = True
 
         db.commit()
 
-        return Success(
-            message="删除评论成功",
-            data={"id": comment.id}
-        )
+        return Success(message="删除评论成功", data={"id": comment.id})
     except (AuthorizationError, NotFoundError):
         raise
     except Exception as e:
@@ -432,9 +413,7 @@ async def delete_comment(
     "/comments/{comment_id}/restore",
 )
 async def restore_comment(
-        comment_id: str,
-        current_user: dict = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    comment_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """撤销删除评论（恢复软删除的评论以及其子评论）"""
     try:
@@ -452,13 +431,9 @@ async def restore_comment(
 
         if not can_restore:
             if comment.target_type == "knowledge":
-                target = db.query(KnowledgeBase).filter(
-                    KnowledgeBase.id == comment.target_id
-                ).first()
+                target = db.query(KnowledgeBase).filter(KnowledgeBase.id == comment.target_id).first()
             else:
-                target = db.query(PersonaCard).filter(
-                    PersonaCard.id == comment.target_id
-                ).first()
+                target = db.query(PersonaCard).filter(PersonaCard.id == comment.target_id).first()
             if target and str(getattr(target, "uploader_id", "")) == str(user_id):
                 can_restore = True
 
@@ -471,18 +446,13 @@ async def restore_comment(
         comment.is_deleted = False
 
         if comment.parent_id is None:
-            children = db.query(Comment).filter(
-                Comment.parent_id == comment.id
-            ).all()
+            children = db.query(Comment).filter(Comment.parent_id == comment.id).all()
             for child in children:
                 child.is_deleted = False
 
         db.commit()
 
-        return Success(
-            message="撤销删除评论成功",
-            data={"id": comment.id}
-        )
+        return Success(message="撤销删除评论成功", data={"id": comment.id})
     except (AuthorizationError, NotFoundError):
         raise
     except Exception as e:
