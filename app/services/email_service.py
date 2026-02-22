@@ -6,6 +6,7 @@
 
 import smtplib
 from email.mime.text import MIMEText
+from typing import Union
 from app.core.config import settings
 
 
@@ -37,7 +38,7 @@ class EmailService:
         message["To"] = receiver
         message["Subject"] = subject
 
-        smtp = None
+        smtp: Union[smtplib.SMTP, smtplib.SMTP_SSL, None] = None
         try:
             # 根据端口选择连接方式
             if self.mail_port == 465:

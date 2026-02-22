@@ -75,15 +75,15 @@ class ConfigManager:
 
         # 2. 从 TOML 配置读取
         keys = key_path.split(".")
-        value = self._config
+        current_value: Any = self._config
 
         for key in keys:
-            if isinstance(value, dict) and key in value:
-                value = value[key]
+            if isinstance(current_value, dict) and key in current_value:
+                current_value = current_value[key]
             else:
                 return default
 
-        return value
+        return current_value
 
     def _convert_type(self, value: str, target_type: type) -> Any:
         """

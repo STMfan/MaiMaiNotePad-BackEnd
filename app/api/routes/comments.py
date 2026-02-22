@@ -10,7 +10,7 @@
 """
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Any
 
 from fastapi import APIRouter, Depends, Query, Body
 
@@ -144,6 +144,7 @@ async def create_comment(
                     f"你当前处于永久禁言状态，无法发表评论。\n\n禁言原因：{reason}\n\n如有疑问，可以联系管理员。\n\n—— 麦麦"
                 )
 
+        target: Optional[Any] = None
         if target_type == "knowledge":
             target = db.query(KnowledgeBase).filter(KnowledgeBase.id == target_id).first()
         else:
@@ -379,11 +380,12 @@ async def delete_comment(
             can_delete = True
 
         if not can_delete:
+            target_obj: Optional[Any] = None
             if comment.target_type == "knowledge":
-                target = db.query(KnowledgeBase).filter(KnowledgeBase.id == comment.target_id).first()
+                target_obj = db.query(KnowledgeBase).filter(KnowledgeBase.id == comment.target_id).first()
             else:
-                target = db.query(PersonaCard).filter(PersonaCard.id == comment.target_id).first()
-            if target and str(getattr(target, "uploader_id", "")) == str(user_id):
+                target_obj = db.query(PersonaCard).filter(PersonaCard.id == comment.target_id).first()
+            if target_obj and str(getattr(target_obj, "uploader_id", "")) == str(user_id):
                 can_delete = True
 
         if not can_delete and (is_admin or user_role in ["admin", "moderator"]):
@@ -430,11 +432,12 @@ async def restore_comment(
             can_restore = True
 
         if not can_restore:
+            target_obj: Optional[Any] = None
             if comment.target_type == "knowledge":
-                target = db.query(KnowledgeBase).filter(KnowledgeBase.id == comment.target_id).first()
+                target_obj = db.query(KnowledgeBase).filter(KnowledgeBase.id == comment.target_id).first()
             else:
-                target = db.query(PersonaCard).filter(PersonaCard.id == comment.target_id).first()
-            if target and str(getattr(target, "uploader_id", "")) == str(user_id):
+                target_obj = db.query(PersonaCard).filter(PersonaCard.id == comment.target_id).first()
+            if target_obj and str(getattr(target_obj, "uploader_id", "")) == str(user_id):
                 can_restore = True
 
         if not can_restore and (is_admin or user_role in ["admin", "moderator"]):

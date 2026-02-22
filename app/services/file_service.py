@@ -166,7 +166,7 @@ class FileService:
 
         # 深度搜索
         visited = set()
-        stack = [data]
+        stack: List[Any] = [data]
         while stack:
             current = stack.pop()
             if id(current) in visited:
@@ -177,8 +177,12 @@ class FileService:
                 for k, v in current.items():
                     if isinstance(k, str) and k.lower() == "version" and isinstance(v, (str, int, float)):
                         return str(v)
-                    if isinstance(v, (dict, list)):
+                    if isinstance(v, dict):
                         stack.append(v)
+                    elif isinstance(v, list):
+                        for item in v:
+                            if isinstance(item, (dict, list)):
+                                stack.append(item)
             elif isinstance(current, list):
                 for v in current:
                     if isinstance(v, (dict, list)):

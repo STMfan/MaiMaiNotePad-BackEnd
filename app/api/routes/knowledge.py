@@ -104,10 +104,10 @@ async def upload_knowledge_base(
             raise ValidationError("您已经创建过同名的知识库")
 
         # 准备文件数据 - 读取文件内容
-        file_data = []
+        file_data: List[tuple[str, bytes]] = []
         for file in files:
-            content = await file.read()
-            file_data.append((file.filename, content))
+            content_bytes = await file.read()
+            file_data.append((file.filename, content_bytes))
             await file.seek(0)  # 重置文件指针以防后续使用
 
         # 使用 FileService 上传知识库

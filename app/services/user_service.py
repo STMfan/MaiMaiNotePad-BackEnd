@@ -646,16 +646,17 @@ class UserService:
             if target_type == "knowledge":
                 from app.models.database import KnowledgeBaseFile
 
-                files = self.db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == target_id).all()
+                kb_files = self.db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == target_id).all()
+                total_size = sum(f.file_size for f in kb_files if f.file_size)
+                return total_size
             elif target_type == "persona":
                 from app.models.database import PersonaCardFile
 
-                files = self.db.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == target_id).all()
+                pc_files = self.db.query(PersonaCardFile).filter(PersonaCardFile.persona_card_id == target_id).all()
+                total_size = sum(f.file_size for f in pc_files if f.file_size)
+                return total_size
             else:
                 return 0
-
-            total_size = sum(f.file_size for f in files if f.file_size)
-            return total_size
         except Exception as e:
             logger.error(f"Error getting total file size for {target_type} {target_id}: {str(e)}")
             return 0

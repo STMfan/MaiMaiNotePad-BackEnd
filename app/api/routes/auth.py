@@ -36,15 +36,18 @@ async def login(request: Request, db: Session = Depends(get_db)):
             # 处理JSON格式
             try:
                 data = await request.json()
-                username = data.get("username", "").strip()
+                username_raw = data.get("username", "")
+                username = username_raw.strip() if isinstance(username_raw, str) else ""
                 password = data.get("password", "")
             except Exception:
                 raise ValidationError("无效的JSON格式")
         elif "application/x-www-form-urlencoded" in content_type:
             # 处理表单格式
             form_data = await request.form()
-            username = form_data.get("username", "").strip()
-            password = form_data.get("password", "")
+            username_raw = form_data.get("username", "")
+            username = username_raw.strip() if isinstance(username_raw, str) else ""
+            password_raw = form_data.get("password", "")
+            password = password_raw if isinstance(password_raw, str) else ""
         else:
             raise ValidationError("不支持的Content-Type")
 

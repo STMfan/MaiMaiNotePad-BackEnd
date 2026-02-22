@@ -5,18 +5,23 @@ SQLAlchemy 数据库模型
 """
 
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, Index, and_, or_, func
 from sqlalchemy.orm import relationship
 import uuid
 
 from app.core.database import Base
 
+if TYPE_CHECKING:
+    # 仅用于类型检查，避免循环导入
+    pass
+
 
 class User(Base):
     """用户模型"""
 
     __tablename__ = "users"
+    __allow_unmapped__ = True  # 允许非 Mapped[] 类型的注解
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     username = Column(String, unique=True, nullable=False)
@@ -56,31 +61,31 @@ class User(Base):
     )
 
     # 关联关系
-    uploaded_knowledge_bases = relationship(
+    uploaded_knowledge_bases: List["KnowledgeBase"] = relationship(
         "KnowledgeBase",
         back_populates="uploader",
         primaryjoin="User.id==KnowledgeBase.uploader_id",
         foreign_keys="KnowledgeBase.uploader_id",
     )
-    uploaded_persona_cards = relationship(
+    uploaded_persona_cards: List["PersonaCard"] = relationship(
         "PersonaCard",
         back_populates="uploader",
         primaryjoin="User.id==PersonaCard.uploader_id",
         foreign_keys="PersonaCard.uploader_id",
     )
-    received_messages = relationship(
+    received_messages: List["Message"] = relationship(
         "Message",
         foreign_keys="Message.recipient_id",
         back_populates="recipient",
         primaryjoin="User.id==Message.recipient_id",
     )
-    sent_messages = relationship(
+    sent_messages: List["Message"] = relationship(
         "Message",
         foreign_keys="Message.sender_id",
         back_populates="sender",
         primaryjoin="User.id==Message.sender_id",
     )
-    star_records = relationship(
+    star_records: List["StarRecord"] = relationship(
         "StarRecord",
         back_populates="user",
         primaryjoin="User.id==StarRecord.user_id",
@@ -92,6 +97,7 @@ class KnowledgeBase(Base):
     """知识库模型"""
 
     __tablename__ = "knowledge_bases"
+    __allow_unmapped__ = True  # 允许非 Mapped[] 类型的注解
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
@@ -121,7 +127,7 @@ class KnowledgeBase(Base):
     )
 
     # 关联关系
-    uploader = relationship(
+    uploader: "User" = relationship(
         "User",
         back_populates="uploaded_knowledge_bases",
         primaryjoin="KnowledgeBase.uploader_id==User.id",
@@ -180,6 +186,7 @@ class PersonaCard(Base):
     """人设卡模型"""
 
     __tablename__ = "persona_cards"
+    __allow_unmapped__ = True  # 允许非 Mapped[] 类型的注解
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
@@ -209,7 +216,7 @@ class PersonaCard(Base):
     )
 
     # 关联关系
-    uploader = relationship(
+    uploader: "User" = relationship(
         "User",
         back_populates="uploaded_persona_cards",
         primaryjoin="PersonaCard.uploader_id==User.id",
@@ -268,6 +275,7 @@ class Message(Base):
     """消息模型"""
 
     __tablename__ = "messages"
+    __allow_unmapped__ = True  # 允许非 Mapped[] 类型的注解
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     recipient_id = Column(String, nullable=False)
@@ -290,13 +298,13 @@ class Message(Base):
     )
 
     # 关联关系
-    recipient = relationship(
+    recipient: "User" = relationship(
         "User",
         foreign_keys=[recipient_id],
         back_populates="received_messages",
         primaryjoin="Message.recipient_id==User.id",
     )
-    sender = relationship(
+    sender: "User" = relationship(
         "User",
         foreign_keys=[sender_id],
         back_populates="sent_messages",
@@ -322,6 +330,7 @@ class StarRecord(Base):
     """收藏记录模型"""
 
     __tablename__ = "star_records"
+    __allow_unmapped__ = True  # 允许非 Mapped[] 类型的注解
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, nullable=False)
@@ -339,7 +348,7 @@ class StarRecord(Base):
     )
 
     # 关联关系
-    user = relationship(
+    user: "User" = relationship(
         "User",
         back_populates="star_records",
         primaryjoin="StarRecord.user_id==User.id",

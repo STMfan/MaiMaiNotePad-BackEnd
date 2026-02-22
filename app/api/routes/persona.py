@@ -29,7 +29,7 @@ from app.core.error_handlers import (
     FileOperationError,
     DatabaseError,
 )
-from app.services.file_upload_service import file_upload_service
+from app.services.file_upload_service import FileUploadService
 
 # 导入错误处理和日志记录模块
 from app.core.logging import app_logger, log_exception, log_file_operation, log_database_operation
@@ -133,9 +133,9 @@ async def upload_persona_card(
         return Success(message="人设卡上传成功", data=pc.to_dict())
 
     except FileValidationError as e:
-        raise ValidationError(e.message, details=e.details)
+        raise ValidationError(e.message, details=getattr(e, 'details', {}))
     except FileDatabaseError as e:
-        raise DatabaseError(e.message, details=e.details)
+        raise DatabaseError(e.message)
     except (ValidationError, FileOperationError, DatabaseError, HTTPException):
         raise
     except Exception as e:
@@ -543,6 +543,7 @@ async def add_files_to_persona_card(
             raise ValidationError("至少需要上传一个文件")
 
         # 添加文件
+        file_upload_service = FileUploadService(db)
         updated_pc = await file_upload_service.add_files_to_persona_card(pc_id, files)
 
         if not updated_pc:
@@ -595,6 +596,7 @@ async def delete_files_from_persona_card(
             raise AuthorizationError("公开或审核中的人设卡不允许修改文件")
 
         # 删除文件
+        file_upload_service = FileUploadService(db)
         success = await file_upload_service.delete_files_from_persona_card(pc_id, file_id, user_id)
 
         if not success:

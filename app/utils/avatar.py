@@ -7,8 +7,9 @@
 import os
 import io
 from datetime import datetime
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union
 from PIL import Image, ImageDraw, ImageFont
+from PIL.ImageFont import FreeTypeFont, ImageFont as DefaultImageFont
 import hashlib
 
 from app.core.config_manager import config_manager
@@ -97,7 +98,7 @@ def process_avatar_image(content: bytes) -> Tuple[bytes, bytes]:
         >>> processed, thumbnail = process_avatar_image(original_image_bytes)
     """
     # 重新打开图片（verify后需要重新打开）
-    img = Image.open(io.BytesIO(content))
+    img: Image.Image = Image.open(io.BytesIO(content))
 
     # 转换为RGB模式（处理RGBA、P等模式）
     if img.mode != "RGB":
@@ -181,6 +182,7 @@ def generate_initial_avatar(username: str, size: int = 200) -> bytes:
                 draw.rectangle((mx0, y0, mx1, y1), fill=pattern_color)
 
     try:
+        font: Union[FreeTypeFont, DefaultImageFont]
         if os.name == "nt":
             font_path = "C:/Windows/Fonts/arial.ttf"
             if os.path.exists(font_path):
@@ -189,7 +191,7 @@ def generate_initial_avatar(username: str, size: int = 200) -> bytes:
                 font = ImageFont.load_default()
         else:
             font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size=int(size * 0.5))
-    except:
+    except Exception:
         font = ImageFont.load_default()
 
     bbox = draw.textbbox((0, 0), initial, font=font)

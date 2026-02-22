@@ -188,23 +188,23 @@ MaiMaiNotePad-BackEnd/
 git clone https://github.com/STMfan/MaiMaiNotePad-BackEnd.git
 cd MaiMaiNotePad/MaiMaiNotePad-BackEnd
 
-# 2. 创建虚拟环境（推荐）
+# 2. 创建虚拟环境（推荐使用管理工具）
+./manage.sh create-env
+# 支持三种方式：Conda（推荐）、venv、uv
+# 管理工具会引导你完成环境创建和依赖安装
+
+# 或手动创建 venv 环境
 python -m venv venv
 source venv/bin/activate  # macOS/Linux
 # 或 venv\Scripts\activate  # Windows
-
-# 3. 安装依赖
-# 开发环境（包含测试工具）
 pip install -r requirements-dev.txt
 
-# 或生产环境（仅运行时依赖）
-pip install -r requirements.txt
-
-# 4. 启动管理工具（交互式菜单）
+# 3. 启动管理工具（交互式菜单）
 ./manage.sh
 ```
 
 管理工具提供以下功能：
+- 🌐 环境管理（创建 Conda/venv/uv 虚拟环境）
 - 🚀 启动服务（开发/生产模式）
 - 🧪 运行测试（单元/集成/覆盖率）
 - 🧹 清理项目（缓存、临时文件）
@@ -215,6 +215,9 @@ pip install -r requirements.txt
 也可以直接使用命令行参数：
 
 ```bash
+# 创建虚拟环境
+./manage.sh create-env
+
 # 启动开发服务器
 ./manage.sh start-dev
 

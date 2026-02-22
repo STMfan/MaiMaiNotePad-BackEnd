@@ -10,7 +10,7 @@
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict, Any, Literal
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -170,6 +170,11 @@ async def get_message_detail(
         if recipient_id != user_id_str:
             raise AuthorizationError("没有权限查看此消息")
 
+        # Ensure message_type is a valid Literal type
+        msg_type: Literal["direct", "announcement"] = "direct"
+        if message.message_type == "announcement":
+            msg_type = "announcement"
+        
         return Success(
             message="消息详情获取成功",
             data=MessageResponse(
@@ -179,7 +184,7 @@ async def get_message_detail(
                 title=message.title,
                 content=message.content,
                 summary=message.summary,
-                message_type=message.message_type or "direct",
+                message_type=msg_type,
                 broadcast_scope=message.broadcast_scope,
                 is_read=message.is_read or False,
                 created_at=message.created_at if message.created_at else datetime.now(),
@@ -225,9 +230,14 @@ async def get_messages(
             # 获取所有消息
             messages = message_service.get_user_messages(user_id=user_id, page=page, page_size=page_size)
 
-        return Success(
-            message="消息列表获取成功",
-            data=[
+        # Convert messages to response format with proper type handling
+        message_responses = []
+        for msg in messages:
+            msg_type: Literal["direct", "announcement"] = "direct"
+            if msg.message_type == "announcement":
+                msg_type = "announcement"
+            
+            message_responses.append(
                 MessageResponse(
                     id=msg.id,
                     sender_id=msg.sender_id,
@@ -235,13 +245,16 @@ async def get_messages(
                     title=msg.title,
                     content=msg.content,
                     summary=msg.summary,
-                    message_type=msg.message_type or "direct",
+                    message_type=msg_type,
                     broadcast_scope=msg.broadcast_scope,
                     is_read=msg.is_read or False,
                     created_at=msg.created_at if msg.created_at else datetime.now(),
                 )
-                for msg in messages
-            ],
+            )
+        
+        return Success(
+            message="消息列表获取成功",
+            data=message_responses,
         )
 
     except (ValidationError, DatabaseError):
@@ -275,9 +288,14 @@ async def get_messages_by_type(
             user_id=user_id, message_type=message_type, page=page, page_size=page_size
         )
 
-        return Success(
-            message="按类型获取消息列表成功",
-            data=[
+        # Convert messages to response format with proper type handling
+        message_responses = []
+        for msg in messages:
+            msg_type: Literal["direct", "announcement"] = "direct"
+            if msg.message_type == "announcement":
+                msg_type = "announcement"
+            
+            message_responses.append(
                 MessageResponse(
                     id=msg.id,
                     sender_id=msg.sender_id,
@@ -285,13 +303,16 @@ async def get_messages_by_type(
                     title=msg.title,
                     content=msg.content,
                     summary=msg.summary,
-                    message_type=msg.message_type or "direct",
+                    message_type=msg_type,
                     broadcast_scope=msg.broadcast_scope,
                     is_read=msg.is_read or False,
                     created_at=msg.created_at if msg.created_at else datetime.now(),
                 )
-                for msg in messages
-            ],
+            )
+        
+        return Success(
+            message="按类型获取消息列表成功",
+            data=message_responses,
         )
 
     except (ValidationError, DatabaseError):
@@ -578,7 +599,7 @@ async def get_broadcast_messages(
                 senders[user.id] = {"id": user.id, "username": user.username, "email": user.email}
 
         # 构建返回数据，包含统计信息
-        result = []
+        result: List[Dict[str, Any]] = []
         for msg in messages:
             stats = message_service.get_broadcast_message_stats(message_id=msg.id)
 

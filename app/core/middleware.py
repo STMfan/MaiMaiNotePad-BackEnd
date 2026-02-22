@@ -30,7 +30,7 @@ def setup_middlewares(app: FastAPI) -> None:
         # 1. 初始化速率限制器
         limiter = Limiter(key_func=get_remote_address, storage_uri="memory://")
         app.state.limiter = limiter
-        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
         app_logger.debug("速率限制器已初始化")
 
         # 2. 添加速率限制中间件

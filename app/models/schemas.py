@@ -88,7 +88,7 @@ class KnowledgeBaseCreate(BaseModel):
     description: str
     copyright_owner: Optional[str] = None
     content: Optional[str] = None
-    tags: Optional[List[str]] = Field(default_factory=list)
+    tags: Optional[List[str]] = Field(default_factory=lambda: [])
 
 
 class KnowledgeBaseUpdate(BaseModel):
@@ -154,7 +154,7 @@ class PersonaCardCreate(BaseModel):
     description: str
     copyright_owner: Optional[str] = None
     content: Optional[str] = None
-    tags: Optional[List[str]] = Field(default_factory=list)
+    tags: Optional[List[str]] = Field(default_factory=lambda: [])
 
 
 class PersonaCardUpdate(BaseModel):

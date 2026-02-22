@@ -76,6 +76,9 @@ show_error_codes = true
 # 不显示错误上下文，减少输出
 show_error_context = false
 
+# 启用 SQLAlchemy 插件以正确处理 ORM 模型
+plugins = ["sqlalchemy.ext.mypy.plugin"]
+
 # 排除的目录
 exclude = [
     "^alembic/versions/.*\\.py$",
@@ -107,18 +110,12 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = [
-    "-v",
-    "--strict-markers",
-    "--tb=short",
-    "--cov=app",
-    "--cov-report=term-missing",
-    "--cov-report=html",
-]
+addopts = "-v --strict-markers --tb=short --cov=app --cov-report=term-missing --cov-report=html"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
     "property: marks tests as property-based tests",
+    "serial: marks tests that must run serially (not in parallel)",
 ]
 asyncio_mode = "auto"

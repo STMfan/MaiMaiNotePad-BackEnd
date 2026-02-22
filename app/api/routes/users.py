@@ -353,7 +353,7 @@ async def get_user_stars(
                     }
                     # 如果需要完整详情，调用to_dict
                     if include_details:
-                        kb_dict = kb.to_dict(include_files=True)
+                        kb_dict = kb.to_dict()
                         item.update(kb_dict)
                     result.append(item)
             elif star.target_type == "persona":
@@ -370,7 +370,7 @@ async def get_user_stars(
                     }
                     # 如果需要完整详情，调用to_dict
                     if include_details:
-                        pc_dict = pc.to_dict(include_files=True)
+                        pc_dict = pc.to_dict()
                         item.update(pc_dict)
                     result.append(item)
 

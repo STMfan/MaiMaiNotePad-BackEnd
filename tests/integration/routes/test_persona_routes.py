@@ -35,7 +35,7 @@ class TestUploadPersonaCard:
         }
 
         with (
-            patch("app.services.file_upload_service.file_upload_service.upload_persona_card") as mock_upload,
+            patch("app.services.file_upload_service.FileUploadService.upload_persona_card") as mock_upload,
             patch("app.services.persona_service.PersonaService.get_all_persona_cards") as mock_get_all,
         ):
             # Mock that no persona cards exist yet
@@ -533,7 +533,7 @@ class TestAddFilesToPersonaCard:
         file_content = b"test content"
         files = [("files", ("test.txt", io.BytesIO(file_content), "text/plain"))]
 
-        with patch("app.services.file_upload_service.file_upload_service.add_files_to_persona_card") as mock_add:
+        with patch("app.services.file_upload_service.FileUploadService.add_files_to_persona_card") as mock_add:
             mock_add.return_value = pc
 
             response = authenticated_client.post(f"/api/persona/{pc.id}/files", files=files)
@@ -579,7 +579,7 @@ class TestDeleteFilesFromPersonaCard:
         file2 = factory.create_persona_card_file(persona_card=pc)
 
         with patch(
-            "app.services.file_upload_service.file_upload_service.delete_files_from_persona_card"
+            "app.services.file_upload_service.FileUploadService.delete_files_from_persona_card"
         ) as mock_delete:
             mock_delete.return_value = True
 
@@ -597,7 +597,7 @@ class TestDeleteFilesFromPersonaCard:
         pc_id = pc.id
 
         with patch(
-            "app.services.file_upload_service.file_upload_service.delete_files_from_persona_card"
+            "app.services.file_upload_service.FileUploadService.delete_files_from_persona_card"
         ) as mock_delete:
             mock_delete.return_value = True
 
@@ -638,7 +638,7 @@ class TestDownloadPersonaCardFiles:
             temp_path = f.name
 
         try:
-            with patch("app.services.file_upload_service.file_upload_service.create_persona_card_zip") as mock_zip:
+            with patch("app.services.file_upload_service.FileUploadService.create_persona_card_zip") as mock_zip:
                 mock_zip.return_value = {"zip_path": temp_path, "zip_filename": "test.zip"}
 
                 response = client.get(f"/api/persona/{pc.id}/download")
@@ -672,7 +672,7 @@ class TestDownloadPersonaCardFiles:
             temp_path = f.name
 
         try:
-            with patch("app.services.file_upload_service.file_upload_service.create_persona_card_zip") as mock_zip:
+            with patch("app.services.file_upload_service.FileUploadService.create_persona_card_zip") as mock_zip:
                 mock_zip.return_value = {"zip_path": temp_path, "zip_filename": "test.zip"}
 
                 response = authenticated_client.get(f"/api/persona/{pc.id}/download")
@@ -755,7 +755,7 @@ class TestDownloadPersonaCardFile:
         pc = factory.create_persona_card(is_public=True)
         fake_file_id = str(uuid.uuid4())
 
-        with patch("app.services.file_upload_service.file_upload_service.get_persona_card_file_path") as mock_get:
+        with patch("app.services.file_upload_service.FileUploadService.get_persona_card_file_path") as mock_get:
             mock_get.return_value = None
 
             response = authenticated_client.get(f"/api/persona/{pc.id}/file/{fake_file_id}")
@@ -793,7 +793,7 @@ class TestPersonaCardEdgeCases:
         data = {"name": "Test Persona", "description": "Test description", "is_public": "true"}
 
         with (
-            patch("app.services.file_upload_service.file_upload_service.upload_persona_card") as mock_upload,
+            patch("app.services.file_upload_service.FileUploadService.upload_persona_card") as mock_upload,
             patch("app.services.persona_service.PersonaService.get_all_persona_cards") as mock_get_all,
         ):
             mock_get_all.return_value = []

@@ -6,6 +6,7 @@
 """
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 from typing import Optional
 import os
 
@@ -32,7 +33,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = config_manager.get("database.url", "sqlite:///data/mainnp.db", env_var="DATABASE_URL")
 
     # JWT 配置
-    JWT_SECRET_KEY: str  # 必须从环境变量读取
+    JWT_SECRET_KEY: str = Field(default_factory=lambda: os.getenv("JWT_SECRET_KEY", ""))  # 从环境变量读取
     JWT_ALGORITHM: str = config_manager.get("jwt.algorithm", "HS256", env_var="JWT_ALGORITHM")
     JWT_EXPIRATION_HOURS: int = config_manager.get_int("jwt.expiration_hours", 24, env_var="JWT_EXPIRATION_HOURS")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = config_manager.get_int(
@@ -45,16 +46,16 @@ class Settings(BaseSettings):
     # 邮件配置
     MAIL_HOST: str = config_manager.get("email.host", "smtp.qq.com", env_var="MAIL_HOST")
     MAIL_PORT: int = config_manager.get_int("email.port", 465, env_var="MAIL_PORT")
-    MAIL_USER: str  # 必须从环境变量读取
-    MAIL_PWD: str  # 必须从环境变量读取
+    MAIL_USER: str = Field(default_factory=lambda: os.getenv("MAIL_USER", ""))  # 从环境变量读取
+    MAIL_PWD: str = Field(default_factory=lambda: os.getenv("MAIL_PWD", ""))  # 从环境变量读取
     MAIL_TIMEOUT: int = config_manager.get_int("email.timeout", 30, env_var="MAIL_TIMEOUT")
 
     # 管理员配置
     SUPERADMIN_USERNAME: str = config_manager.get(
         "admin.superadmin_username", "superadmin", env_var="SUPERADMIN_USERNAME"
     )
-    SUPERADMIN_PWD: str  # 必须从环境变量读取
-    HIGHEST_PASSWORD: str  # 必须从环境变量读取
+    SUPERADMIN_PWD: str = Field(default_factory=lambda: os.getenv("SUPERADMIN_PWD", ""))  # 从环境变量读取
+    HIGHEST_PASSWORD: str = Field(default_factory=lambda: os.getenv("HIGHEST_PASSWORD", ""))  # 从环境变量读取
     EXTERNAL_DOMAIN: str = config_manager.get("admin.external_domain", "example.com", env_var="EXTERNAL_DOMAIN")
 
     # 日志配置
