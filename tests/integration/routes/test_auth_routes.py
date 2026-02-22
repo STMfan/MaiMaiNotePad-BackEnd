@@ -300,7 +300,7 @@ class TestUserRegistration:
         # Get the verification code from database
         verification = (
             test_db.query(EmailVerification)
-            .filter(EmailVerification.email == email, EmailVerification.is_used == False)
+            .filter(EmailVerification.email == email, EmailVerification.is_used.is_(False))
             .first()
         )
 
@@ -462,7 +462,7 @@ class TestEmailVerification:
         # Verify code was saved in database
         verification = test_db.query(EmailVerification).filter(EmailVerification.email == "verify@example.com").first()
         assert verification is not None
-        assert verification.is_used == False
+        assert verification.is_used is False
         assert len(verification.code) == 6
         assert verification.code.isdigit()
 
@@ -518,7 +518,7 @@ class TestEmailVerification:
         auth_service = AuthService(test_db)
         result = auth_service.verify_email_code(email, verification.code)
 
-        assert result == False
+        assert result is False
 
     @patch("app.services.email_service.EmailService.send_email")
     def test_verification_code_reuse_prevention(self, mock_send_email, client, test_db: Session):
@@ -534,7 +534,7 @@ class TestEmailVerification:
         # Get the verification code
         verification = (
             test_db.query(EmailVerification)
-            .filter(EmailVerification.email == email, EmailVerification.is_used == False)
+            .filter(EmailVerification.email == email, EmailVerification.is_used.is_(False))
             .first()
         )
 
@@ -545,15 +545,15 @@ class TestEmailVerification:
 
         auth_service = AuthService(test_db)
         result1 = auth_service.verify_email_code(email, code)
-        assert result1 == True
+        assert result1 is True
 
         # Try to reuse the same code
         result2 = auth_service.verify_email_code(email, code)
-        assert result2 == False
+        assert result2 is False
 
         # Verify code is marked as used
         test_db.refresh(verification)
-        assert verification.is_used == True
+        assert verification.is_used is True
 
     @patch("app.services.email_service.EmailService.send_email")
     def test_send_verification_code_email_service_error(self, mock_send_email, client, test_db: Session):

@@ -591,7 +591,7 @@ class TestUserCreation:
 
     def test_create_user_duplicate_username(self, admin_client, factory):
         """测试创建重复用户名的用户"""
-        existing_user = factory.create_user(username="duplicate_user")
+        _ = factory.create_user(username="duplicate_user")
 
         response = admin_client.post(
             "/api/admin/users",
@@ -607,7 +607,7 @@ class TestUserCreation:
 
     def test_create_user_duplicate_email(self, admin_client, factory):
         """测试创建重复邮箱的用户"""
-        existing_user = factory.create_user(email="duplicate@example.com")
+        _ = factory.create_user(email="duplicate@example.com")
 
         response = admin_client.post(
             "/api/admin/users",
@@ -1057,7 +1057,7 @@ class TestAdminEdgeCases:
 
     def test_create_user_by_admin_duplicate_username(self, admin_client, factory):
         """Test admin creating user with duplicate username"""
-        existing_user = factory.create_user(username="duplicate")
+        _ = factory.create_user(username="duplicate")
 
         response = admin_client.post(
             "/api/admin/users", json={"username": "duplicate", "email": "new@example.com", "password": "password123"}
@@ -1067,7 +1067,7 @@ class TestAdminEdgeCases:
 
     def test_create_user_by_admin_duplicate_email(self, admin_client, factory):
         """Test admin creating user with duplicate email"""
-        existing_user = factory.create_user(email="duplicate@example.com")
+        _ = factory.create_user(email="duplicate@example.com")
 
         response = admin_client.post(
             "/api/admin/users",
@@ -1221,9 +1221,9 @@ class TestAdminContentManagement:
         user2 = factory.create_user()
 
         # 创建公开和私有知识库
-        kb_public = factory.create_knowledge_base(uploader=user1, is_public=True)
-        kb_private = factory.create_knowledge_base(uploader=user2, is_public=False)
-        kb_pending = factory.create_knowledge_base(uploader=user1, is_pending=True)
+        _ = factory.create_knowledge_base(uploader=user1, is_public=True)
+        _ = factory.create_knowledge_base(uploader=user2, is_public=False)
+        _ = factory.create_knowledge_base(uploader=user1, is_pending=True)
 
         # 管理员应该能看到所有知识库
         response = admin_client.get("/api/knowledge/public")
@@ -1236,9 +1236,9 @@ class TestAdminContentManagement:
         user2 = factory.create_user()
 
         # 创建公开和私有人设卡
-        pc_public = factory.create_persona_card(uploader=user1, is_public=True)
-        pc_private = factory.create_persona_card(uploader=user2, is_public=False)
-        pc_pending = factory.create_persona_card(uploader=user1, is_pending=True)
+        _ = factory.create_persona_card(uploader=user1, is_public=True)
+        _ = factory.create_persona_card(uploader=user2, is_public=False)
+        _ = factory.create_persona_card(uploader=user1, is_pending=True)
 
         # 管理员应该能看到所有人设卡
         response = admin_client.get("/api/persona/public")
@@ -1298,9 +1298,9 @@ class TestAdminContentManagement:
         user = factory.create_user()
 
         # 创建用户内容
-        kb1 = factory.create_knowledge_base(uploader=user)
-        kb2 = factory.create_knowledge_base(uploader=user)
-        pc1 = factory.create_persona_card(uploader=user)
+        _ = factory.create_knowledge_base(uploader=user)
+        _ = factory.create_knowledge_base(uploader=user)
+        _ = factory.create_persona_card(uploader=user)
 
         # 获取用户上传历史
         admin_client.get(f"/api/users/{user.id}/upload-history")
@@ -1378,8 +1378,8 @@ class TestAdminSystemStatistics:
     def test_admin_stats_with_inactive_users(self, admin_client, factory):
         """测试统计时排除非活跃用户"""
         # 创建活跃和非活跃用户
-        active_users = [factory.create_user(username=f"active_{i}", is_active=True) for i in range(5)]
-        inactive_users = [factory.create_user(username=f"inactive_{i}", is_active=False) for i in range(3)]
+        _ = [factory.create_user(username=f"active_{i}", is_active=True) for i in range(5)]
+        _ = [factory.create_user(username=f"inactive_{i}", is_active=False) for i in range(3)]
 
         response = admin_client.get("/api/admin/stats")
 
@@ -1436,7 +1436,7 @@ class TestAdminSystemStatistics:
     def test_recent_users_sorting_order(self, admin_client, factory):
         """测试最近用户列表按创建时间排序"""
         # 创建用户
-        users = [factory.create_user(username=f"sort_user_{i}") for i in range(5)]
+        _ = [factory.create_user(username=f"sort_user_{i}") for i in range(5)]
 
         response = admin_client.get("/api/admin/recent-users?page_size=10&page=1")
 

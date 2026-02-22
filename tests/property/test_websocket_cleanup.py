@@ -73,7 +73,7 @@ class TestWebSocketConnectionCleanup:
         client = TestClient(app)
 
         try:
-            with client.websocket_connect(f"/api/ws/{token}") as websocket:
+            with client.websocket_connect(f"/api/ws/{token}") as _:
                 # 验证连接已建立
                 current_count = message_ws_manager.get_active_connections_count()
                 assert current_count == initial_count + 1, (
@@ -132,7 +132,7 @@ class TestWebSocketConnectionCleanup:
             # 验证连接已建立
             if len(connections) > 0:
                 current_count = message_ws_manager.get_active_connections_count()
-                assert current_count >= initial_count, f"连接建立后活动连接数应该增加"
+                assert current_count >= initial_count, "连接建立后活动连接数应该增加"
 
             # 关闭所有连接
             for ws in connections:
@@ -515,7 +515,7 @@ class TestConcurrentConnectionHandling:
         # 快速创建和关闭连接
         for _ in range(10):
             try:
-                with client.websocket_connect(f"/api/ws/{token}") as websocket:
+                with client.websocket_connect(f"/api/ws/{token}") as _:
                     pass  # 立即关闭
             except Exception:
                 pass

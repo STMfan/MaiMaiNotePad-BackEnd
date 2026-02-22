@@ -115,13 +115,13 @@ class TestParallelIsolation:
         print(f"Passed: {passed_count}")
         print(f"Failed: {failed_count}")
         print(f"Errors: {error_count}")
-        print(f"\nFailure indicators detected:")
+        print("\nFailure indicators detected:")
         for key, detected in failure_indicators.items():
             status = "✗ DETECTED" if detected else "✓ Not detected"
             print(f"  {key}: {status}")
 
         if counterexamples:
-            print(f"\nCounterexamples found:")
+            print("\nCounterexamples found:")
             for i, example in enumerate(counterexamples, 1):
                 print(f"  {i}. {example}")
 
@@ -327,14 +327,14 @@ def test_foreign_key_cleanup(test_db, test_user, factory):
         name=f"Test KB {uuid.uuid4().hex[:8]}",
         description="Test description"
     )
-    
+
     # Create a file (has foreign key to knowledge base)
     kb_file = factory.create_knowledge_base_file(
         knowledge_base_id=kb.id,
         filename=f"test_{uuid.uuid4().hex[:8]}.txt",
         file_path=f"/tmp/test_{uuid.uuid4().hex[:8]}.txt"
     )
-    
+
     # The test_db fixture should clean up in correct order:
     # KnowledgeBaseFile -> KnowledgeBase -> User
     assert kb is not None

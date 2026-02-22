@@ -6,10 +6,10 @@
 使用方法:
     1. 先生成覆盖率报告:
        pytest --cov=app --cov-report=json --cov-report=term-missing
-    
+
     2. 运行此脚本:
        python scripts/python/generate_test_templates.py
-    
+
     3. 手动完善生成的测试模板
 
 注意:
@@ -97,7 +97,7 @@ client = TestClient(app)
 
 class Test{test_class_name}:
     """测试 {module_path}"""
-    
+
 '''
 
     for func in functions:
@@ -113,7 +113,7 @@ class Test{test_class_name}:
         """测试 {func_name}"""
         # TODO: 实现测试逻辑
         pass
-    
+
 '''
 
     return template

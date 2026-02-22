@@ -28,10 +28,10 @@ class TestGetPendingKnowledgeBases:
         """
         # Create pending knowledge bases
         user = factory.create_user()
-        kb1 = factory.create_knowledge_base(uploader=user, name="Pending KB 1", is_pending=True, is_public=False)
-        kb2 = factory.create_knowledge_base(uploader=user, name="Pending KB 2", is_pending=True, is_public=False)
+        _ = factory.create_knowledge_base(uploader=user, name="Pending KB 1", is_pending=True, is_public=False)
+        _ = factory.create_knowledge_base(uploader=user, name="Pending KB 2", is_pending=True, is_public=False)
         # Create non-pending KB (should not be returned)
-        kb3 = factory.create_knowledge_base(uploader=user, name="Public KB", is_pending=False, is_public=True)
+        _ = factory.create_knowledge_base(uploader=user, name="Public KB", is_pending=False, is_public=True)
 
         response = admin_client.get("/api/review/knowledge/pending")
 
@@ -52,7 +52,7 @@ class TestGetPendingKnowledgeBases:
         - 审核员有权限访问
         """
         user = factory.create_user()
-        kb = factory.create_knowledge_base(uploader=user, is_pending=True, is_public=False)
+        _ = factory.create_knowledge_base(uploader=user, is_pending=True, is_public=False)
 
         response = moderator_client.get("/api/review/knowledge/pending")
 
@@ -120,8 +120,8 @@ class TestGetPendingKnowledgeBases:
         - 名称搜索正确过滤结果
         """
         user = factory.create_user()
-        kb1 = factory.create_knowledge_base(uploader=user, name="Python Tutorial", is_pending=True, is_public=False)
-        kb2 = factory.create_knowledge_base(uploader=user, name="JavaScript Guide", is_pending=True, is_public=False)
+        _ = factory.create_knowledge_base(uploader=user, name="Python Tutorial", is_pending=True, is_public=False)
+        _ = factory.create_knowledge_base(uploader=user, name="JavaScript Guide", is_pending=True, is_public=False)
 
         response = admin_client.get("/api/review/knowledge/pending?name=Python")
 
@@ -140,8 +140,8 @@ class TestGetPendingKnowledgeBases:
         """
         user1 = factory.create_user()
         user2 = factory.create_user()
-        kb1 = factory.create_knowledge_base(uploader=user1, is_pending=True, is_public=False)
-        kb2 = factory.create_knowledge_base(uploader=user2, is_pending=True, is_public=False)
+        _ = factory.create_knowledge_base(uploader=user1, is_pending=True, is_public=False)
+        _ = factory.create_knowledge_base(uploader=user2, is_pending=True, is_public=False)
 
         response = admin_client.get(f"/api/review/knowledge/pending?uploader_id={user1.id}")
 
@@ -158,9 +158,9 @@ class TestGetPendingKnowledgeBases:
         - 支持升序和降序
         """
         user = factory.create_user()
-        kb1 = factory.create_knowledge_base(uploader=user, name="KB A", is_pending=True, is_public=False)
+        _ = factory.create_knowledge_base(uploader=user, name="KB A", is_pending=True, is_public=False)
         test_db.flush()
-        kb2 = factory.create_knowledge_base(uploader=user, name="KB B", is_pending=True, is_public=False)
+        _ = factory.create_knowledge_base(uploader=user, name="KB B", is_pending=True, is_public=False)
 
         # Test descending order (default)
         response = admin_client.get("/api/review/knowledge/pending?sort_by=created_at&sort_order=desc")
@@ -188,8 +188,8 @@ class TestGetPendingPersonaCards:
         - 返回待审核人设卡列表
         """
         user = factory.create_user()
-        pc1 = factory.create_persona_card(uploader=user, name="Pending PC 1", is_pending=True, is_public=False)
-        pc2 = factory.create_persona_card(uploader=user, name="Pending PC 2", is_pending=True, is_public=False)
+        _ = factory.create_persona_card(uploader=user, name="Pending PC 1", is_pending=True, is_public=False)
+        _ = factory.create_persona_card(uploader=user, name="Pending PC 2", is_pending=True, is_public=False)
 
         response = admin_client.get("/api/review/persona/pending")
 
@@ -207,7 +207,7 @@ class TestGetPendingPersonaCards:
         - 审核员有权限访问
         """
         user = factory.create_user()
-        pc = factory.create_persona_card(uploader=user, is_pending=True, is_public=False)
+        _ = factory.create_persona_card(uploader=user, is_pending=True, is_public=False)
 
         response = moderator_client.get("/api/review/persona/pending")
 
@@ -251,8 +251,8 @@ class TestGetPendingPersonaCards:
         - 名称搜索正确过滤结果
         """
         user = factory.create_user()
-        pc1 = factory.create_persona_card(uploader=user, name="Alice Character", is_pending=True, is_public=False)
-        pc2 = factory.create_persona_card(uploader=user, name="Bob Character", is_pending=True, is_public=False)
+        _ = factory.create_persona_card(uploader=user, name="Alice Character", is_pending=True, is_public=False)
+        _ = factory.create_persona_card(uploader=user, name="Bob Character", is_pending=True, is_public=False)
 
         response = admin_client.get("/api/review/persona/pending?name=Alice")
 

@@ -344,7 +344,7 @@ class TestHelperPreservation:
             "test_pytest_markers_work" in output or "collected" in output
         ), "Pytest should collect tests with property marker"
 
-        print(f"\n✓ Pytest markers are working correctly")
+        print("\n✓ Pytest markers are working correctly")
 
     def test_assert_error_response_helper(self, client):
         """
@@ -366,7 +366,7 @@ class TestHelperPreservation:
         # Note: We expect either 404 or 405 depending on the endpoint
         try:
             assert_error_response(response, [404, 405], ["not found", "not allowed", "detail"])
-            print(f"\n✓ assert_error_response helper works correctly")
+            print("\n✓ assert_error_response helper works correctly")
         except AssertionError:
             # If the helper doesn't work as expected, that's also valid observation
             # We're just observing the current behavior
@@ -422,7 +422,7 @@ class TestDatabasePreservation:
         assert user.id == test_user.id
         assert user.email == test_user.email
 
-        print(f"\n✓ Database operations work correctly")
+        print("\n✓ Database operations work correctly")
 
 
 @pytest.mark.property

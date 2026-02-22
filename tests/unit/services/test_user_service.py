@@ -367,7 +367,7 @@ class TestUserCreation:
 
         # Create user with very long password
         long_password = "a" * 100
-        user = service.create_user(username="testuser", email="test@example.com", password=long_password)
+        _ = service.create_user(username="testuser", email="test@example.com", password=long_password)
 
         # Verify password was truncated to 72 bytes before hashing
         mock_hash.assert_called_once_with(long_password[:72])
@@ -2321,7 +2321,7 @@ class TestUserServiceAdditionalCoverage:
 
     def test_update_user_email_conflict(self, test_db, factory):
         """测试更新用户邮箱时的冲突"""
-        user1 = factory.create_user(username="user1", email="user1@example.com")
+        _ = factory.create_user(username="user1", email="user1@example.com")
         user2 = factory.create_user(username="user2", email="user2@example.com")
 
         service = UserService(test_db)

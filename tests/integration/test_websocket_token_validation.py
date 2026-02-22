@@ -9,10 +9,10 @@ import pytest
 
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
-import jwt
-from datetime import datetime, timedelta, timezone
-from starlette.websockets import WebSocketDisconnect
-from app.core.security import create_access_token, SECRET_KEY, ALGORITHM
+import jwt  # noqa: E402
+from datetime import datetime, timedelta, timezone  # noqa: E402
+from starlette.websockets import WebSocketDisconnect  # noqa: E402
+from app.core.security import create_access_token, SECRET_KEY, ALGORITHM  # noqa: E402
 
 
 class TestWebSocketExpiredToken:

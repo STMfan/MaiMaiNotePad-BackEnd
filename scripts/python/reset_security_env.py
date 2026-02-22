@@ -282,7 +282,7 @@ def main() -> None:
     if not init_success:
         print()
         print(f"⚠️  {RED}超级管理员初始化失败，请手动运行：{RESET}")
-        print(f"   python scripts/python/init_superadmin.py")
+        print("   python scripts/python/init_superadmin.py")
         sys.exit(1)
 
     print()
@@ -296,7 +296,7 @@ def main() -> None:
     if not verify_success:
         print()
         print(f"⚠️  {YELLOW}超级管理员验证失败，请运行诊断脚本：{RESET}")
-        print(f"   python scripts/python/check_superadmin.py")
+        print("   python scripts/python/check_superadmin.py")
 
     # 7. 总结
     print()
@@ -315,8 +315,8 @@ def main() -> None:
         print(f"   密码: {superadmin_pwd}")
         print()
         print(f"{BOLD}下一步：{RESET}")
-        print(f"   启动应用: python -m uvicorn app.main:app --host 0.0.0.0 --port 9278")
-        print(f"   或使用: ./manage.sh start-dev")
+        print("   启动应用: python -m uvicorn app.main:app --host 0.0.0.0 --port 9278")
+        print("   或使用: ./manage.sh start-dev")
     else:
         print(f"⚠️  {YELLOW}部分步骤执行失败，请检查上面的错误信息{RESET}")
         sys.exit(1)

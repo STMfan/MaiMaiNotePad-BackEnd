@@ -19,16 +19,16 @@ warnings.warn(
 )
 
 # 导入新的应用入口
-from app.main import app
+from app.main import app  # noqa: E402
 
 if __name__ == '__main__':
     import uvicorn
     from app.core.config import settings
     from app.core.logging import app_logger
-    
+
     app_logger.warning("使用旧的入口文件 main.py，建议更新为新的启动方式")
     app_logger.info(f'🌐 访问地址: http://{settings.HOST}:{settings.PORT}')
-    
+
     try:
         uvicorn.run(
             app,

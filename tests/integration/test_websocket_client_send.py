@@ -13,9 +13,9 @@ import pytest
 
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
-import time
-from tests.helpers.websocket_client import WebSocketTestClient
-from app.core.security import create_access_token
+import time  # noqa: E402
+from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
+from app.core.security import create_access_token  # noqa: E402
 
 
 class TestWebSocketClientSendBasic:
@@ -40,7 +40,7 @@ class TestWebSocketClientSendBasic:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -77,7 +77,7 @@ class TestWebSocketClientSendBasic:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -116,7 +116,7 @@ class TestWebSocketClientSendBasic:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -154,7 +154,7 @@ class TestWebSocketClientSendBasic:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -193,7 +193,7 @@ class TestWebSocketClientSendEdgeCases:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -232,7 +232,7 @@ class TestWebSocketClientSendEdgeCases:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -274,7 +274,7 @@ class TestWebSocketClientSendEdgeCases:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -315,7 +315,7 @@ class TestWebSocketClientSendEdgeCases:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -355,7 +355,7 @@ class TestWebSocketClientSendMessageTypes:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -387,7 +387,7 @@ class TestWebSocketClientSendMessageTypes:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -420,7 +420,7 @@ class TestWebSocketClientSendMessageTypes:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -470,7 +470,7 @@ class TestWebSocketClientSendIntegration:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 1. 接收初始消息（服务器推送）
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -514,7 +514,7 @@ class TestWebSocketClientSendIntegration:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -558,7 +558,7 @@ class TestWebSocketClientSendIntegration:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 1. 连接建立，接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -616,13 +616,13 @@ class TestWebSocketClientSendIntegration:
         ws_client2 = WebSocketTestClient(client, token)
 
         # 建立第一个连接
-        with ws_client1.connect() as ws1:
+        with ws_client1.connect() as _:
             # 接收初始消息
             msg1 = ws_client1.receive_message()
             assert msg1 is not None
 
             # 建立第二个连接
-            with ws_client2.connect() as ws2:
+            with ws_client2.connect() as _:
                 # 接收初始消息
                 msg2 = ws_client2.receive_message()
                 assert msg2 is not None
@@ -667,7 +667,7 @@ class TestWebSocketClientSendMessageHistory:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -706,7 +706,7 @@ class TestWebSocketClientSendMessageHistory:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None

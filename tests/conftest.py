@@ -28,7 +28,7 @@ if "UPLOAD_DIR" not in os.environ:
     os.environ["UPLOAD_DIR"] = "test_uploads"
 
 # 从 .test_env 或 .test_env.template 加载测试配置
-from tests.fixtures.config import test_config
+from tests.fixtures.config import test_config  # noqa: E402
 
 # ============================================================================
 # Pytest Configuration Options
@@ -253,7 +253,7 @@ settings.register_profile("dev", max_examples=10, verbosity=Verbosity.normal, de
 settings.load_profile(test_config.get("HYPOTHESIS_PROFILE", "ci"))
 
 # 设置环境变量后导入
-from app.models.database import (
+from app.models.database import (  # noqa: E402
     Base,
     User,
     EmailVerification,
@@ -268,10 +268,10 @@ from app.models.database import (
     Comment,
     CommentReaction,
 )
-from app.core.database import get_db
-from app.core.security import get_password_hash
-from tests.fixtures.data_factory import TestDataFactory
-from tests.helpers.boundary_generator import BoundaryValueGenerator
+from app.core.database import get_db  # noqa: E402
+from app.core.security import get_password_hash  # noqa: E402
+from tests.fixtures.data_factory import TestDataFactory  # noqa: E402
+from tests.helpers.boundary_generator import BoundaryValueGenerator  # noqa: E402
 
 # ============================================================================
 # Fixture Caching Optimization
@@ -624,7 +624,7 @@ try:
         # 使用 with 语句确保依赖覆盖在测试结束后清理
         with TestClient(app) as test_client:
             # 为这个客户端设置独立的依赖覆盖
-            print(f"[client fixture] Setting dependency override for get_db")
+            print("[client fixture] Setting dependency override for get_db")
             print(f"[client fixture] get_db function: {get_db}")
             print(f"[client fixture] override_get_db function: {override_get_db}")
             app.dependency_overrides[get_db] = override_get_db

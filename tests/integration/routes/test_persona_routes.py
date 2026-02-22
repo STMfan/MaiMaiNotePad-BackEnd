@@ -128,10 +128,10 @@ class TestGetPublicPersonaCards:
         """测试获取公开人设卡"""
         # Create public persona cards
         user = factory.create_user()
-        pc1 = factory.create_persona_card(uploader=user, name="Public PC 1", is_public=True)
-        pc2 = factory.create_persona_card(uploader=user, name="Public PC 2", is_public=True)
+        _ = factory.create_persona_card(uploader=user, name="Public PC 1", is_public=True)
+        _ = factory.create_persona_card(uploader=user, name="Public PC 2", is_public=True)
         # Create private persona card (should not appear)
-        pc3 = factory.create_persona_card(uploader=user, name="Private PC", is_public=False)
+        _ = factory.create_persona_card(uploader=user, name="Private PC", is_public=False)
 
         response = client.get("/api/persona/public")
 
@@ -175,9 +175,9 @@ class TestGetPublicPersonaCards:
     def test_get_public_persona_cards_search_by_name(self, client, factory, test_db):
         """测试按名称搜索人设卡"""
         user = factory.create_user()
-        pc1 = factory.create_persona_card(uploader=user, name="Alice Bot", is_public=True)
-        pc2 = factory.create_persona_card(uploader=user, name="Bob Bot", is_public=True)
-        pc3 = factory.create_persona_card(uploader=user, name="Charlie", is_public=True)
+        _ = factory.create_persona_card(uploader=user, name="Alice Bot", is_public=True)
+        _ = factory.create_persona_card(uploader=user, name="Bob Bot", is_public=True)
+        _ = factory.create_persona_card(uploader=user, name="Charlie", is_public=True)
 
         response = client.get("/api/persona/public?name=Bot")
 
@@ -193,8 +193,8 @@ class TestGetPublicPersonaCards:
         """测试按上传者筛选人设卡"""
         user1 = factory.create_user(username="user1")
         user2 = factory.create_user(username="user2")
-        pc1 = factory.create_persona_card(uploader=user1, name="PC 1", is_public=True)
-        pc2 = factory.create_persona_card(uploader=user2, name="PC 2", is_public=True)
+        _ = factory.create_persona_card(uploader=user1, name="PC 1", is_public=True)
+        _ = factory.create_persona_card(uploader=user2, name="PC 2", is_public=True)
 
         response = client.get(f"/api/persona/public?uploader_id={user1.id}")
 
@@ -206,8 +206,8 @@ class TestGetPublicPersonaCards:
     def test_get_public_persona_cards_sort_by_created_at(self, client, factory, test_db):
         """测试按创建时间排序人设卡"""
         user = factory.create_user()
-        pc1 = factory.create_persona_card(uploader=user, name="PC 1", is_public=True)
-        pc2 = factory.create_persona_card(uploader=user, name="PC 2", is_public=True)
+        _ = factory.create_persona_card(uploader=user, name="PC 1", is_public=True)
+        _ = factory.create_persona_card(uploader=user, name="PC 2", is_public=True)
 
         # Sort descending (newest first)
         response = client.get("/api/persona/public?sort_by=created_at&sort_order=desc")
@@ -234,8 +234,8 @@ class TestGetPersonaCardDetail:
         user = factory.create_user()
         pc = factory.create_persona_card(uploader=user, name="Test PC", is_public=True)
         # Add files
-        file1 = factory.create_persona_card_file(persona_card=pc, file_name="config.toml")
-        file2 = factory.create_persona_card_file(persona_card=pc, file_name="avatar.png")
+        _ = factory.create_persona_card_file(persona_card=pc, file_name="config.toml")
+        _ = factory.create_persona_card_file(persona_card=pc, file_name="avatar.png")
 
         response = client.get(f"/api/persona/{pc.id}")
 
@@ -298,8 +298,8 @@ class TestGetUserPersonaCards:
 
     def test_get_user_persona_cards_success(self, authenticated_client, test_user, factory, test_db):
         """测试获取用户的人设卡"""
-        pc1 = factory.create_persona_card(uploader=test_user, name="PC 1")
-        pc2 = factory.create_persona_card(uploader=test_user, name="PC 2")
+        _ = factory.create_persona_card(uploader=test_user, name="PC 1")
+        _ = factory.create_persona_card(uploader=test_user, name="PC 2")
 
         response = authenticated_client.get(f"/api/persona/user/{test_user.id}")
 
@@ -310,9 +310,9 @@ class TestGetUserPersonaCards:
 
     def test_get_user_persona_cards_with_filters(self, authenticated_client, test_user, factory, test_db):
         """测试使用筛选器获取用户的人设卡"""
-        pc1 = factory.create_persona_card(uploader=test_user, name="Alice", is_public=True)
-        pc2 = factory.create_persona_card(uploader=test_user, name="Bob", is_pending=True)
-        pc3 = factory.create_persona_card(uploader=test_user, name="Charlie", is_public=False)
+        _ = factory.create_persona_card(uploader=test_user, name="Alice", is_public=True)
+        _ = factory.create_persona_card(uploader=test_user, name="Bob", is_pending=True)
+        _ = factory.create_persona_card(uploader=test_user, name="Charlie", is_public=False)
 
         # Filter by status
         response = authenticated_client.get(f"/api/persona/user/{test_user.id}?status=pending")
@@ -324,9 +324,9 @@ class TestGetUserPersonaCards:
 
     def test_get_user_persona_cards_search_by_name(self, authenticated_client, test_user, factory, test_db):
         """测试按名称搜索用户的人设卡"""
-        pc1 = factory.create_persona_card(uploader=test_user, name="Alice Bot")
-        pc2 = factory.create_persona_card(uploader=test_user, name="Bob Bot")
-        pc3 = factory.create_persona_card(uploader=test_user, name="Charlie")
+        _ = factory.create_persona_card(uploader=test_user, name="Alice Bot")
+        _ = factory.create_persona_card(uploader=test_user, name="Bob Bot")
+        _ = factory.create_persona_card(uploader=test_user, name="Charlie")
 
         response = authenticated_client.get(f"/api/persona/user/{test_user.id}?name=Bot")
 
@@ -571,7 +571,7 @@ class TestDeleteFilesFromPersonaCard:
         """Test deleting file from persona card"""
         pc = factory.create_persona_card(uploader=test_user)
         file1 = factory.create_persona_card_file(persona_card=pc)
-        file2 = factory.create_persona_card_file(persona_card=pc)
+        _ = factory.create_persona_card_file(persona_card=pc)
 
         with patch("app.services.file_upload_service.FileUploadService.delete_files_from_persona_card") as mock_delete:
             mock_delete.return_value = True
@@ -819,10 +819,10 @@ class TestPersonaCardEdgeCases:
     def test_get_public_persona_cards_with_uploader_username(self, client, factory, test_db):
         """Test filtering by uploader username (not just ID)"""
         user = factory.create_user(username="testuploader")
-        pc = factory.create_persona_card(uploader=user, is_public=True)
+        _ = factory.create_persona_card(uploader=user, is_public=True)
 
         # Filter by username (should be resolved to ID)
-        response = client.get(f"/api/persona/public?uploader_id=testuploader")
+        response = client.get("/api/persona/public?uploader_id=testuploader")
 
         assert response.status_code == 200
         data = response.json()
@@ -950,9 +950,9 @@ class TestPersonaCardEdgeCases:
 
     def test_get_user_persona_cards_with_tag_filter(self, authenticated_client, test_user, factory):
         """Test filtering user's persona cards by tag"""
-        pc1 = factory.create_persona_card(uploader=test_user, name="PC 1", tags="tag1,tag2")
-        pc2 = factory.create_persona_card(uploader=test_user, name="PC 2", tags="tag2,tag3")
-        pc3 = factory.create_persona_card(uploader=test_user, name="PC 3", tags="tag3")
+        _ = factory.create_persona_card(uploader=test_user, name="PC 1", tags="tag1,tag2")
+        _ = factory.create_persona_card(uploader=test_user, name="PC 2", tags="tag2,tag3")
+        _ = factory.create_persona_card(uploader=test_user, name="PC 3", tags="tag3")
 
         response = authenticated_client.get(f"/api/persona/user/{test_user.id}?tag=tag2")
 
@@ -963,8 +963,8 @@ class TestPersonaCardEdgeCases:
 
     def test_get_user_persona_cards_sort_by_downloads(self, authenticated_client, test_user, factory):
         """Test sorting user's persona cards by downloads"""
-        pc1 = factory.create_persona_card(uploader=test_user, name="PC 1", downloads=10)
-        pc2 = factory.create_persona_card(uploader=test_user, name="PC 2", downloads=5)
+        _ = factory.create_persona_card(uploader=test_user, name="PC 1", downloads=10)
+        _ = factory.create_persona_card(uploader=test_user, name="PC 2", downloads=5)
 
         response = authenticated_client.get(f"/api/persona/user/{test_user.id}?sort_by=downloads&sort_order=desc")
 
@@ -974,8 +974,8 @@ class TestPersonaCardEdgeCases:
 
     def test_get_user_persona_cards_sort_by_star_count(self, authenticated_client, test_user, factory):
         """Test sorting user's persona cards by star count"""
-        pc1 = factory.create_persona_card(uploader=test_user, name="PC 1", star_count=10)
-        pc2 = factory.create_persona_card(uploader=test_user, name="PC 2", star_count=5)
+        _ = factory.create_persona_card(uploader=test_user, name="PC 1", star_count=10)
+        _ = factory.create_persona_card(uploader=test_user, name="PC 2", star_count=5)
 
         response = authenticated_client.get(f"/api/persona/user/{test_user.id}?sort_by=star_count&sort_order=desc")
 

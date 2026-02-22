@@ -192,7 +192,6 @@ class TestDatabaseTransactionRollback:
         service = PersonaService(test_db)
 
         # 创建一个 persona
-        import uuid
         import tempfile
 
         # 创建临时目录作为 base_path
@@ -233,12 +232,11 @@ class TestDatabaseTransactionRollback:
         """
         from app.services.knowledge_service import KnowledgeService
         import uuid
+        import tempfile
 
         service = KnowledgeService(test_db)
 
         # 创建一个知识库条目
-        import uuid
-        import tempfile
 
         # 创建临时目录作为 base_path
         temp_dir = tempfile.mkdtemp()

@@ -9,8 +9,8 @@ import pytest
 
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
-from tests.helpers.websocket_client import WebSocketTestClient
-from app.core.security import create_access_token
+from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
+from app.core.security import create_access_token  # noqa: E402
 
 
 class TestWebSocketValidConnection:
@@ -135,7 +135,7 @@ class TestWebSocketMessageHandling:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 验证连接成功
             assert ws_client.is_connected()
 
@@ -173,7 +173,7 @@ class TestWebSocketMessageHandling:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             ws_client.receive_message()
 
@@ -211,7 +211,7 @@ class TestWebSocketMessageHandling:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             ws_client.receive_message()
 
@@ -251,7 +251,7 @@ class TestWebSocketNormalDisconnect:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 验证连接成功
             assert ws_client.is_connected()
 
@@ -282,7 +282,7 @@ class TestWebSocketNormalDisconnect:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 验证连接成功
             assert ws_client.is_connected()
 
@@ -324,7 +324,7 @@ class TestWebSocketExceptionDisconnect:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 验证连接成功
             assert ws_client.is_connected()
 
@@ -415,7 +415,7 @@ class TestWebSocketExceptionDisconnect:
         with patch.object(message_ws_manager, "disconnect", side_effect=track_disconnect):
             ws_client = WebSocketTestClient(client, token)
 
-            with ws_client.connect() as ws:
+            with ws_client.connect() as _:
                 # 连接成功建立
                 assert ws_client.is_connected()
 
@@ -465,7 +465,7 @@ class TestWebSocketConnectionCleanup:
         with patch.object(message_ws_manager, "disconnect", side_effect=track_disconnect):
             ws_client = WebSocketTestClient(client, token)
 
-            with ws_client.connect() as ws:
+            with ws_client.connect() as _:
                 # 连接成功建立
                 assert ws_client.is_connected()
 
@@ -510,7 +510,7 @@ class TestWebSocketConnectionCleanup:
         with patch.object(message_ws_manager, "disconnect", side_effect=track_disconnect):
             ws_client = WebSocketTestClient(client, token)
 
-            with ws_client.connect() as ws:
+            with ws_client.connect() as _:
                 # 连接成功建立
                 assert ws_client.is_connected()
 
@@ -550,7 +550,7 @@ class TestWebSocketConnectionCleanup:
             test_user.id not in message_ws_manager.connections or len(message_ws_manager.connections[test_user.id]) == 0
         )
 
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 连接建立后，用户应该在管理器中
             assert test_user.id in message_ws_manager.connections, "连接建立后用户应该在管理器中"
             assert len(message_ws_manager.connections[test_user.id]) > 0, "用户应该有至少一个活跃连接"
@@ -585,7 +585,7 @@ class TestWebSocketConnectionCleanup:
         for i in range(5):
             ws_client = WebSocketTestClient(client, token)
 
-            with ws_client.connect() as ws:
+            with ws_client.connect() as _:
                 # 连接成功
                 assert ws_client.is_connected()
 
@@ -632,7 +632,7 @@ class TestWebSocketConcurrentConnections:
         ws_client2 = WebSocketTestClient(client, token)
         ws_client3 = WebSocketTestClient(client, token)
 
-        with ws_client1.connect() as ws1:
+        with ws_client1.connect() as _:
             # 第1个连接建立
             assert ws_client1.is_connected(), "第1个连接应该成功建立"
             message1 = ws_client1.receive_message()
@@ -641,7 +641,7 @@ class TestWebSocketConcurrentConnections:
             # 验证管理器中有1个连接
             assert len(message_ws_manager.connections[test_user.id]) == 1, "应该有1个连接"
 
-            with ws_client2.connect() as ws2:
+            with ws_client2.connect() as _:
                 # 第2个连接建立
                 assert ws_client2.is_connected(), "第2个连接应该成功建立"
                 message2 = ws_client2.receive_message()
@@ -650,7 +650,7 @@ class TestWebSocketConcurrentConnections:
                 # 验证管理器中有2个连接
                 assert len(message_ws_manager.connections[test_user.id]) == 2, "应该有2个连接"
 
-                with ws_client3.connect() as ws3:
+                with ws_client3.connect() as _:
                     # 第3个连接建立
                     assert ws_client3.is_connected(), "第3个连接应该成功建立"
                     message3 = ws_client3.receive_message()
@@ -712,17 +712,17 @@ class TestWebSocketConcurrentConnections:
         ws_client2 = WebSocketTestClient(client, token2)
         ws_client3 = WebSocketTestClient(client, token3)
 
-        with ws_client1.connect() as ws1:
+        with ws_client1.connect() as _:
             assert ws_client1.is_connected(), "用户1的连接应该成功建立"
             message1 = ws_client1.receive_message()
             assert message1 is not None, "用户1应该接收到初始消息"
 
-            with ws_client2.connect() as ws2:
+            with ws_client2.connect() as _:
                 assert ws_client2.is_connected(), "用户2的连接应该成功建立"
                 message2 = ws_client2.receive_message()
                 assert message2 is not None, "用户2应该接收到初始消息"
 
-                with ws_client3.connect() as ws3:
+                with ws_client3.connect() as _:
                     assert ws_client3.is_connected(), "用户3的连接应该成功建立"
                     message3 = ws_client3.receive_message()
                     assert message3 is not None, "用户3应该接收到初始消息"
@@ -758,19 +758,19 @@ class TestWebSocketConcurrentConnections:
         # 创建5个并发连接，使用嵌套with语句
         ws_clients = [WebSocketTestClient(client, token) for _ in range(5)]
 
-        with ws_clients[0].connect() as ws0:
+        with ws_clients[0].connect() as _:
             ws_clients[0].receive_message()
 
-            with ws_clients[1].connect() as ws1:
+            with ws_clients[1].connect() as _:
                 ws_clients[1].receive_message()
 
-                with ws_clients[2].connect() as ws2:
+                with ws_clients[2].connect() as _:
                     ws_clients[2].receive_message()
 
-                    with ws_clients[3].connect() as ws3:
+                    with ws_clients[3].connect() as _:
                         ws_clients[3].receive_message()
 
-                        with ws_clients[4].connect() as ws4:
+                        with ws_clients[4].connect() as _:
                             ws_clients[4].receive_message()
 
                             # 验证有5个连接
@@ -809,13 +809,13 @@ class TestWebSocketConcurrentConnections:
         ws_client3 = WebSocketTestClient(client, token)
 
         # 步骤1：建立3个连接
-        with ws_client1.connect() as ws1:
+        with ws_client1.connect() as _:
             ws_client1.receive_message()
 
-            with ws_client2.connect() as ws2:
+            with ws_client2.connect() as _:
                 ws_client2.receive_message()
 
-                with ws_client3.connect() as ws3:
+                with ws_client3.connect() as _:
                     ws_client3.receive_message()
 
                     assert len(message_ws_manager.connections[test_user.id]) == 3, "应该有3个连接"
@@ -827,10 +827,10 @@ class TestWebSocketConcurrentConnections:
                 ws_client4 = WebSocketTestClient(client, token)
                 ws_client5 = WebSocketTestClient(client, token)
 
-                with ws_client4.connect() as ws4:
+                with ws_client4.connect() as _:
                     ws_client4.receive_message()
 
-                    with ws_client5.connect() as ws5:
+                    with ws_client5.connect() as _:
                         ws_client5.receive_message()
 
                         assert (
@@ -869,10 +869,10 @@ class TestWebSocketConcurrentConnections:
                 ws_client1 = WebSocketTestClient(client, token)
                 ws_client2 = WebSocketTestClient(client, token)
 
-                with ws_client1.connect() as ws1:
+                with ws_client1.connect() as _:
                     ws_client1.receive_message()
 
-                    with ws_client2.connect() as ws2:
+                    with ws_client2.connect() as _:
                         ws_client2.receive_message()
 
                         # 验证连接数正确
@@ -883,13 +883,13 @@ class TestWebSocketConcurrentConnections:
                 ws_client2 = WebSocketTestClient(client, token)
                 ws_client3 = WebSocketTestClient(client, token)
 
-                with ws_client1.connect() as ws1:
+                with ws_client1.connect() as _:
                     ws_client1.receive_message()
 
-                    with ws_client2.connect() as ws2:
+                    with ws_client2.connect() as _:
                         ws_client2.receive_message()
 
-                        with ws_client3.connect() as ws3:
+                        with ws_client3.connect() as _:
                             ws_client3.receive_message()
 
                             # 验证连接数正确
@@ -903,16 +903,16 @@ class TestWebSocketConcurrentConnections:
                 ws_client3 = WebSocketTestClient(client, token)
                 ws_client4 = WebSocketTestClient(client, token)
 
-                with ws_client1.connect() as ws1:
+                with ws_client1.connect() as _:
                     ws_client1.receive_message()
 
-                    with ws_client2.connect() as ws2:
+                    with ws_client2.connect() as _:
                         ws_client2.receive_message()
 
-                        with ws_client3.connect() as ws3:
+                        with ws_client3.connect() as _:
                             ws_client3.receive_message()
 
-                            with ws_client4.connect() as ws4:
+                            with ws_client4.connect() as _:
                                 ws_client4.receive_message()
 
                                 # 验证连接数正确

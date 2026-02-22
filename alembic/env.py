@@ -10,7 +10,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
 
-from app.models.database import Base
+from app.models.database import Base  # noqa: E402
 
 # 使用 configs 目录中的配置文件
 config = context.config

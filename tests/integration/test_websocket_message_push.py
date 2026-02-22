@@ -9,10 +9,10 @@ import pytest
 
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
-from unittest.mock import patch, AsyncMock
-from tests.helpers.websocket_client import WebSocketTestClient
-from app.core.security import create_access_token
-from app.utils.websocket import message_ws_manager
+from unittest.mock import patch, AsyncMock  # noqa: E402
+from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
+from app.core.security import create_access_token  # noqa: E402
+from app.utils.websocket import message_ws_manager  # noqa: E402
 
 
 class TestWebSocketInitialMessagePush:
@@ -78,7 +78,7 @@ class TestWebSocketInitialMessagePush:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接并接收初始消息
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             message = ws_client.receive_message()
 
             # 验证消息格式
@@ -106,7 +106,7 @@ class TestWebSocketInitialMessagePush:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             message = ws_client.receive_message()
 
@@ -172,7 +172,7 @@ class TestWebSocketInitialMessagePush:
 
         # 创建第一个连接
         ws_client1 = WebSocketTestClient(client, token)
-        with ws_client1.connect() as ws1:
+        with ws_client1.connect() as _:
             # 接收第一个连接的初始消息
             message1 = ws_client1.receive_message()
             assert message1 is not None
@@ -180,7 +180,7 @@ class TestWebSocketInitialMessagePush:
 
             # 创建第二个连接
             ws_client2 = WebSocketTestClient(client, token)
-            with ws_client2.connect() as ws2:
+            with ws_client2.connect() as _:
                 # 接收第二个连接的初始消息
                 message2 = ws_client2.receive_message()
                 assert message2 is not None
@@ -210,7 +210,7 @@ class TestWebSocketInitialMessagePush:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 不发送任何消息，直接接收
             # 如果初始消息在循环之前发送，应该能立即接收到
             message = ws_client.receive_message()
@@ -241,7 +241,7 @@ class TestWebSocketMessageUpdateContent:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             message = ws_client.receive_message()
 
@@ -272,7 +272,7 @@ class TestWebSocketMessageUpdateContent:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             message = ws_client.receive_message()
 
@@ -301,7 +301,7 @@ class TestWebSocketMessageUpdateContent:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             message = ws_client.receive_message()
 
@@ -348,7 +348,7 @@ class TestWebSocketConnectionFlow:
                 ws_client = WebSocketTestClient(client, token)
 
                 # 建立连接
-                with ws_client.connect() as ws:
+                with ws_client.connect() as _:
                     # 接收初始消息
                     message = ws_client.receive_message()
 
@@ -377,7 +377,7 @@ class TestWebSocketConnectionFlow:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 立即尝试接收消息（不发送任何数据）
             message = ws_client.receive_message()
 

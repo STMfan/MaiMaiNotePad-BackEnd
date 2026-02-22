@@ -95,7 +95,7 @@ class TestBoundaryValueSafety:
             result = service.get_user_by_username(username)
 
             # 验证返回值类型正确
-            assert result is None or hasattr(result, "username"), f"get_user_by_username 应该返回 None 或 User 对象"
+            assert result is None or hasattr(result, "username"), "get_user_by_username 应该返回 None 或 User 对象"
         except (ValueError, TypeError):
             # 预期的异常是可以接受的
             pass
@@ -126,7 +126,7 @@ class TestBoundaryValueSafety:
             result = service.get_user_by_email(email)
 
             # 验证返回值类型正确
-            assert result is None or hasattr(result, "email"), f"get_user_by_email 应该返回 None 或 User 对象"
+            assert result is None or hasattr(result, "email"), "get_user_by_email 应该返回 None 或 User 对象"
         except (ValueError, TypeError):
             # 预期的异常是可以接受的
             pass
@@ -213,7 +213,7 @@ class TestBoundaryValueSafety:
             result = service.get_persona_card_by_id(persona_id)
 
             # 验证返回值类型正确
-            assert result is None or hasattr(result, "id"), f"get_persona_card_by_id 应该返回 None 或 PersonaCard 对象"
+            assert result is None or hasattr(result, "id"), "get_persona_card_by_id 应该返回 None 或 PersonaCard 对象"
         except (ValueError, TypeError):
             # 预期的异常是可以接受的
             pass
@@ -244,7 +244,7 @@ class TestBoundaryValueSafety:
             # 验证返回值类型正确
             assert result is None or hasattr(
                 result, "id"
-            ), f"get_knowledge_base_by_id 应该返回 None 或 KnowledgeBase 对象"
+            ), "get_knowledge_base_by_id 应该返回 None 或 KnowledgeBase 对象"
         except (ValueError, TypeError):
             # 预期的异常是可以接受的
             pass
@@ -323,7 +323,7 @@ class TestNumericBoundaryValues:
 
             # 如果 limit 是正数，验证结果数量
             if limit > 0:
-                assert len(result) <= limit or limit > 1000, f"结果数量应该不超过 limit（除非 limit 太大）"
+                assert len(result) <= limit or limit > 1000, "结果数量应该不超过 limit（除非 limit 太大）"
 
         except (ValueError, TypeError) as e:
             # 负数或零 limit 可能会抛出异常
@@ -481,7 +481,7 @@ class TestSpecialCharacterHandling:
             result = service.get_user_by_username(username)
 
             # 验证返回值类型正确
-            assert result is None or hasattr(result, "username"), f"get_user_by_username 应该返回 None 或 User 对象"
+            assert result is None or hasattr(result, "username"), "get_user_by_username 应该返回 None 或 User 对象"
         except (ValueError, TypeError):
             # 某些特殊字符可能会被拒绝
             pass

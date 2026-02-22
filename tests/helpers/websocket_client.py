@@ -898,7 +898,7 @@ class WebSocketTestClient:
 
         try:
             # 初始连接
-            with self.connect() as ws:
+            with self.connect() as _:
                 result["initial_connected"] = True
                 logger.info("Initial connection established")
 

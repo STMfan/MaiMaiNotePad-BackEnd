@@ -164,7 +164,7 @@ def main():
         with open(doc_path, "w", encoding="utf-8") as f:
             f.write(markdown_content)
 
-        print(f"✅ 成功生成文档！")
+        print("✅ 成功生成文档！")
         print(f"📄 文件位置: {doc_path}")
 
         # 统计信息

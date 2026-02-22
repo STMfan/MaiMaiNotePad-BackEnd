@@ -349,8 +349,8 @@ class TestKnowledgeUpdateErrors:
         assert data["data"]["content"] == "New supplementary content"
         assert data["data"]["description"] == original_description
 
-    def test_update_knowledge_base_with_invalid_kb_id(self, authenticated_client):
-        """测试使用无效的知识库ID更新
+    def test_update_knowledge_base_with_nonexistent_kb_id(self, authenticated_client):
+        """测试使用不存在的知识库ID更新
 
         验证：
         - 返回 404 状态码

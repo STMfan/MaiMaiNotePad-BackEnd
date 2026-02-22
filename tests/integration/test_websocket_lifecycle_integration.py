@@ -9,13 +9,13 @@ import pytest
 
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
-from tests.helpers.websocket_client import WebSocketTestClient
-from app.core.security import create_access_token
-from app.utils.websocket import message_ws_manager
-from app.models.database import User
-from app.core.security import get_password_hash
-import uuid
-from datetime import datetime
+from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
+from app.core.security import create_access_token  # noqa: E402
+from app.utils.websocket import message_ws_manager  # noqa: E402
+from app.models.database import User  # noqa: E402
+from app.core.security import get_password_hash  # noqa: E402
+import uuid  # noqa: E402
+from datetime import datetime  # noqa: E402
 
 
 class TestWebSocketCompleteLifecycle:
@@ -44,7 +44,7 @@ class TestWebSocketCompleteLifecycle:
             test_user.id not in message_ws_manager.connections or len(message_ws_manager.connections[test_user.id]) == 0
         )
 
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 阶段2：验证连接成功建立
             assert ws_client.is_connected()
             assert test_user.id in message_ws_manager.connections
@@ -85,7 +85,7 @@ class TestWebSocketCompleteLifecycle:
         token = create_access_token({"sub": test_user.id})
         ws_client = WebSocketTestClient(client, token)
 
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             assert ws_client.is_connected()
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -109,7 +109,7 @@ class TestWebSocketCompleteLifecycle:
         token = create_access_token({"sub": test_user.id})
         ws_client = WebSocketTestClient(client, token)
 
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             ws_client.receive_message()
 
@@ -160,19 +160,19 @@ class TestWebSocketMultiUserConcurrency:
             ws_clients.append((user, ws_client))
 
         # 使用嵌套with语句建立所有连接
-        with ws_clients[0][1].connect() as ws0:
+        with ws_clients[0][1].connect() as _:
             ws_clients[0][1].receive_message()
 
-            with ws_clients[1][1].connect() as ws1:
+            with ws_clients[1][1].connect() as _:
                 ws_clients[1][1].receive_message()
 
-                with ws_clients[2][1].connect() as ws2:
+                with ws_clients[2][1].connect() as _:
                     ws_clients[2][1].receive_message()
 
-                    with ws_clients[3][1].connect() as ws3:
+                    with ws_clients[3][1].connect() as _:
                         ws_clients[3][1].receive_message()
 
-                        with ws_clients[4][1].connect() as ws4:
+                        with ws_clients[4][1].connect() as _:
                             ws_clients[4][1].receive_message()
 
                             # 验证所有用户都已连接
@@ -206,19 +206,19 @@ class TestWebSocketMultiUserConcurrency:
         ws_clients = [WebSocketTestClient(client, token) for _ in range(5)]
 
         # 建立所有连接
-        with ws_clients[0].connect() as ws0:
+        with ws_clients[0].connect() as _:
             ws_clients[0].receive_message()
 
-            with ws_clients[1].connect() as ws1:
+            with ws_clients[1].connect() as _:
                 ws_clients[1].receive_message()
 
-                with ws_clients[2].connect() as ws2:
+                with ws_clients[2].connect() as _:
                     ws_clients[2].receive_message()
 
-                    with ws_clients[3].connect() as ws3:
+                    with ws_clients[3].connect() as _:
                         ws_clients[3].receive_message()
 
-                        with ws_clients[4].connect() as ws4:
+                        with ws_clients[4].connect() as _:
                             ws_clients[4].receive_message()
 
                             # 验证所有连接都已建立
@@ -298,7 +298,7 @@ class TestWebSocketReconnection:
         ws_client = WebSocketTestClient(client, token)
 
         # 第一次连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             message1 = ws_client.receive_message()
             assert message1 is not None
             ws_client.send_message("first connection")
@@ -308,7 +308,7 @@ class TestWebSocketReconnection:
 
         # 重新连接
         ws_client2 = WebSocketTestClient(client, token)
-        with ws_client2.connect() as ws:
+        with ws_client2.connect() as _:
             message2 = ws_client2.receive_message()
             assert message2 is not None
             ws_client2.send_message("second connection")
@@ -332,7 +332,7 @@ class TestWebSocketReconnection:
         for i in range(5):
             ws_client = WebSocketTestClient(client, token)
 
-            with ws_client.connect() as ws:
+            with ws_client.connect() as _:
                 message = ws_client.receive_message()
                 assert message is not None
                 ws_client.send_message(f"reconnection {i}")
@@ -357,7 +357,7 @@ class TestWebSocketReconnection:
         ws_client = WebSocketTestClient(client, token)
 
         # 第一次连接并模拟异常
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             ws_client.receive_message()
             ws_client.simulate_network_error()
 
@@ -366,7 +366,7 @@ class TestWebSocketReconnection:
 
         # 重新连接
         ws_client2 = WebSocketTestClient(client, token)
-        with ws_client2.connect() as ws:
+        with ws_client2.connect() as _:
             message = ws_client2.receive_message()
             assert message is not None
             assert ws_client2.is_connected()
@@ -384,7 +384,7 @@ class TestWebSocketReconnection:
         # 快速执行10次连接-断开
         for i in range(10):
             ws_client = WebSocketTestClient(client, token)
-            with ws_client.connect() as ws:
+            with ws_client.connect() as _:
                 ws_client.receive_message()
                 # 立即断开
 
@@ -410,7 +410,7 @@ class TestWebSocketNetworkExceptions:
         token = create_access_token({"sub": test_user.id})
         ws_client = WebSocketTestClient(client, token)
 
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             ws_client.receive_message()
 
             # 模拟网络错误
@@ -454,7 +454,7 @@ class TestWebSocketNetworkExceptions:
         token = create_access_token({"sub": test_user.id})
         ws_client = WebSocketTestClient(client, token)
 
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             ws_client.receive_message()
 
             # 发送消息后模拟错误
@@ -479,7 +479,7 @@ class TestWebSocketNetworkExceptions:
         for i in range(3):
             ws_client = WebSocketTestClient(client, token)
 
-            with ws_client.connect() as ws:
+            with ws_client.connect() as _:
                 ws_client.receive_message()
                 ws_client.send_message(f"message {i}")
 
@@ -515,7 +515,7 @@ class TestWebSocketNetworkExceptions:
         with patch.object(message_ws_manager, "disconnect", side_effect=track_disconnect):
             ws_client = WebSocketTestClient(client, token)
 
-            with ws_client.connect() as ws:
+            with ws_client.connect() as _:
                 ws_client.receive_message()
                 ws_client.simulate_network_error()
 

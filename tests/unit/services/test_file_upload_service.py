@@ -980,7 +980,7 @@ version = "2.0.0"
         mock_file.seek = AsyncMock()
 
         service = FileUploadService(test_db)
-        result = await service.add_files_to_persona_card(pc_id=pc.id, files=[mock_file])
+        _ = await service.add_files_to_persona_card(pc_id=pc.id, files=[mock_file])
 
         # 验证旧文件被删除
         assert not os.path.exists(old_file_path)

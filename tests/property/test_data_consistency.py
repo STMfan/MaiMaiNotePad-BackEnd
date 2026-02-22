@@ -322,7 +322,7 @@ class TestTransactionIsolation:
         session2 = SessionLocal()
         try:
             service2 = UserService(session2)
-            user2 = service2.create_user(
+            _ = service2.create_user(
                 username=f"user2_{uuid.uuid4().hex[:8]}",
                 email=f"user2_{uuid.uuid4().hex[:8]}@example.com",
                 password="testpassword123",

@@ -13,15 +13,15 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 # 加载环境变量
 load_dotenv()
 
-from app.models.database import User
-from app.core.security import verify_password, get_password_hash
+from app.models.database import User  # noqa: E402
+from app.core.security import verify_password, get_password_hash  # noqa: E402
 
 
 def check_superadmin():
@@ -125,7 +125,7 @@ def check_superadmin():
             print("   python scripts/python/reset_security_env.py")
             print()
             print("3. 或手动更新密码:")
-            print(f"   python scripts/python/update_superadmin_password.py")
+            print("   python scripts/python/update_superadmin_password.py")
 
         # 5. 测试密码哈希
         print()

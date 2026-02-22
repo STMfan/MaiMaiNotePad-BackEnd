@@ -57,8 +57,8 @@ class TestGetPublicKnowledgeBases:
 
         # 创建公开和私有知识库
         public_kb = factory.create_knowledge_base(is_public=True, is_pending=False)
-        private_kb = factory.create_knowledge_base(is_public=False, is_pending=False)
-        pending_kb = factory.create_knowledge_base(is_public=True, is_pending=True)
+        _ = factory.create_knowledge_base(is_public=False, is_pending=False)
+        _ = factory.create_knowledge_base(is_public=True, is_pending=True)
 
         kbs, total = service.get_public_knowledge_bases()
 
@@ -143,7 +143,7 @@ class TestGetPublicKnowledgeBases:
         user2 = factory.create_user()
 
         kb1 = factory.create_knowledge_base(uploader=user1, is_public=True, is_pending=False)
-        kb2 = factory.create_knowledge_base(uploader=user2, is_public=True, is_pending=False)
+        _ = factory.create_knowledge_base(uploader=user2, is_public=True, is_pending=False)
 
         kbs, total = service.get_public_knowledge_bases(uploader_id=user1.id)
 
@@ -182,9 +182,9 @@ class TestGetUserKnowledgeBases:
         user1 = factory.create_user()
         user2 = factory.create_user()
 
-        kb1 = factory.create_knowledge_base(uploader=user1)
-        kb2 = factory.create_knowledge_base(uploader=user1)
-        kb3 = factory.create_knowledge_base(uploader=user2)
+        _ = factory.create_knowledge_base(uploader=user1)
+        _ = factory.create_knowledge_base(uploader=user1)
+        _ = factory.create_knowledge_base(uploader=user2)
 
         kbs, total = service.get_user_knowledge_bases(user1.id)
 
@@ -460,8 +460,8 @@ class TestDeleteKnowledgeBase:
         kb = factory.create_knowledge_base()
 
         # 添加文件
-        file1 = factory.create_knowledge_base_file(knowledge_base=kb, file_name="file1.txt")
-        file2 = factory.create_knowledge_base_file(knowledge_base=kb, file_name="file2.txt")
+        _ = factory.create_knowledge_base_file(knowledge_base=kb, file_name="file1.txt")
+        _ = factory.create_knowledge_base_file(knowledge_base=kb, file_name="file2.txt")
 
         # 验证文件存在
         files_before = service.get_files_by_knowledge_base_id(kb.id)

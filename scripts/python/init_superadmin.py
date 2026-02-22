@@ -13,13 +13,13 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # noqa: E402
 
 # 加载环境变量
 load_dotenv()
 
-from app.core.database import SessionLocal
-from app.services.user_service import UserService
+from app.core.database import SessionLocal  # noqa: E402
+from app.services.user_service import UserService  # noqa: E402
 
 
 def init_superadmin():

@@ -151,8 +151,8 @@ class TestGetPublicKnowledgeBases:
     def test_get_public_knowledge_bases_sort_by_star_count(self, client, factory):
         """测试按收藏数排序知识库"""
         user = factory.create_user()
-        kb1 = factory.create_knowledge_base(uploader=user, name="KB1", is_public=True, star_count=5)
-        kb2 = factory.create_knowledge_base(uploader=user, name="KB2", is_public=True, star_count=10)
+        _ = factory.create_knowledge_base(uploader=user, name="KB1", is_public=True, star_count=5)
+        _ = factory.create_knowledge_base(uploader=user, name="KB2", is_public=True, star_count=10)
 
         response = client.get("/api/knowledge/public?sort_by=star_count&sort_order=desc")
 
@@ -1980,7 +1980,7 @@ class TestKnowledgeSearchAndFilterEdgeCases:
     def test_complex_filter_combination_all_filters(self, client, factory):
         """Test combining all available filters together"""
         user = factory.create_user(username="testuser")
-        kb = factory.create_knowledge_base(
+        _ = factory.create_knowledge_base(
             uploader=user, name="Python Tutorial", tags="python,tutorial", is_public=True, star_count=10, downloads=5
         )
 

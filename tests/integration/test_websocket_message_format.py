@@ -14,10 +14,10 @@ import pytest
 
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
-import json
-import time
-from tests.helpers.websocket_client import WebSocketTestClient
-from app.core.security import create_access_token
+import json  # noqa: E402
+import time  # noqa: E402
+from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
+from app.core.security import create_access_token  # noqa: E402
 
 
 class TestServerMessageFormat:
@@ -41,7 +41,7 @@ class TestServerMessageFormat:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             message = ws_client.receive_message()
 
@@ -73,7 +73,7 @@ class TestServerMessageFormat:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             message = ws_client.receive_message()
 
@@ -101,7 +101,7 @@ class TestServerMessageFormat:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             message = ws_client.receive_message()
 
@@ -128,7 +128,7 @@ class TestServerMessageFormat:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             message = ws_client.receive_message()
 
@@ -165,7 +165,7 @@ class TestServerMessageFormat:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             message = ws_client.receive_message()
 
@@ -203,7 +203,7 @@ class TestClientMessageFormat:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -236,7 +236,7 @@ class TestClientMessageFormat:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -270,7 +270,7 @@ class TestClientMessageFormat:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -303,7 +303,7 @@ class TestClientMessageFormat:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -343,7 +343,7 @@ class TestClientMessageFormat:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -386,7 +386,7 @@ class TestClientMessageFormat:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -430,7 +430,7 @@ class TestClientMessageFormat:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -468,7 +468,7 @@ class TestMessageFormatEdgeCases:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -511,7 +511,7 @@ class TestMessageFormatEdgeCases:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -555,7 +555,7 @@ class TestMessageFormatEdgeCases:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -598,7 +598,7 @@ class TestMessageFormatIntegration:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 接收初始消息
             initial_message = ws_client.receive_message()
             assert initial_message is not None
@@ -647,7 +647,7 @@ class TestMessageFormatIntegration:
         ws_client = WebSocketTestClient(client, token)
 
         # 建立连接
-        with ws_client.connect() as ws:
+        with ws_client.connect() as _:
             # 1. 接收服务器发送的消息
             server_message = ws_client.receive_message()
             assert server_message is not None

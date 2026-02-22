@@ -8,8 +8,8 @@ import pytest
 
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
-from tests.helpers.websocket_client import WebSocketTestClient
-from app.core.security import create_access_token
+from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
+from app.core.security import create_access_token  # noqa: E402
 
 
 def test_websocket_client_with_valid_token(client, test_user):
@@ -21,7 +21,7 @@ def test_websocket_client_with_valid_token(client, test_user):
     ws_client = WebSocketTestClient(client, token)
 
     # 建立连接并接收初始消息
-    with ws_client.connect() as ws:
+    with ws_client.connect() as _:
         # 应该能够接收到初始的消息更新
         message = ws_client.receive_message()
 
@@ -53,7 +53,7 @@ def test_websocket_client_disconnect(client, test_user):
     token = create_access_token({"sub": test_user.id})
     ws_client = WebSocketTestClient(client, token)
 
-    with ws_client.connect() as ws:
+    with ws_client.connect() as _:
         # 接收初始消息
         message = ws_client.receive_message()
         assert message["type"] == "message_update"

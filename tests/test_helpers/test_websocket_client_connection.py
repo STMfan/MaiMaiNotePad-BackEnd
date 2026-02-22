@@ -40,7 +40,7 @@ class TestConnectionState:
         assert client.get_connection_state() == ConnectionState.DISCONNECTED
 
         # 连接中
-        with client.connect() as ws:
+        with client.connect() as _:
             assert client.get_connection_state() == ConnectionState.CONNECTED
             assert client.is_connected()
 

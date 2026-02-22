@@ -122,7 +122,7 @@ class LogAnalyzer:
                                     "level": level,
                                     "content": line.strip(),
                                     "match_info": [f"{term_name}: {match_value}"],
-                                    "context": [l.strip() for l in context],
+                                    "context": [ctx_line.strip() for ctx_line in context],
                                     "priority": priority,
                                 }
                             )
@@ -212,7 +212,7 @@ class LogAnalyzer:
             print(f"时间范围: {analysis['time_range']['earliest']} ~ {analysis['time_range']['latest']}")
 
         if analysis["by_level"]:
-            print(f"日志级别: ", end="")
+            print("日志级别: ", end="")
             level_strs = [f"{level}({count})" for level, count in sorted(analysis["by_level"].items())]
             print(", ".join(level_strs))
 
@@ -257,7 +257,7 @@ class LogAnalyzer:
                 print(f"    内容: {result['content'][:200]}{'...' if len(result['content']) > 200 else ''}")
 
                 if show_context and len(result["context"]) > 1:
-                    print(f"    上下文:")
+                    print("    上下文:")
                     for ctx_line in result["context"]:
                         # 截断过长的行
                         ctx_display = ctx_line[:150] + "..." if len(ctx_line) > 150 else ctx_line
