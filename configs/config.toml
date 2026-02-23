@@ -81,3 +81,17 @@ ban_durations = ["1d", "7d", "30d", "permanent"]
 min_trend_days = 1
 max_trend_days = 90
 default_trend_days = 30
+
+[cache]
+# 缓存配置
+# 注意：REDIS_PASSWORD 必须从环境变量读取，不要在此文件中配置
+enabled = true  # 缓存开关，false 时自动降级到数据库
+host = "localhost"
+port = 6379
+db = 0
+key_prefix = "maimnp"
+default_ttl = 3600  # 默认过期时间（秒），1 小时
+max_connections = 10
+socket_timeout = 5
+socket_connect_timeout = 5
+retry_on_timeout = true

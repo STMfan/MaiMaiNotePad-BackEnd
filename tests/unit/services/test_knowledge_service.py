@@ -799,7 +799,7 @@ class TestKnowledgeServiceExceptionHandling:
 
             assert kbs == []
             assert total == 0
-            assert "获取用户" in caplog.text and "的知识库列表失败" in caplog.text
+            assert "获取用户知识库列表失败" in caplog.text
 
     def test_save_knowledge_base_database_exception(self, test_db: Session, factory: TestDataFactory, caplog):
         """测试 save_knowledge_base 数据库异常处理"""

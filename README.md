@@ -144,6 +144,10 @@ MaiMaiNotePad-BackEnd/
 │       ├── cleanup.sh           # 清理项目
 │       └── run_parallel_isolation_tests.sh  # 运行并行隔离测试
 ├── docs/                         # 文档目录
+├── docker/                       # Docker 相关文件
+│   ├── README.md                 # Docker 快速开始指南
+│   ├── docker-compose.yml        # Docker Compose 配置
+│   └── .env.docker               # Docker 环境变量模板
 ├── uploads/                      # 上传文件存储
 ├── data/                         # 数据库文件
 ├── logs/                         # 日志文件
@@ -361,6 +365,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 9278 --workers 4
 - 优化的日志格式
 
 # 或使用Docker
+cd docker
 docker build -t mainnp-backend .
 docker run -p 9278:9278 mainnp-backend
 ```

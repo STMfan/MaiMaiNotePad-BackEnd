@@ -11,7 +11,7 @@
 #   ./manage.sh help         # 查看帮助
 # ============================================================================
 
-set -e  # 遇到错误立即退出
+# 注意：不使用 set -e，以便在错误时可以继续执行或给用户选择
 
 # 颜色定义
 RED='\033[0;31m'
@@ -29,6 +29,41 @@ cd "$(dirname "$0")"
 # ============================================================================
 # 工具函数
 # ============================================================================
+
+# 错误处理函数
+handle_error() {
+    local exit_code=$1
+    local error_msg="$2"
+    local continue_prompt="${3:-是否继续？}"
+    
+    if [ $exit_code -ne 0 ]; then
+        echo ""
+        print_error "$error_msg"
+        echo ""
+        read -p "$(echo -e ${YELLOW}$continue_prompt [y/N]: ${NC})" continue_choice
+        if [ "$continue_choice" != "y" ] && [ "$continue_choice" != "Y" ]; then
+            print_info "操作已取消"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# 执行命令并处理错误
+execute_with_error_handling() {
+    local cmd="$1"
+    local error_msg="$2"
+    local continue_prompt="${3:-命令执行失败，是否继续？}"
+    
+    eval "$cmd"
+    local exit_code=$?
+    
+    if [ $exit_code -ne 0 ]; then
+        handle_error $exit_code "$error_msg" "$continue_prompt"
+        return $?
+    fi
+    return 0
+}
 
 # 检查命令是否存在
 command_exists() {
@@ -150,7 +185,11 @@ create_conda_env() {
     print_separator
     echo ""
     
-    conda create -n "$env_name" python="$py_version" -y
+    if ! conda create -n "$env_name" python="$py_version" -y; then
+        print_error "Conda 环境创建失败"
+        pause
+        return 1
+    fi
     
     echo ""
     print_success "Conda 环境创建成功！"
@@ -167,8 +206,15 @@ create_conda_env() {
         print_info "激活环境并安装依赖..."
         eval "$(conda shell.bash hook)"
         conda activate "$env_name"
-        pip install -r requirements.txt
-        print_success "依赖安装完成！"
+        
+        if pip install -r requirements.txt; then
+            print_success "依赖安装完成！"
+        else
+            print_error "依赖安装失败"
+            print_info "您可以稍后手动安装："
+            print_info "  conda activate $env_name"
+            print_info "  pip install -r requirements.txt"
+        fi
     fi
     
     pause
@@ -621,7 +667,14 @@ run_all_tests() {
     print_info "执行命令: $cmd"
     echo ""
     
-    eval "$cmd"
+    if eval "$cmd"; then
+        echo ""
+        print_success "所有测试通过！"
+    else
+        echo ""
+        print_error "部分测试失败"
+        print_info "查看上方输出了解详细信息"
+    fi
     pause
 }
 
@@ -707,7 +760,14 @@ run_unit_tests() {
     print_info "执行命令: $cmd tests/unit"
     echo ""
     
-    eval "$cmd tests/unit"
+    if eval "$cmd tests/unit"; then
+        echo ""
+        print_success "单元测试通过！"
+    else
+        echo ""
+        print_error "部分单元测试失败"
+        print_info "查看上方输出了解详细信息"
+    fi
     pause
 }
 
@@ -733,7 +793,14 @@ run_integration_tests() {
     print_info "执行命令: $cmd tests/integration"
     echo ""
     
-    eval "$cmd tests/integration"
+    if eval "$cmd tests/integration"; then
+        echo ""
+        print_success "集成测试通过！"
+    else
+        echo ""
+        print_error "部分集成测试失败"
+        print_info "查看上方输出了解详细信息"
+    fi
     pause
 }
 
@@ -760,7 +827,14 @@ run_fast_tests() {
     print_info "详细模式: 显示每个测试的完整信息"
     echo ""
     
-    eval "$cmd -vv"
+    if eval "$cmd -vv"; then
+        echo ""
+        print_success "测试通过！"
+    else
+        echo ""
+        print_error "部分测试失败"
+        print_info "查看上方输出了解详细信息"
+    fi
     pause
 }
 
@@ -787,10 +861,15 @@ run_coverage_tests() {
     print_info "执行命令: $cmd"
     echo ""
     
-    eval "$cmd"
-    echo ""
-    print_success "覆盖率报告已生成"
-    print_info "查看 HTML 报告: open htmlcov/index.html"
+    if eval "$cmd"; then
+        echo ""
+        print_success "覆盖率报告已生成"
+        print_info "查看 HTML 报告: open htmlcov/index.html"
+    else
+        echo ""
+        print_error "测试执行失败"
+        print_info "覆盖率报告可能不完整"
+    fi
     pause
 }
 
@@ -801,6 +880,7 @@ cleanup_project() {
     find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
     find . -type f -name '*.pyc' -delete 2>/dev/null || true
     find . -type f -name '*.pyo' -delete 2>/dev/null || true
+    rm -rf .mypy_cache 2>/dev/null || true
     
     print_info "清理测试缓存..."
     rm -rf .pytest_cache .hypothesis htmlcov .coverage coverage.json 2>/dev/null || true
@@ -902,13 +982,25 @@ code_quality_menu() {
             1)
                 echo ""
                 print_info "运行代码格式化..."
-                black app tests scripts/python || true
+                if black app tests scripts/python; then
+                    print_success "代码格式化完成"
+                else
+                    print_error "代码格式化失败"
+                fi
                 echo ""
                 print_info "运行代码风格检查..."
-                flake8 app tests scripts/python || true
+                if flake8 app tests scripts/python; then
+                    print_success "代码风格检查通过"
+                else
+                    print_warning "发现代码风格问题"
+                fi
                 echo ""
                 print_info "运行类型检查..."
-                mypy app --config-file=pyproject.toml || true
+                if mypy app --config-file=pyproject.toml; then
+                    print_success "类型检查通过"
+                else
+                    print_warning "发现类型问题"
+                fi
                 echo ""
                 print_success "所有检查完成"
                 pause
@@ -917,29 +1009,43 @@ code_quality_menu() {
                 echo ""
                 print_info "格式化代码..."
                 echo ""
-                black app tests scripts/python || true
-                echo ""
-                print_success "代码格式化完成"
+                if black app tests scripts/python; then
+                    echo ""
+                    print_success "代码格式化完成"
+                else
+                    echo ""
+                    print_error "代码格式化失败"
+                fi
                 pause
                 ;;
             3)
                 echo ""
                 print_info "检查代码风格..."
-                flake8 app tests scripts/python || true
-                print_success "代码风格检查完成"
+                if flake8 app tests scripts/python; then
+                    print_success "代码风格检查通过"
+                else
+                    print_warning "发现代码风格问题，请查看上方输出"
+                fi
                 pause
                 ;;
             4)
                 echo ""
                 print_info "运行类型检查..."
-                mypy app --config-file=pyproject.toml || true
-                print_success "类型检查完成"
+                if mypy app --config-file=pyproject.toml; then
+                    print_success "类型检查通过"
+                else
+                    print_warning "发现类型问题，请查看上方输出"
+                fi
                 pause
                 ;;
             5)
                 echo ""
                 print_info "检查代码格式（不修改）..."
-                black --check --diff app tests scripts/python || true
+                if black --check --diff app tests scripts/python; then
+                    print_success "代码格式符合规范"
+                else
+                    print_warning "代码格式需要调整，请运行格式化"
+                fi
                 pause
                 ;;
             *)
@@ -986,6 +1092,697 @@ generate_docs() {
     esac
 }
 
+# Docker 管理
+docker_management() {
+    while true; do
+        print_header "Docker 管理"
+        
+        # 检查 Docker 是否安装
+        if ! command_exists docker; then
+            print_error "未检测到 Docker"
+            print_info "请先安装 Docker: https://docs.docker.com/get-docker/"
+            pause
+            return
+        fi
+        
+        # 检查 docker-compose 是否安装
+        if ! command_exists docker-compose && ! docker compose version >/dev/null 2>&1; then
+            print_error "未检测到 docker-compose"
+            print_info "请先安装 docker-compose"
+            pause
+            return
+        fi
+        
+        echo "  1. 启动 Redis 服务"
+        echo "  2. 停止 Redis 服务"
+        echo "  3. 重启 Redis 服务"
+        echo "  4. 查看 Redis 状态"
+        echo "  5. 查看 Redis 日志"
+        echo "  6. 测试 Redis 连接"
+        echo "  0. 返回主菜单"
+        echo ""
+        
+        read -p "$(echo -e ${CYAN}请选择操作 [0-6]: ${NC})" choice
+        
+        case $choice in
+            0)
+                break
+                ;;
+            1)
+                echo ""
+                print_info "启动 Redis 服务..."
+                cd docker
+                if docker-compose up -d redis 2>/dev/null || docker compose up -d redis; then
+                    print_success "Redis 服务已启动"
+                else
+                    print_error "Redis 服务启动失败"
+                fi
+                cd ..
+                pause
+                ;;
+            2)
+                echo ""
+                print_info "停止 Redis 服务..."
+                cd docker
+                if docker-compose stop redis 2>/dev/null || docker compose stop redis; then
+                    print_success "Redis 服务已停止"
+                else
+                    print_error "Redis 服务停止失败"
+                fi
+                cd ..
+                pause
+                ;;
+            3)
+                echo ""
+                print_info "重启 Redis 服务..."
+                cd docker
+                if docker-compose restart redis 2>/dev/null || docker compose restart redis; then
+                    print_success "Redis 服务已重启"
+                else
+                    print_error "Redis 服务重启失败"
+                fi
+                cd ..
+                pause
+                ;;
+            4)
+                echo ""
+                print_info "查看 Redis 状态..."
+                cd docker
+                docker-compose ps redis 2>/dev/null || docker compose ps redis
+                cd ..
+                pause
+                ;;
+            5)
+                echo ""
+                print_info "查看 Redis 日志（最近 50 行）..."
+                print_info "按 Ctrl+C 退出"
+                echo ""
+                cd docker
+                docker-compose logs --tail=50 -f redis 2>/dev/null || docker compose logs --tail=50 -f redis
+                cd ..
+                ;;
+            6)
+                echo ""
+                print_info "测试 Redis 连接..."
+                if docker exec maimnp-redis redis-cli ping >/dev/null 2>&1; then
+                    print_success "Redis 连接正常 (PONG)"
+                else
+                    print_error "Redis 连接失败"
+                    print_info "请确保 Redis 服务已启动"
+                fi
+                pause
+                ;;
+            *)
+                print_error "无效的选择"
+                pause
+                ;;
+        esac
+    done
+}
+
+# 初始化超级管理员
+init_superadmin() {
+    print_header "初始化超级管理员"
+    
+    echo ""
+    print_warning "此操作将创建或重置超级管理员账号"
+    echo ""
+    
+    read -p "$(echo -e ${YELLOW}是否继续？[y/N]: ${NC})" confirm
+    if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+        print_info "已取消操作"
+        pause
+        return
+    fi
+    
+    echo ""
+    print_info "正在初始化超级管理员..."
+    echo ""
+    
+    if python scripts/python/init_superadmin.py; then
+        echo ""
+        print_success "超级管理员初始化完成"
+    else
+        echo ""
+        print_error "超级管理员初始化失败"
+    fi
+    pause
+}
+
+# 配置管理
+config_management() {
+    while true; do
+        print_header "配置管理"
+        
+        # 获取当前配置环境
+        local current_env="${CONFIG_ENV:-dev}"
+        echo -e "${BOLD}${CYAN}当前配置环境${NC}"
+        case $current_env in
+            dev)
+                print_info "环境: 开发环境 (dev)"
+                print_info "文件: configs/config.dev.toml"
+                ;;
+            prod)
+                print_info "环境: 生产环境 (prod)"
+                print_info "文件: configs/config.prod.toml"
+                ;;
+            degraded)
+                print_info "环境: 降级模式 (degraded)"
+                print_info "文件: configs/config.degraded.toml"
+                ;;
+            *)
+                print_warning "环境: 未知 ($current_env)"
+                ;;
+        esac
+        echo ""
+        
+        echo "  1. 切换到开发环境 (dev)"
+        echo "  2. 切换到生产环境 (prod)"
+        echo "  3. 切换到降级模式 (degraded)"
+        echo "  4. 查看当前配置文件内容"
+        echo "  5. 查看所有配置文件"
+        echo "  6. 验证配置文件"
+        echo "  0. 返回主菜单"
+        echo ""
+        
+        read -p "$(echo -e ${CYAN}请选择操作 [0-6]: ${NC})" choice
+        
+        case $choice in
+            0)
+                break
+                ;;
+            1)
+                echo ""
+                print_info "切换到开发环境..."
+                export CONFIG_ENV=dev
+                print_success "已切换到开发环境 (dev)"
+                print_info "配置文件: configs/config.dev.toml"
+                print_info "重启服务后生效"
+                pause
+                ;;
+            2)
+                echo ""
+                print_warning "切换到生产环境"
+                print_warning "请确保已正确配置所有环境变量"
+                echo ""
+                read -p "$(echo -e ${YELLOW}是否继续？[y/N]: ${NC})" confirm
+                if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+                    export CONFIG_ENV=prod
+                    print_success "已切换到生产环境 (prod)"
+                    print_info "配置文件: configs/config.prod.toml"
+                    print_info "重启服务后生效"
+                else
+                    print_info "已取消操作"
+                fi
+                pause
+                ;;
+            3)
+                echo ""
+                print_info "切换到降级模式..."
+                print_warning "降级模式将禁用缓存，所有请求直接访问数据库"
+                echo ""
+                read -p "$(echo -e ${YELLOW}是否继续？[y/N]: ${NC})" confirm
+                if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+                    export CONFIG_ENV=degraded
+                    print_success "已切换到降级模式 (degraded)"
+                    print_info "配置文件: configs/config.degraded.toml"
+                    print_info "重启服务后生效"
+                else
+                    print_info "已取消操作"
+                fi
+                pause
+                ;;
+            4)
+                echo ""
+                local config_file="configs/config.${current_env}.toml"
+                if [ -f "$config_file" ]; then
+                    print_info "查看配置文件: $config_file"
+                    echo ""
+                    print_separator
+                    cat "$config_file"
+                    print_separator
+                else
+                    print_error "配置文件不存在: $config_file"
+                fi
+                pause
+                ;;
+            5)
+                echo ""
+                print_info "所有配置文件："
+                echo ""
+                ls -lh configs/*.toml 2>/dev/null || print_warning "未找到配置文件"
+                pause
+                ;;
+            6)
+                echo ""
+                print_info "验证配置文件..."
+                local has_error=0
+                
+                for env in dev prod degraded; do
+                    local file="configs/config.${env}.toml"
+                    if [ -f "$file" ]; then
+                        if python -c "import toml; toml.load(open('$file'))" 2>/dev/null; then
+                            print_success "$file: 格式正确"
+                        else
+                            print_error "$file: 格式错误"
+                            has_error=1
+                        fi
+                    else
+                        print_warning "$file: 文件不存在"
+                    fi
+                done
+                
+                echo ""
+                if [ $has_error -eq 0 ]; then
+                    print_success "所有配置文件验证通过"
+                else
+                    print_error "部分配置文件验证失败"
+                fi
+                pause
+                ;;
+            *)
+                print_error "无效的选择"
+                pause
+                ;;
+        esac
+    done
+}
+
+# 配置管理
+config_management() {
+    while true; do
+        print_header "配置管理"
+        
+        # 获取当前配置环境
+        local current_env="${CONFIG_ENV:-dev}"
+        echo -e "${BOLD}${CYAN}当前配置环境${NC}"
+        case $current_env in
+            dev)
+                print_info "环境: 开发环境 (dev)"
+                print_info "文件: configs/config.dev.toml"
+                ;;
+            prod)
+                print_info "环境: 生产环境 (prod)"
+                print_info "文件: configs/config.prod.toml"
+                ;;
+            degraded)
+                print_info "环境: 降级模式 (degraded)"
+                print_info "文件: configs/config.degraded.toml"
+                ;;
+            *)
+                print_warning "环境: 未知 ($current_env)"
+                ;;
+        esac
+        echo ""
+        
+        echo "  1. 切换到开发环境 (dev)"
+        echo "  2. 切换到生产环境 (prod)"
+        echo "  3. 切换到降级模式 (degraded)"
+        echo "  4. 查看当前配置文件内容"
+        echo "  5. 查看所有配置文件"
+        echo "  6. 验证配置文件"
+        echo "  0. 返回主菜单"
+        echo ""
+        
+        read -p "$(echo -e ${CYAN}请选择操作 [0-6]: ${NC})" choice
+        
+        case $choice in
+            0)
+                break
+                ;;
+            1)
+                echo ""
+                print_info "切换到开发环境..."
+                export CONFIG_ENV=dev
+                print_success "已切换到开发环境 (dev)"
+                print_info "配置文件: configs/config.dev.toml"
+                print_info "重启服务后生效"
+                pause
+                ;;
+            2)
+                echo ""
+                print_warning "切换到生产环境"
+                print_warning "请确保已正确配置所有环境变量"
+                echo ""
+                read -p "$(echo -e ${YELLOW}是否继续？[y/N]: ${NC})" confirm
+                if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+                    export CONFIG_ENV=prod
+                    print_success "已切换到生产环境 (prod)"
+                    print_info "配置文件: configs/config.prod.toml"
+                    print_info "重启服务后生效"
+                else
+                    print_info "已取消操作"
+                fi
+                pause
+                ;;
+            3)
+                echo ""
+                print_info "切换到降级模式..."
+                print_warning "降级模式将禁用缓存，所有请求直接访问数据库"
+                echo ""
+                read -p "$(echo -e ${YELLOW}是否继续？[y/N]: ${NC})" confirm
+                if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+                    export CONFIG_ENV=degraded
+                    print_success "已切换到降级模式 (degraded)"
+                    print_info "配置文件: configs/config.degraded.toml"
+                    print_info "重启服务后生效"
+                else
+                    print_info "已取消操作"
+                fi
+                pause
+                ;;
+            4)
+                echo ""
+                local config_file="configs/config.${current_env}.toml"
+                if [ -f "$config_file" ]; then
+                    print_info "查看配置文件: $config_file"
+                    echo ""
+                    print_separator
+                    cat "$config_file"
+                    print_separator
+                else
+                    print_error "配置文件不存在: $config_file"
+                fi
+                pause
+                ;;
+            5)
+                echo ""
+                print_info "所有配置文件："
+                echo ""
+                ls -lh configs/*.toml 2>/dev/null || print_warning "未找到配置文件"
+                pause
+                ;;
+            6)
+                echo ""
+                print_info "验证配置文件..."
+                local has_error=0
+                
+                for env in dev prod degraded; do
+                    local file="configs/config.${env}.toml"
+                    if [ -f "$file" ]; then
+                        if python -c "import toml; toml.load(open('$file'))" 2>/dev/null; then
+                            print_success "$file: 格式正确"
+                        else
+                            print_error "$file: 格式错误"
+                            has_error=1
+                        fi
+                    else
+                        print_warning "$file: 文件不存在"
+                    fi
+                done
+                
+                echo ""
+                if [ $has_error -eq 0 ]; then
+                    print_success "所有配置文件验证通过"
+                else
+                    print_error "部分配置文件验证失败"
+                fi
+                pause
+                ;;
+            *)
+                print_error "无效的选择"
+                pause
+                ;;
+        esac
+    done
+}
+
+# 初始化超级管理员
+init_superadmin() {
+    print_header "初始化超级管理员"
+    
+    echo ""
+    print_warning "此操作将创建或重置超级管理员账号"
+    echo ""
+    
+    read -p "$(echo -e ${YELLOW}是否继续？[y/N]: ${NC})" confirm
+    if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+        print_info "已取消操作"
+        pause
+        return
+    fi
+    
+    echo ""
+    print_info "正在初始化超级管理员..."
+    echo ""
+    
+    if python scripts/python/init_superadmin.py; then
+        echo ""
+        print_success "超级管理员初始化完成"
+    else
+        echo ""
+        print_error "超级管理员初始化失败"
+    fi
+    pause
+}
+show_project_status() {
+    print_header "项目状态"
+    
+    # Python 环境
+    echo -e "${BOLD}${CYAN}Python 环境${NC}"
+    if [ -n "$CONDA_DEFAULT_ENV" ]; then
+        print_success "Conda 环境: $CONDA_DEFAULT_ENV"
+    else
+        print_info "未使用 Conda 环境"
+    fi
+    print_info "Python 版本: $(python --version 2>&1 | awk '{print $2}')"
+    print_info "Python 路径: $(which python)"
+    echo ""
+    
+    # 关键依赖
+    echo -e "${BOLD}${CYAN}关键依赖${NC}"
+    local deps_ok=true
+    
+    if python -c "import fastapi" 2>/dev/null; then
+        local fastapi_ver=$(python -c "import fastapi; print(fastapi.__version__)" 2>/dev/null)
+        print_success "FastAPI: $fastapi_ver"
+    else
+        print_error "FastAPI: 未安装"
+        deps_ok=false
+    fi
+    
+    if python -c "import pytest" 2>/dev/null; then
+        local pytest_ver=$(python -c "import pytest; print(pytest.__version__)" 2>/dev/null)
+        print_success "Pytest: $pytest_ver"
+    else
+        print_error "Pytest: 未安装"
+        deps_ok=false
+    fi
+    
+    if python -c "import redis" 2>/dev/null; then
+        local redis_ver=$(python -c "import redis; print(redis.__version__)" 2>/dev/null)
+        print_success "Redis: $redis_ver"
+    else
+        print_error "Redis: 未安装"
+        deps_ok=false
+    fi
+    
+    if python -c "import sqlalchemy" 2>/dev/null; then
+        local sqlalchemy_ver=$(python -c "import sqlalchemy; print(sqlalchemy.__version__)" 2>/dev/null)
+        print_success "SQLAlchemy: $sqlalchemy_ver"
+    else
+        print_error "SQLAlchemy: 未安装"
+        deps_ok=false
+    fi
+    echo ""
+    
+    # 数据库状态
+    echo -e "${BOLD}${CYAN}数据库状态${NC}"
+    if [ -f "data/mainnp.db" ]; then
+        local db_size=$(du -h data/mainnp.db | awk '{print $1}')
+        print_success "数据库文件: data/mainnp.db ($db_size)"
+    else
+        print_warning "数据库文件不存在"
+    fi
+    echo ""
+    
+    # Docker 服务
+    echo -e "${BOLD}${CYAN}Docker 服务${NC}"
+    if command_exists docker; then
+        if docker ps --format '{{.Names}}' | grep -q "maimnp-redis"; then
+            print_success "Redis 容器: 运行中"
+        else
+            print_warning "Redis 容器: 未运行"
+        fi
+    else
+        print_info "Docker: 未安装"
+    fi
+    echo ""
+    
+    # 配置文件
+    echo -e "${BOLD}${CYAN}配置文件${NC}"
+    if [ -f ".env" ]; then
+        print_success ".env: 存在"
+    else
+        print_warning ".env: 不存在"
+    fi
+    
+    if [ -f "configs/config.toml" ]; then
+        print_success "config.toml: 存在"
+    else
+        print_warning "config.toml: 不存在"
+    fi
+    echo ""
+    
+    # 总结
+    if [ "$deps_ok" = true ]; then
+        print_success "所有关键依赖已安装"
+    else
+        print_warning "部分依赖缺失，请运行: pip install -r requirements.txt"
+    fi
+    
+    pause
+}
+
+# 查看日志
+view_logs() {
+    print_header "查看日志"
+    
+    if [ ! -d "logs" ] || [ -z "$(ls -A logs 2>/dev/null)" ]; then
+        print_warning "日志目录为空"
+        pause
+        return
+    fi
+    
+    echo "  1. 查看应用日志（最近 50 行）"
+    echo "  2. 查看应用日志（实时）"
+    echo "  3. 查看所有日志文件"
+    echo "  4. 清空日志文件"
+    echo "  0. 返回"
+    echo ""
+    
+    read -p "$(echo -e ${CYAN}请选择 [0-4]: ${NC})" choice
+    
+    case $choice in
+        1)
+            echo ""
+            if [ -f "logs/app.log" ]; then
+                print_info "应用日志（最近 50 行）："
+                echo ""
+                tail -n 50 logs/app.log
+            else
+                print_warning "日志文件不存在: logs/app.log"
+            fi
+            pause
+            ;;
+        2)
+            echo ""
+            if [ -f "logs/app.log" ]; then
+                print_info "实时查看应用日志（按 Ctrl+C 退出）..."
+                echo ""
+                tail -f logs/app.log
+            else
+                print_warning "日志文件不存在: logs/app.log"
+                pause
+            fi
+            ;;
+        3)
+            echo ""
+            print_info "所有日志文件："
+            echo ""
+            ls -lh logs/
+            pause
+            ;;
+        4)
+            echo ""
+            print_warning "确认清空所有日志文件？"
+            read -p "$(echo -e ${YELLOW}输入 y 确认: ${NC})" confirm
+            if [ "$confirm" = "y" ]; then
+                rm -f logs/*.log
+                print_success "日志文件已清空"
+            else
+                print_info "已取消操作"
+            fi
+            pause
+            ;;
+        0)
+            ;;
+        *)
+            print_error "无效的选择"
+            pause
+            ;;
+    esac
+}
+
+# 依赖管理
+dependency_management() {
+    while true; do
+        print_header "依赖管理"
+        echo "  1. 安装所有依赖"
+        echo "  2. 安装开发依赖"
+        echo "  3. 更新依赖"
+        echo "  4. 检查依赖状态"
+        echo "  5. 导出当前依赖"
+        echo "  0. 返回主菜单"
+        echo ""
+        
+        read -p "$(echo -e ${CYAN}请选择操作 [0-5]: ${NC})" choice
+        
+        case $choice in
+            0)
+                break
+                ;;
+            1)
+                echo ""
+                print_info "安装生产依赖..."
+                if pip install -r requirements.txt; then
+                    print_success "依赖安装完成"
+                else
+                    print_error "依赖安装失败"
+                fi
+                pause
+                ;;
+            2)
+                echo ""
+                print_info "安装开发依赖..."
+                if pip install -r requirements-dev.txt; then
+                    print_success "开发依赖安装完成"
+                else
+                    print_error "开发依赖安装失败"
+                fi
+                pause
+                ;;
+            3)
+                echo ""
+                print_warning "此操作将更新所有依赖到最新版本"
+                read -p "$(echo -e ${YELLOW}是否继续？[y/N]: ${NC})" confirm
+                if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+                    print_info "更新依赖..."
+                    if pip install --upgrade -r requirements.txt; then
+                        print_success "依赖更新完成"
+                    else
+                        print_error "依赖更新失败"
+                    fi
+                else
+                    print_info "已取消操作"
+                fi
+                pause
+                ;;
+            4)
+                echo ""
+                print_info "检查依赖状态..."
+                echo ""
+                pip list --format=columns
+                pause
+                ;;
+            5)
+                echo ""
+                print_info "导出当前依赖到 requirements-freeze.txt..."
+                if pip freeze > requirements-freeze.txt; then
+                    print_success "依赖已导出到 requirements-freeze.txt"
+                else
+                    print_error "依赖导出失败"
+                fi
+                pause
+                ;;
+            *)
+                print_error "无效的选择"
+                pause
+                ;;
+        esac
+    done
+}
+
 reset_environment() {
     print_header "清档重置"
     print_warning "此操作将："
@@ -1015,32 +1812,81 @@ show_help() {
     echo "  ./manage.sh [命令] [选项]"
     echo ""
     
-    echo -e "${BOLD}命令:${NC}"
+    echo -e "${BOLD}环境管理:${NC}"
     echo "  create-env      创建虚拟环境（Conda/venv/uv）"
+    echo "  status          查看项目状态（环境、依赖、服务）"
+    echo "  deps-install    安装生产依赖"
+    echo "  config-show     查看当前配置文件"
+    echo "  config-switch   切换配置环境（dev/prod/degraded）"
+    echo "  config-validate 验证所有配置文件"
+    echo ""
+    
+    echo -e "${BOLD}服务管理:${NC}"
     echo "  start-dev       启动开发服务器（交互式配置）"
     echo "  start-prod      启动生产服务器（交互式配置）"
+    echo "  docker-start    启动 Redis 服务"
+    echo "  docker-stop     停止 Redis 服务"
+    echo "  docker-status   查看 Redis 状态"
+    echo ""
+    
+    echo -e "${BOLD}测试相关:${NC}"
     echo "  test            运行所有测试"
     echo "  test-unit       运行单元测试"
     echo "  test-int        运行集成测试"
     echo "  test-cov        生成测试覆盖率报告"
     echo "  test-env        检查测试环境和配置"
+    echo ""
+    
+    echo -e "${BOLD}项目维护:${NC}"
     echo "  cleanup         清理项目缓存和临时文件"
     echo "  lint            运行代码质量检查（格式化 + Lint + 类型检查）"
     echo "  format          格式化代码（Black）"
+    echo "  logs            查看应用日志"
+    echo ""
+    
+    echo -e "${BOLD}数据库管理:${NC}"
     echo "  db-upgrade      升级数据库到最新版本"
     echo "  db-current      查看当前数据库版本"
+    echo "  db-history      查看迁移历史"
+    echo ""
+    
+    echo -e "${BOLD}其他:${NC}"
+    echo "  init-admin      初始化超级管理员"
     echo "  docs-errors     生成错误码文档"
     echo "  help            显示此帮助信息"
     echo ""
     
     echo -e "${BOLD}示例:${NC}"
-    echo "  ./manage.sh                # 交互式菜单"
-    echo "  ./manage.sh create-env     # 创建虚拟环境"
-    echo "  ./manage.sh start-dev      # 启动开发服务器（会提示输入主机和端口）"
-    echo "  ./manage.sh start-prod     # 启动生产服务器（会提示输入配置）"
-    echo "  ./manage.sh test           # 运行所有测试"
-    echo "  ./manage.sh test-env       # 检查测试环境"
-    echo "  ./manage.sh cleanup        # 清理项目"
+    echo "  ./manage.sh                    # 交互式菜单"
+    echo "  ./manage.sh create-env         # 创建虚拟环境"
+    echo "  ./manage.sh status             # 查看项目状态"
+    echo "  ./manage.sh config-show        # 查看当前配置"
+    echo "  ./manage.sh config-switch prod # 切换到生产环境"
+    echo "  ./manage.sh docker-start       # 启动 Redis 服务"
+    echo "  ./manage.sh test               # 运行所有测试"
+    echo "  ./manage.sh init-admin         # 初始化超级管理员"
+    echo "  ./manage.sh logs               # 查看应用日志"
+    echo ""
+    
+    echo -e "${BOLD}新功能说明:${NC}"
+    echo "  • 配置管理: 支持 dev/prod/degraded 三种配置环境切换"
+    echo "  • Docker 管理: 方便地启动/停止 Redis 服务"
+    echo "  • 项目状态: 一键查看环境、依赖、服务状态"
+    echo "  • 日志查看: 快速查看应用日志"
+    echo "  • 依赖管理: 安装、更新、检查依赖"
+    echo "  • 超级管理员: 快速初始化管理员账号"
+    echo ""
+    
+    echo -e "${BOLD}配置环境说明:${NC}"
+    echo "  通过 CONFIG_ENV 环境变量切换配置："
+    echo "    • dev (默认)  - 开发环境，使用 configs/config.dev.toml"
+    echo "    • prod        - 生产环境，使用 configs/config.prod.toml"
+    echo "    • degraded    - 降级模式，使用 configs/config.degraded.toml（禁用缓存）"
+    echo ""
+    echo "  切换方式："
+    echo "    1. 使用 manage.sh: ./manage.sh config-switch prod"
+    echo "    2. 设置环境变量: export CONFIG_ENV=prod"
+    echo "    3. 启动时指定: CONFIG_ENV=prod python -m uvicorn app.main:app"
     echo ""
     
     echo -e "${BOLD}虚拟环境:${NC}"
@@ -1057,13 +1903,6 @@ show_help() {
     echo "    TEST_WORKERS=auto/数字       # 并行工作进程数"
     echo "    RECOMMENDED_CONDA_ENV=名称   # 推荐的 Conda 环境"
     echo ""
-    
-    echo -e "${BOLD}说明:${NC}"
-    echo "  • 主机地址默认为 0.0.0.0（监听所有网络接口）"
-    echo "  • 端口默认为 9278"
-    echo "  • 生产模式默认使用 4 个工作进程"
-    echo "  • 测试前会自动检查 Python 环境和依赖"
-    echo ""
 }
 
 show_menu() {
@@ -1072,31 +1911,37 @@ show_menu() {
     
     echo -e "${BOLD}${MAGENTA}环境管理${NC}"
     echo "  1. 创建虚拟环境"
+    echo "  2. 查看项目状态"
+    echo "  3. 依赖管理"
+    echo "  4. 配置管理"
     echo ""
     
     echo -e "${BOLD}${MAGENTA}服务管理${NC}"
-    echo "  2. 启动服务（开发模式）"
-    echo "  3. 启动服务（生产模式）"
+    echo "  5. 启动服务（开发模式）"
+    echo "  6. 启动服务（生产模式）"
+    echo "  7. Docker 管理（Redis）"
     echo ""
     
     echo -e "${BOLD}${MAGENTA}测试相关${NC}"
-    echo "  4. 运行所有测试（并行，快速验证）"
-    echo "  5. 运行单元测试（tests/unit）"
-    echo "  6. 运行集成测试（tests/integration）"
-    echo "  7. 详细模式测试（-vv，调试用）"
-    echo "  8. 生成测试覆盖率报告（单线程，完整报告）"
-    echo "  9. 完整测试流程（并行验证 + 覆盖率分析）"
+    echo "  8. 运行所有测试（并行，快速验证）"
+    echo "  9. 运行单元测试（tests/unit）"
+    echo " 10. 运行集成测试（tests/integration）"
+    echo " 11. 详细模式测试（-vv，调试用）"
+    echo " 12. 生成测试覆盖率报告（单线程，完整报告）"
+    echo " 13. 完整测试流程（并行验证 + 覆盖率分析）"
     echo ""
     
     echo -e "${BOLD}${MAGENTA}项目维护${NC}"
-    echo " 10. 清理项目（缓存、临时文件）"
-    echo " 11. 数据库管理"
-    echo " 12. 代码质量检查"
-    echo " 13. 生成文档"
+    echo " 14. 清理项目（缓存、临时文件）"
+    echo " 15. 数据库管理"
+    echo " 16. 代码质量检查"
+    echo " 17. 生成文档"
+    echo " 18. 查看日志"
     echo ""
     
     echo -e "${BOLD}${MAGENTA}高级操作${NC}"
-    echo -e " 14. 清档重置（${RED}⚠️  危险操作${NC}）"
+    echo " 19. 初始化超级管理员"
+    echo -e " 20. 清档重置（${RED}⚠️  危险操作${NC}）"
     echo ""
     
     echo -e "${BOLD}${MAGENTA}其他${NC}"
@@ -1130,7 +1975,17 @@ if [ $# -gt 0 ]; then
                 cmd=$(build_pytest_command)
                 print_info "执行命令: $cmd"
                 echo ""
-                eval "$cmd"
+                if eval "$cmd"; then
+                    echo ""
+                    print_success "所有测试通过！"
+                    exit 0
+                else
+                    echo ""
+                    print_error "部分测试失败"
+                    exit 1
+                fi
+            else
+                exit 1
             fi
             ;;
         test-unit)
@@ -1139,9 +1994,19 @@ if [ $# -gt 0 ]; then
             if check_python_environment "$RECOMMENDED_CONDA_ENV"; then
                 echo ""
                 cmd=$(build_pytest_command)
-                print_info "执行命令: $cmd -m unit"
+                print_info "执行命令: $cmd tests/unit"
                 echo ""
-                eval "$cmd -m unit"
+                if eval "$cmd tests/unit"; then
+                    echo ""
+                    print_success "单元测试通过！"
+                    exit 0
+                else
+                    echo ""
+                    print_error "部分单元测试失败"
+                    exit 1
+                fi
+            else
+                exit 1
             fi
             ;;
         test-int)
@@ -1150,9 +2015,19 @@ if [ $# -gt 0 ]; then
             if check_python_environment "$RECOMMENDED_CONDA_ENV"; then
                 echo ""
                 cmd=$(build_pytest_command)
-                print_info "执行命令: $cmd -m integration"
+                print_info "执行命令: $cmd tests/integration"
                 echo ""
-                eval "$cmd -m integration"
+                if eval "$cmd tests/integration"; then
+                    echo ""
+                    print_success "集成测试通过！"
+                    exit 0
+                else
+                    echo ""
+                    print_error "部分集成测试失败"
+                    exit 1
+                fi
+            else
+                exit 1
             fi
             ;;
         test-fast)
@@ -1171,13 +2046,21 @@ if [ $# -gt 0 ]; then
             echo ""
             if check_python_environment "$RECOMMENDED_CONDA_ENV"; then
                 echo ""
-                cmd=$(build_pytest_command)
+                cmd=$(build_pytest_command "false")
                 print_info "执行命令: $cmd"
                 echo ""
-                eval "$cmd"
-                echo ""
-                print_success "覆盖率报告已生成"
-                print_info "查看 HTML 报告: open htmlcov/index.html"
+                if eval "$cmd"; then
+                    echo ""
+                    print_success "覆盖率报告已生成"
+                    print_info "查看 HTML 报告: open htmlcov/index.html"
+                    exit 0
+                else
+                    echo ""
+                    print_error "测试执行失败"
+                    exit 1
+                fi
+            else
+                exit 1
             fi
             ;;
         test-env)
@@ -1202,21 +2085,52 @@ if [ $# -gt 0 ]; then
         lint)
             print_header "代码质量检查"
             echo ""
+            local has_error=0
+            
             print_info "运行代码格式化..."
-            black app tests scripts/python || true
+            if black app tests scripts/python; then
+                print_success "代码格式化完成"
+            else
+                print_error "代码格式化失败"
+                has_error=1
+            fi
+            
             echo ""
             print_info "运行代码风格检查..."
-            flake8 app tests scripts/python || true
+            if flake8 app tests scripts/python; then
+                print_success "代码风格检查通过"
+            else
+                print_warning "发现代码风格问题"
+                has_error=1
+            fi
+            
             echo ""
             print_info "运行类型检查..."
-            mypy app --config-file=pyproject.toml || true
+            if mypy app --config-file=pyproject.toml; then
+                print_success "类型检查通过"
+            else
+                print_warning "发现类型问题"
+                has_error=1
+            fi
+            
             echo ""
-            print_success "所有检查完成"
+            if [ $has_error -eq 0 ]; then
+                print_success "所有检查通过！"
+                exit 0
+            else
+                print_warning "部分检查未通过，请查看上方输出"
+                exit 1
+            fi
             ;;
         format)
             print_header "代码格式化"
-            black app tests scripts/python || true
-            print_success "代码格式化完成"
+            if black app tests scripts/python; then
+                print_success "代码格式化完成"
+                exit 0
+            else
+                print_error "代码格式化失败"
+                exit 1
+            fi
             ;;
         db-upgrade)
             print_header "升级数据库"
@@ -1236,6 +2150,125 @@ if [ $# -gt 0 ]; then
             python scripts/python/generate_error_codes_doc.py
             print_success "错误码文档生成完成"
             ;;
+        docker-start)
+            print_header "启动 Redis 服务"
+            cd docker
+            if docker-compose up -d redis 2>/dev/null || docker compose up -d redis; then
+                print_success "Redis 服务已启动"
+                exit 0
+            else
+                print_error "Redis 服务启动失败"
+                exit 1
+            fi
+            ;;
+        docker-stop)
+            print_header "停止 Redis 服务"
+            cd docker
+            if docker-compose stop redis 2>/dev/null || docker compose stop redis; then
+                print_success "Redis 服务已停止"
+                exit 0
+            else
+                print_error "Redis 服务停止失败"
+                exit 1
+            fi
+            ;;
+        docker-status)
+            print_header "查看 Redis 状态"
+            cd docker
+            docker-compose ps redis 2>/dev/null || docker compose ps redis
+            ;;
+        init-admin)
+            print_header "初始化超级管理员"
+            python scripts/python/init_superadmin.py
+            ;;
+        status)
+            show_project_status
+            ;;
+        logs)
+            print_header "查看应用日志"
+            if [ -f "logs/app.log" ]; then
+                tail -n 50 logs/app.log
+            else
+                print_warning "日志文件不存在: logs/app.log"
+            fi
+            ;;
+        deps-install)
+            print_header "安装依赖"
+            if pip install -r requirements.txt; then
+                print_success "依赖安装完成"
+                exit 0
+            else
+                print_error "依赖安装失败"
+                exit 1
+            fi
+            ;;
+        config-show)
+            print_header "查看当前配置"
+            current_env="${CONFIG_ENV:-dev}"
+            echo ""
+            print_info "当前配置环境: $current_env"
+            print_info "配置文件: configs/config.${current_env}.toml"
+            echo ""
+            if [ -f "configs/config.${current_env}.toml" ]; then
+                cat "configs/config.${current_env}.toml"
+            else
+                print_error "配置文件不存在"
+                exit 1
+            fi
+            ;;
+        config-switch)
+            if [ -z "$2" ]; then
+                print_error "请指定配置环境: dev, prod, degraded"
+                echo ""
+                echo "用法: ./manage.sh config-switch <env>"
+                echo "示例: ./manage.sh config-switch prod"
+                exit 1
+            fi
+            
+            target_env="$2"
+            case $target_env in
+                dev|prod|degraded)
+                    print_header "切换配置环境"
+                    export CONFIG_ENV="$target_env"
+                    print_success "已切换到 $target_env 环境"
+                    print_info "配置文件: configs/config.${target_env}.toml"
+                    print_info "请设置环境变量: export CONFIG_ENV=$target_env"
+                    print_info "或在启动服务时指定: CONFIG_ENV=$target_env python -m uvicorn app.main:app"
+                    ;;
+                *)
+                    print_error "无效的配置环境: $target_env"
+                    print_info "可选值: dev, prod, degraded"
+                    exit 1
+                    ;;
+            esac
+            ;;
+        config-validate)
+            print_header "验证配置文件"
+            has_error=0
+            
+            for env in dev prod degraded; do
+                file="configs/config.${env}.toml"
+                if [ -f "$file" ]; then
+                    if python -c "import toml; toml.load(open('$file'))" 2>/dev/null; then
+                        print_success "$file: 格式正确"
+                    else
+                        print_error "$file: 格式错误"
+                        has_error=1
+                    fi
+                else
+                    print_warning "$file: 文件不存在"
+                fi
+            done
+            
+            echo ""
+            if [ $has_error -eq 0 ]; then
+                print_success "所有配置文件验证通过"
+                exit 0
+            else
+                print_error "部分配置文件验证失败"
+                exit 1
+            fi
+            ;;
         help|--help|-h)
             show_help
             ;;
@@ -1252,7 +2285,7 @@ fi
 # 交互式菜单模式
 while true; do
     show_menu
-    read -p "$(echo -e ${CYAN}请选择操作 [0-14/h]: ${NC})" choice
+    read -p "$(echo -e ${CYAN}请选择操作 [0-20/h]: ${NC})" choice
     
     case $choice in
         0)
@@ -1264,42 +2297,60 @@ while true; do
             create_virtual_environment
             ;;
         2)
-            start_dev_server
+            show_project_status
             ;;
         3)
-            start_prod_server
+            dependency_management
             ;;
         4)
-            run_all_tests
+            config_management
             ;;
         5)
-            run_unit_tests
+            start_dev_server
             ;;
         6)
-            run_integration_tests
+            start_prod_server
             ;;
         7)
-            run_fast_tests
+            docker_management
             ;;
         8)
-            run_coverage_tests
+            run_all_tests
             ;;
         9)
-            run_all_tests_with_coverage
+            run_unit_tests
             ;;
         10)
-            cleanup_project
+            run_integration_tests
             ;;
         11)
-            database_menu
+            run_fast_tests
             ;;
         12)
-            code_quality_menu
+            run_coverage_tests
             ;;
         13)
-            generate_docs
+            run_all_tests_with_coverage
             ;;
         14)
+            cleanup_project
+            ;;
+        15)
+            database_menu
+            ;;
+        16)
+            code_quality_menu
+            ;;
+        17)
+            generate_docs
+            ;;
+        18)
+            view_logs
+            ;;
+        19)
+            init_superadmin
+            ;;
+        20)
             reset_environment
             ;;
         h|H)

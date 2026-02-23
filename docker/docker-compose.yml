@@ -1,0 +1,111 @@
+# ============================================================================
+# Docker Compose 配置文件
+# 用途：本地开发和测试环境的 Redis 服务部署
+# 说明：生产环境建议使用独立的 Redis 集群或托管服务
+# ============================================================================
+
+services:
+  # Redis 缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: maimnp-redis
+    
+    # 端口映射
+    ports:
+      - "${CACHE_PORT:-6379}:6379"
+    
+    # 数据持久化
+    volumes:
+      - redis-data:/data
+    
+    # Redis 启动命令
+    # 说明：
+    # - appendonly yes: 启用 AOF 持久化
+    # - maxmemory: 最大内存限制（2GB）
+    # - maxmemory-policy: 内存淘汰策略（LRU）
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    
+    # 健康检查
+    # 说明：每 10 秒检查一次 Redis 是否响应 PING 命令
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # 重启策略
+    restart: unless-stopped
+    
+    # 网络配置
+    networks:
+      - maimnp-network
+    
+    # 环境变量
+    environment:
+      - TZ=Asia/Shanghai
+
+  # 应用服务（可选，用于完整的开发环境）
+  # 取消注释以启用应用服务
+  # app:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: maimnp-app
+  #   
+  #   ports:
+  #     - "${PORT:-8000}:8000"
+  #   
+  #   volumes:
+  #     - .:/app
+  #     - ./data:/app/data
+  #     - ./logs:/app/logs
+  #     - ./uploads:/app/uploads
+  #   
+  #   environment:
+  #     - DATABASE_URL=${DATABASE_URL:-sqlite:///data/mainnp.db}
+  #     - CACHE_ENABLED=${CACHE_ENABLED:-true}
+  #     - CACHE_HOST=redis
+  #     - CACHE_PORT=6379
+  #     - CACHE_PASSWORD=${CACHE_PASSWORD:-}
+  #     - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+  #     - SUPERADMIN_PWD=${SUPERADMIN_PWD}
+  #     - HIGHEST_PASSWORD=${HIGHEST_PASSWORD}
+  #   
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   
+  #   networks:
+  #     - maimnp-network
+  #   
+  #   restart: unless-stopped
+
+# 数据卷定义
+volumes:
+  redis-data:
+    driver: local
+    name: maimnp-redis-data
+
+# 网络定义
+networks:
+  maimnp-network:
+    driver: bridge
+    name: maimnp-network

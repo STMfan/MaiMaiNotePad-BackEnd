@@ -1,0 +1,96 @@
+# ============================================================================
+# 开发环境配置文件 (config.dev.toml)
+# 用途：开发环境专用配置，适合本地开发和调试
+# 注意：此文件可以提交到版本控制（不包含敏感信息）
+# ============================================================================
+
+[app]
+# 应用基本信息
+name = "MaiMNP Backend (Development)"
+# 注意：版本号从 app/__version__.py 自动读取，无需在此配置
+
+[jwt]
+# JWT 业务配置（非敏感）
+# 注意：JWT_SECRET_KEY 必须从环境变量读取，不要在此文件中配置
+algorithm = "HS256"
+access_token_expire_minutes = 15
+refresh_token_expire_days = 7
+
+[email]
+# 邮件业务配置（非敏感）
+# 注意：MAIL_USER 和 MAIL_PWD 必须从环境变量读取
+timeout = 30
+
+[admin]
+# 管理员业务配置（非敏感）
+# 注意：SUPERADMIN_PWD 和 HIGHEST_PASSWORD 必须从环境变量读取
+superadmin_username = "superadmin"
+
+[logging]
+# 日志业务配置（开发环境使用更详细的日志）
+file = "logs/app.log"
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+[upload]
+# 上传业务规则
+max_file_size_mb = 100
+
+[upload.avatar]
+# 头像业务规则
+max_size_mb = 2
+max_dimension = 1024
+thumbnail_size = 128
+allowed_formats = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
+
+[upload.knowledge]
+# 知识库业务规则
+max_files = 100
+allowed_types = [".txt", ".json"]
+
+[upload.persona]
+# 人设卡业务规则
+max_files = 1
+allowed_types = [".toml"]
+
+[security]
+# 安全业务规则（开发环境可以适当放宽）
+bcrypt_rounds = 12
+max_failed_login_attempts = 5
+account_lock_duration_minutes = 30
+
+[email_verification]
+# 邮箱验证业务规则
+code_expire_minutes = 2
+hourly_limit = 5
+minute_limit = 1
+
+[pagination]
+# 分页业务规则
+default_page_size = 20
+max_page_size = 100
+admin_default_page_size = 10
+
+[moderation]
+# 审核业务规则
+mute_durations = ["1d", "7d", "30d", "permanent"]
+ban_durations = ["1d", "7d", "30d", "permanent"]
+
+[statistics]
+# 统计业务规则
+min_trend_days = 1
+max_trend_days = 90
+default_trend_days = 30
+
+[cache]
+# 缓存配置（开发环境）
+# 注意：REDIS_PASSWORD 必须从环境变量读取，不要在此文件中配置
+enabled = true  # 缓存开关，false 时自动降级到数据库
+host = "localhost"
+port = 6379
+db = 0
+key_prefix = "maimnp:dev"
+default_ttl = 300  # 5 分钟（开发环境使用较短 TTL 便于测试）
+max_connections = 5  # 开发环境连接数较少
+socket_timeout = 5
+socket_connect_timeout = 5
+retry_on_timeout = true

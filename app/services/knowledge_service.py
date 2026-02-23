@@ -10,6 +10,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 
 from app.models.database import KnowledgeBase, KnowledgeBaseFile, User, UploadRecord
+from app.core.cache.decorators import cached, cache_invalidate
 
 logger = logging.getLogger(__name__)
 
@@ -28,129 +29,136 @@ class KnowledgeService:
             db: SQLAlchemy 数据库会话
         """
         self.db = db
+        
+        # 导入缓存管理器
+        from app.core.cache.factory import get_cache_manager
+        self.cache_manager = get_cache_manager()
 
     def get_knowledge_base_by_id(self, kb_id: str, include_files: bool = False) -> Optional[KnowledgeBase]:
-        """
-        根据 ID 获取知识库。
+            """
+            根据 ID 获取知识库。
 
-        Args:
-            kb_id: 知识库 ID
-            include_files: 是否包含文件信息
+            Args:
+                kb_id: 知识库 ID
+                include_files: 是否包含文件信息
 
-        Returns:
-            找到返回知识库对象，否则返回 None
-        """
-        try:
-            kb = self.db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
-            return kb
-        except Exception as e:
-            logger.error(f"获取知识库失败 ID={kb_id}: {str(e)}")
-            return None
+            Returns:
+                找到返回知识库对象，否则返回 None
+            """
+            try:
+                kb = self.db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+                return kb
+            except Exception as e:
+                logger.error(f"获取知识库失败 ID={kb_id}: {str(e)}")
+                return None
 
     def get_public_knowledge_bases(
-        self,
-        page: int = 1,
-        page_size: int = 20,
-        name: Optional[str] = None,
-        uploader_id: Optional[str] = None,
-        sort_by: str = "created_at",
-        sort_order: str = "desc",
-    ) -> Tuple[List[KnowledgeBase], int]:
-        """
-        获取公开知识库列表，支持分页、搜索和排序。
+            self,
+            page: int = 1,
+            page_size: int = 20,
+            name: Optional[str] = None,
+            uploader_id: Optional[str] = None,
+            sort_by: str = "created_at",
+            sort_order: str = "desc",
+        ) -> Tuple[List[KnowledgeBase], int]:
+            """
+            获取公开知识库列表，支持分页、搜索和排序。
 
-        Args:
-            page: 页码（从 1 开始）
-            page_size: 每页数量
-            name: 按名称搜索（可选）
-            uploader_id: 按上传者 ID 筛选（可选）
-            sort_by: 排序字段（created_at、updated_at、star_count）
-            sort_order: 排序方向（asc、desc）
+            Args:
+                page: 页码（从 1 开始）
+                page_size: 每页数量
+                name: 按名称搜索（可选）
+                uploader_id: 按上传者 ID 筛选（可选）
+                sort_by: 排序字段（created_at、updated_at、star_count）
+                sort_order: 排序方向（asc、desc）
 
-        Returns:
-            (知识库列表, 总数) 元组
-        """
-        try:
-            query = self.db.query(KnowledgeBase).filter(
-                KnowledgeBase.is_public.is_(True), KnowledgeBase.is_pending.is_(False)
-            )
+            Returns:
+                (知识库对象列表, 总数) 元组
+            """
+            try:
+                query = self.db.query(KnowledgeBase).filter(
+                    KnowledgeBase.is_public.is_(True), KnowledgeBase.is_pending.is_(False)
+                )
 
-            # 应用筛选条件
-            if name:
-                query = query.filter(KnowledgeBase.name.ilike(f"%{name}%"))
+                # 应用筛选条件
+                if name:
+                    query = query.filter(KnowledgeBase.name.ilike(f"%{name}%"))
 
-            if uploader_id:
-                query = query.filter(KnowledgeBase.uploader_id == uploader_id)
+                if uploader_id:
+                    query = query.filter(KnowledgeBase.uploader_id == uploader_id)
 
-            # 分页前获取总数
-            total = query.count()
+                # 分页前获取总数
+                total = query.count()
 
-            # 应用排序
-            sort_field_map = {
-                "created_at": KnowledgeBase.created_at,
-                "updated_at": KnowledgeBase.updated_at,
-                "star_count": KnowledgeBase.star_count,
-            }
-            sort_field = sort_field_map.get(sort_by, KnowledgeBase.created_at)
+                # 应用排序
+                sort_field_map = {
+                    "created_at": KnowledgeBase.created_at,
+                    "updated_at": KnowledgeBase.updated_at,
+                    "star_count": KnowledgeBase.star_count,
+                }
+                sort_field = sort_field_map.get(sort_by, KnowledgeBase.created_at)
 
-            if sort_order.lower() == "asc":
-                query = query.order_by(sort_field.asc())
-            else:
-                query = query.order_by(sort_field.desc())
+                if sort_order.lower() == "asc":
+                    query = query.order_by(sort_field.asc())
+                else:
+                    query = query.order_by(sort_field.desc())
 
-            # 应用分页
-            offset = (page - 1) * page_size
-            kbs = query.offset(offset).limit(page_size).all()
+                # 应用分页
+                offset = (page - 1) * page_size
+                kbs = query.offset(offset).limit(page_size).all()
 
-            return kbs, total
-        except Exception as e:
-            logger.error(f"获取公开知识库列表失败: {str(e)}")
-            return [], 0
+                return kbs, total
+            except Exception as e:
+                logger.error(f"获取公开知识库列表失败: {str(e)}")
+                return [], 0
 
     def get_user_knowledge_bases(
-        self,
-        user_id: str,
-        page: int = 1,
-        page_size: int = 20,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        status: str = "all",
-        sort_by: str = "created_at",
-        sort_order: str = "desc",
-    ) -> Tuple[List[KnowledgeBase], int]:
-        """
-        获取指定用户上传的知识库列表。
+            self,
+            user_id: str,
+            page: int = 1,
+            page_size: int = 20,
+            status: Optional[str] = None,
+            name: Optional[str] = None,
+            tag: Optional[str] = None,
+            sort_by: str = "created_at",
+            sort_order: str = "desc",
+        ) -> Tuple[List[KnowledgeBase], int]:
+            """
+            获取用户的知识库列表，支持分页、筛选和排序。
 
-        Args:
-            user_id: 用户 ID
-            page: 页码（从 1 开始）
-            page_size: 每页数量
-            name: 按名称搜索（可选）
-            tag: 按标签搜索（可选）
-            status: 状态筛选（all/pending/approved/rejected）
-            sort_by: 排序字段（created_at/updated_at/name/downloads/star_count）
-            sort_order: 排序方向（asc/desc）
+            Args:
+                user_id: 用户 ID
+                page: 页码（从 1 开始）
+                page_size: 每页数量
+                status: 状态筛选（pending、public、private）
+                name: 按名称搜索（可选）
+                tag: 按标签筛选（可选）
+                sort_by: 排序字段（created_at、updated_at、star_count）
+                sort_order: 排序方向（asc、desc）
 
-        Returns:
-            (知识库列表, 总数) 元组
-        """
-        try:
-            kbs = self.db.query(KnowledgeBase).filter(KnowledgeBase.uploader_id == user_id).all()
+            Returns:
+                (知识库对象列表, 总数) 元组
+            """
+            try:
+                # 获取用户的所有知识库
+                kbs = self.db.query(KnowledgeBase).filter(KnowledgeBase.uploader_id == user_id).all()
 
-            # 应用筛选条件
-            filtered = self._filter_knowledge_bases(kbs, name, tag, status)
+                # 应用筛选
+                filtered_kbs = self._filter_knowledge_bases(kbs, name, tag, status)
 
-            # 排序
-            sorted_kbs = self._sort_knowledge_bases(filtered, sort_by, sort_order)
+                # 获取总数
+                total = len(filtered_kbs)
 
-            # 分页
-            total = len(sorted_kbs)
-            page_items = self._paginate_items(sorted_kbs, page, page_size)
+                # 应用排序
+                sorted_kbs = self._sort_knowledge_bases(filtered_kbs, sort_by, sort_order)
 
-            return page_items, total
-        except Exception as e:
-            logger.error(f"获取用户 {user_id} 的知识库列表失败: {str(e)}")
-            return [], 0
+                # 应用分页
+                paginated_kbs = self._paginate_items(sorted_kbs, page, page_size)
+
+                return paginated_kbs, total
+            except Exception as e:
+                logger.error(f"获取用户知识库列表失败 user_id={user_id}: {str(e)}")
+                return [], 0
 
     def _filter_knowledge_bases(
         self, kbs: List[KnowledgeBase], name: Optional[str], tag: Optional[str], status: str
@@ -305,53 +313,54 @@ class KnowledgeService:
             return False
 
     def update_knowledge_base(
-        self, kb_id: str, update_data: Dict[str, Any], user_id: str, is_admin: bool = False, is_moderator: bool = False
-    ) -> Tuple[bool, str, Optional[KnowledgeBase]]:
-        """
-        更新知识库信息。
+            self, kb_id: str, update_data: Dict[str, Any], user_id: str, is_admin: bool = False, is_moderator: bool = False
+        ) -> Tuple[bool, str, Optional[KnowledgeBase]]:
+            """
+            更新知识库信息。
 
-        Args:
-            kb_id: 知识库 ID
-            update_data: 要更新的字段字典
-            user_id: 操作用户 ID
-            is_admin: 是否为管理员
-            is_moderator: 是否为审核员
+            Args:
+                kb_id: 知识库 ID
+                update_data: 要更新的字段字典
+                user_id: 操作用户 ID
+                is_admin: 是否为管理员
+                is_moderator: 是否为审核员
 
-        Returns:
-            (是否成功, 提示消息, 知识库对象) 元组
-        """
-        try:
-            kb = self.get_knowledge_base_by_id(kb_id)
-            if not kb:
-                return False, "知识库不存在", None
+            Returns:
+                (是否成功, 提示消息, 知识库对象) 元组
+            """
+            try:
+                # 直接从数据库查询，不使用缓存
+                kb = self.db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+                if not kb:
+                    return False, "知识库不存在", None
 
-            # 权限检查
-            if not self._check_update_permission(kb, user_id, is_admin, is_moderator):
-                return False, "是你的知识库吗你就改", None
+                # 权限检查
+                if not self._check_update_permission(kb, user_id, is_admin, is_moderator):
+                    return False, "是你的知识库吗你就改", None
 
-            # 公开或审核中的知识库限制修改范围
-            if not self._validate_public_kb_update(kb, update_data):
-                return False, "公开或审核中的知识库仅允许修改补充说明", None
+                # 公开或审核中的知识库限制修改范围
+                if not self._validate_public_kb_update(kb, update_data):
+                    return False, "公开或审核中的知识库仅允许修改补充说明", None
 
-            # 清理受保护字段
-            self._remove_protected_fields(update_data)
+                # 清理受保护字段
+                self._remove_protected_fields(update_data)
 
-            # 检查公开状态修改权限
-            if not self._validate_public_status_change(kb, update_data, is_admin, is_moderator):
-                return False, "只有管理员可以直接修改公开状态", None
+                # 检查公开状态修改权限
+                if not self._validate_public_status_change(kb, update_data, is_admin, is_moderator):
+                    return False, "只有管理员可以直接修改公开状态", None
 
-            # 应用更新
-            self._apply_updates(kb, update_data)
+                # 应用更新
+                self._apply_updates(kb, update_data)
 
-            self.db.commit()
-            self.db.refresh(kb)
+                self.db.commit()
+                self.db.refresh(kb)
 
-            logger.info(f"知识库已更新: kb_id={kb_id}, user_id={user_id}")
-            return True, "修改知识库成功", kb
-        except Exception as e:
-            self.db.rollback()
-            logger.error(f"更新知识库 {kb_id} 失败: {str(e)}")
-            return False, "修改知识库失败", None
+                logger.info(f"知识库已更新: kb_id={kb_id}, user_id={user_id}")
+                return True, "修改知识库成功", kb
+            except Exception as e:
+                self.db.rollback()
+                logger.error(f"更新知识库 {kb_id} 失败: {str(e)}")
+                return False, "修改知识库失败", None
 
     def _check_update_permission(self, kb: KnowledgeBase, user_id: str, is_admin: bool, is_moderator: bool) -> bool:
         """检查用户是否有权限更新知识库"""
@@ -391,29 +400,30 @@ class KnowledgeService:
             kb.updated_at = datetime.now()
 
     def delete_knowledge_base(self, kb_id: str) -> bool:
-        """
-        从数据库删除知识库。
+            """
+            从数据库删除知识库。
 
-        Args:
-            kb_id: 知识库 ID
+            Args:
+                kb_id: 知识库 ID
 
-        Returns:
-            成功返回 True，否则返回 False
-        """
-        try:
-            kb = self.get_knowledge_base_by_id(kb_id)
-            if not kb:
+            Returns:
+                成功返回 True，否则返回 False
+            """
+            try:
+                # 直接从数据库查询，不使用缓存
+                kb = self.db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+                if not kb:
+                    return False
+
+                self.db.delete(kb)
+                self.db.commit()
+
+                logger.info(f"知识库已删除: kb_id={kb_id}")
+                return True
+            except Exception as e:
+                self.db.rollback()
+                logger.error(f"删除知识库 {kb_id} 失败: {str(e)}")
                 return False
-
-            self.db.delete(kb)
-            self.db.commit()
-
-            logger.info(f"知识库已删除: kb_id={kb_id}")
-            return True
-        except Exception as e:
-            self.db.rollback()
-            logger.error(f"删除知识库 {kb_id} 失败: {str(e)}")
-            return False
 
     def is_starred(self, user_id: str, kb_id: str) -> bool:
         """
@@ -654,3 +664,23 @@ class KnowledgeService:
         except Exception as e:
             logger.error(f"解析上传者标识失败 {uploader_identifier}: {str(e)}")
             return None
+
+    async def _invalidate_knowledge_base_list_cache(self, uploader_id: str) -> None:
+        """
+        使知识库列表缓存失效。
+        
+        当知识库被更新或删除时，需要清除相关的列表缓存。
+        
+        Args:
+            uploader_id: 上传者用户 ID
+        """
+        try:
+            # 使用户知识库列表缓存失效（所有分页和筛选条件）
+            await self.cache_manager.invalidate_pattern(f"maimnp:kb:user:{uploader_id}:*")
+            
+            # 使公开知识库列表缓存失效（所有分页和筛选条件）
+            await self.cache_manager.invalidate_pattern("maimnp:kb:public:*")
+            
+            logger.debug(f"知识库列表缓存已失效: uploader_id={uploader_id}")
+        except Exception as e:
+            logger.warning(f"使知识库列表缓存失效失败: {e}")

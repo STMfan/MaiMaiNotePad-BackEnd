@@ -2,6 +2,7 @@ import pytest
 import os
 import sys
 import uuid
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional, Union, List
@@ -9,6 +10,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
 from hypothesis import settings, Verbosity, HealthCheck
+
+logger = logging.getLogger(__name__)
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -64,6 +67,7 @@ def pytest_configure(config):
 
     print(f"Worker {worker_id} using database: {test_db_url}")
     print(f"Worker {worker_id} using upload directory: {os.environ['UPLOAD_DIR']}")
+    print(f"Worker {worker_id} BCRYPT_ROUNDS: {os.environ.get('BCRYPT_ROUNDS', '4')}")
 
     # 确保测试数据库有表结构
     # 这样即使测试直接创建 TestClient 而不使用 fixture，也能正常工作
@@ -79,6 +83,9 @@ def pytest_configure(config):
     if not existing_tables:
         # 只在表不存在时创建
         Base.metadata.create_all(bind=engine)
+        print(f"Worker {worker_id}: Created database tables")
+    else:
+        print(f"Worker {worker_id}: Database tables already exist ({len(existing_tables)} tables)")
 
     engine.dispose()
 
@@ -401,49 +408,56 @@ def test_db() -> Session:
         yield session
     finally:
         try:
-            # 首先回滚所有事务，确保会话处于干净状态
-            # 无论事务是否活动，都执行回滚以确保完全清理
-            session.rollback()
-
-            # 然后分离所有对象，避免在删除时刷新已删除的对象
+            # 1. 强制回滚所有事务，确保会话处于干净状态
+            if session.in_transaction():
+                session.rollback()
+            
+            # 2. 分离所有对象，避免在删除时刷新已删除的对象
             session.expunge_all()
-
-            # 测试后清理所有数据（按外键依赖的相反顺序）
-            # 先删除子表（有外键的表），再删除父表
+            
+            # 3. 按正确顺序删除数据（子表 → 父表）
             # 正确的删除顺序（遵循外键约束）：
             # CommentReaction → Comment → DownloadRecord → UploadRecord →
             # EmailVerification → StarRecord → Message → PersonaCardFile →
             # PersonaCard → KnowledgeBaseFile → KnowledgeBase → User
-            try:
-                session.query(CommentReaction).delete()  # 依赖 Comment
-                session.query(Comment).delete()  # 依赖 User
-                session.query(DownloadRecord).delete()  # 无外键依赖
-                session.query(UploadRecord).delete()  # 依赖 User
-                session.query(EmailVerification).delete()  # 无外键依赖
-                session.query(StarRecord).delete()  # 依赖 User
-                session.query(Message).delete()  # 依赖 User (sender_id, recipient_id)
-                session.query(PersonaCardFile).delete()  # 依赖 PersonaCard
-                session.query(PersonaCard).delete()  # 依赖 User
-                session.query(KnowledgeBaseFile).delete()  # 依赖 KnowledgeBase
-                session.query(KnowledgeBase).delete()  # 依赖 User
-                session.query(User).delete()  # 父表，最后删除
-                session.commit()
-            except Exception as delete_error:
-                # 详细记录删除失败的错误
-                print(f"Error during data deletion in test_db cleanup: {delete_error}")
-                print(f"Error type: {type(delete_error).__name__}")
-                print(f"Transaction state before rollback: in_transaction={session.in_transaction()}")
-                session.rollback()
-                raise
-        except Exception as e:
-            # 记录清理错误但不抛出，确保会话总是被关闭
-            print(f"Error during test_db cleanup: {e}")
-            print(f"Error type: {type(e).__name__}")
-            try:
-                if session.in_transaction():
+            deletion_order = [
+                (CommentReaction, "comment_reactions"),
+                (Comment, "comments"),
+                (DownloadRecord, "download_records"),
+                (UploadRecord, "upload_records"),
+                (EmailVerification, "email_verifications"),
+                (StarRecord, "star_records"),
+                (Message, "messages"),
+                (PersonaCardFile, "persona_card_files"),
+                (PersonaCard, "persona_cards"),
+                (KnowledgeBaseFile, "knowledge_base_files"),
+                (KnowledgeBase, "knowledge_bases"),
+                (User, "users"),
+            ]
+            
+            for model, table_name in deletion_order:
+                try:
+                    count = session.query(model).delete()
+                    if count > 0:
+                        logger.debug(f"Deleted {count} records from {table_name}")
+                except Exception as e:
+                    logger.error(f"Failed to delete from {table_name}: {e}")
                     session.rollback()
-            except Exception as rollback_error:
-                print(f"Error during rollback: {rollback_error}")
+                    raise
+            
+            session.commit()
+            
+            # 4. 验证清理完成
+            for model, table_name in deletion_order:
+                remaining = session.query(model).count()
+                if remaining > 0:
+                    logger.warning(f"Table {table_name} still has {remaining} records after cleanup")
+                    
+        except Exception as e:
+            logger.error(f"Error during test_db cleanup: {e}")
+            if session.in_transaction():
+                session.rollback()
+            raise
         finally:
             session.close()
 

@@ -3,6 +3,12 @@
 
 统一管理应用配置，支持从 TOML 文件和环境变量加载配置。
 优先级：环境变量 > config.toml > 默认值
+
+配置环境切换：
+    通过 CONFIG_ENV 环境变量选择配置文件：
+    - CONFIG_ENV=dev      -> configs/config.dev.toml (默认)
+    - CONFIG_ENV=prod     -> configs/config.prod.toml
+    - CONFIG_ENV=degraded -> configs/config.degraded.toml
 """
 
 import os
@@ -15,14 +21,32 @@ from functools import lru_cache
 class ConfigManager:
     """配置管理器类"""
 
-    def __init__(self, config_file: str = "configs/config.toml"):
+    def __init__(self, config_file: Optional[str] = None):
         """
         初始化配置管理器
 
         Args:
-            config_file: 配置文件路径，默认为 configs/config.toml
+            config_file: 配置文件路径，如果为 None 则根据 CONFIG_ENV 环境变量自动选择
+                        CONFIG_ENV 可选值: dev, prod, degraded
+                        默认使用 dev 配置
         """
-        self.config_file = config_file
+        if config_file is None:
+            # 从环境变量读取配置环境
+            config_env = os.environ.get("CONFIG_ENV", "dev").lower()
+            
+            # 映射环境到配置文件
+            env_to_file = {
+                "dev": "configs/config.dev.toml",
+                "prod": "configs/config.prod.toml",
+                "degraded": "configs/config.degraded.toml",
+            }
+            
+            self.config_file = env_to_file.get(config_env, "configs/config.dev.toml")
+            self.config_env = config_env
+        else:
+            self.config_file = config_file
+            self.config_env = "custom"
+        
         self._config: Dict[str, Any] = {}
         self._load_config()
 
@@ -162,6 +186,24 @@ class ConfigManager:
     def reload(self):
         """重新加载配置文件"""
         self._load_config()
+
+    def get_current_env(self) -> str:
+        """
+        获取当前配置环境
+        
+        Returns:
+            配置环境名称 (dev/prod/degraded/custom)
+        """
+        return self.config_env
+
+    def get_config_file_path(self) -> str:
+        """
+        获取当前使用的配置文件路径
+        
+        Returns:
+            配置文件路径
+        """
+        return self.config_file
 
 
 # 全局配置管理器实例（单例模式）

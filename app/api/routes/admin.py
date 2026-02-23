@@ -1062,3 +1062,119 @@ async def create_user_by_admin(
     except Exception as e:
         log_exception(app_logger, "Create user by admin error", exception=e)
         raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"创建用户失败: {str(e)}")
+
+
+# 缓存统计相关路由
+@router.get("/cache/stats")
+async def get_cache_stats(current_user: dict = Depends(get_current_user)):
+    """获取缓存统计信息（仅限admin）
+    
+    返回缓存命中率、降级次数、降级原因等统计数据。
+    
+    Args:
+        current_user: 当前用户信息
+        
+    Returns:
+        Success: 包含缓存统计信息的响应
+        
+    Raises:
+        HTTPException: 权限不足或获取统计信息失败
+    """
+    # 验证权限：仅admin
+    if not current_user.get("is_admin", False):
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+    
+    try:
+        app_logger.info(f"Get cache stats: user_id={current_user.get('id')}")
+        
+        # 从应用实例获取缓存中间件
+        from app.main import app
+        
+        # 查找缓存中间件实例
+        cache_middleware = None
+        for middleware in app.user_middleware:
+            if hasattr(middleware, 'cls') and middleware.cls.__name__ == 'CacheMiddleware':
+                # 获取中间件实例（需要从 app 的 middleware_stack 中获取）
+                cache_middleware = getattr(app.state, 'cache_middleware', None)
+                break
+        
+        if cache_middleware is None:
+            # 如果找不到中间件实例，返回默认统计信息
+            app_logger.warning("缓存中间件未找到，返回默认统计信息")
+            return Success(
+                data={
+                    "hits": 0,
+                    "misses": 0,
+                    "errors": 0,
+                    "bypassed": 0,
+                    "degraded": 0,
+                    "degradation_reasons": {},
+                    "total_cached_requests": 0,
+                    "hit_rate": "0.00%",
+                    "cache_enabled": False,
+                    "message": "缓存中间件未启用或未找到"
+                }
+            )
+        
+        # 获取统计信息
+        stats = cache_middleware.get_stats()
+        
+        log_api_request(app_logger, "GET", "/api/admin/cache/stats", current_user.get("id"), status_code=200)
+        return Success(data=stats)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Get cache stats error", exception=e)
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取缓存统计信息失败: {str(e)}"
+        )
+
+
+@router.post("/cache/stats/reset")
+async def reset_cache_stats(current_user: dict = Depends(get_current_user)):
+    """重置缓存统计信息（仅限admin）
+    
+    清空所有缓存统计计数器，包括命中/未命中次数、降级统计等。
+    
+    Args:
+        current_user: 当前用户信息
+        
+    Returns:
+        Success: 重置成功的响应
+        
+    Raises:
+        HTTPException: 权限不足或重置失败
+    """
+    # 验证权限：仅admin
+    if not current_user.get("is_admin", False):
+        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+    
+    try:
+        app_logger.info(f"Reset cache stats: user_id={current_user.get('id')}")
+        
+        # 从应用实例获取缓存中间件
+        from app.main import app
+        
+        # 查找缓存中间件实例
+        cache_middleware = getattr(app.state, 'cache_middleware', None)
+        
+        if cache_middleware is None:
+            app_logger.warning("缓存中间件未找到，无法重置统计信息")
+            return Success(message="缓存中间件未启用或未找到，无需重置")
+        
+        # 重置统计信息
+        cache_middleware.reset_stats()
+        
+        log_api_request(app_logger, "POST", "/api/admin/cache/stats/reset", current_user.get("id"), status_code=200)
+        return Success(message="缓存统计信息已重置")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_exception(app_logger, "Reset cache stats error", exception=e)
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"重置缓存统计信息失败: {str(e)}"
+        )

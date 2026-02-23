@@ -30,3 +30,9 @@ slowapi==0.1.9
 
 # 图像处理
 Pillow==10.4.0
+
+# 缓存
+redis[hiredis]==5.2.1
+
+# 监控
+prometheus-client==0.21.0

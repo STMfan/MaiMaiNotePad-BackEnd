@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.models.database import User
 from app.core.security import verify_password, get_password_hash
 from app.core.config_manager import config_manager
+from app.core.cache.decorators import cached, cache_invalidate
 
 logger = logging.getLogger(__name__)
 
@@ -157,9 +158,10 @@ class UserService:
             logger.error(f"Error creating user {username}: {str(e)}")
             return None
 
+    @cache_invalidate(key_pattern="user:{user_id}")
     def update_user(self, user_id: str, username: Optional[str] = None, email: Optional[str] = None) -> Optional[User]:
         """
-        更新用户信息。
+        更新用户信息（自动失效缓存）。
 
         Args:
             user_id: 用户 ID
@@ -187,6 +189,7 @@ class UserService:
                 if existing and existing.id != user_id:
                     logger.warning(f"Username {username} already exists")
                     return None
+                
                 user.username = username
 
             # 如果提供了新邮箱则更新

@@ -10,6 +10,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 
 from app.models.database import PersonaCard, PersonaCardFile, User, UploadRecord
+from app.core.cache.decorators import cached, cache_invalidate
 
 logger = logging.getLogger(__name__)
 
@@ -287,11 +288,12 @@ class PersonaService:
             logger.error(f"保存人设卡失败: {str(e)}")
             return None
 
+    @cache_invalidate(key_pattern="persona:{pc_id}")
     def update_persona_card(
         self, pc_id: str, update_data: Dict[str, Any], user_id: str, is_admin: bool = False, is_moderator: bool = False
     ) -> Tuple[bool, str, Optional[PersonaCard]]:
         """
-        更新人设卡信息。
+        更新人设卡信息（自动失效缓存）。
 
         Args:
             pc_id: 人设卡 ID
@@ -377,9 +379,10 @@ class PersonaService:
             if any(field != "content" for field in update_data.keys()):
                 pc.updated_at = datetime.now()
 
+    @cache_invalidate(key_pattern="persona:{pc_id}")
     def delete_persona_card(self, pc_id: str) -> bool:
         """
-        从数据库删除人设卡。
+        从数据库删除人设卡（自动失效缓存）。
 
         Args:
             pc_id: 人设卡 ID

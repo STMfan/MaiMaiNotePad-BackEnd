@@ -14,6 +14,7 @@ from app.api.routes import (
     review,
     dictionary,
     comments,
+    metrics,
 )
 
 # 创建主 APIRouter
@@ -58,5 +59,8 @@ api_router.include_router(dictionary.router, prefix="/dictionary", tags=["dictio
 # 评论路由
 # comments 路由本身已定义 /comments 前缀，这里使用空前缀
 api_router.include_router(comments.router, prefix="", tags=["comments"])
+
+# 监控指标路由
+api_router.include_router(metrics.router, prefix="", tags=["监控"])
 
 __all__ = ["api_router"]

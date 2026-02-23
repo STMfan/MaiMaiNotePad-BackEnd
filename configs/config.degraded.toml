@@ -1,0 +1,127 @@
+# ============================================================================
+# 降级模式配置文件 (config.degraded.toml)
+# 用途：缓存降级模式配置示例，适合调试或缓存故障时使用
+# 说明：此配置禁用缓存，所有数据访问直接走数据库
+# 使用场景：
+#   1. 开发调试时需要实时查看数据库变化
+#   2. Redis 服务故障时的应急配置
+#   3. 性能测试对比（缓存启用 vs 禁用）
+#   4. 排查缓存相关问题
+# ============================================================================
+
+[app]
+# 应用基本信息
+name = "MaiMNP Backend (Degraded Mode)"
+# 注意：版本号从 app/__version__.py 自动读取，无需在此配置
+
+[jwt]
+# JWT 业务配置（非敏感）
+# 注意：JWT_SECRET_KEY 必须从环境变量读取，不要在此文件中配置
+algorithm = "HS256"
+access_token_expire_minutes = 15
+refresh_token_expire_days = 7
+
+[email]
+# 邮件业务配置（非敏感）
+# 注意：MAIL_USER 和 MAIL_PWD 必须从环境变量读取
+timeout = 30
+
+[admin]
+# 管理员业务配置（非敏感）
+# 注意：SUPERADMIN_PWD 和 HIGHEST_PASSWORD 必须从环境变量读取
+superadmin_username = "superadmin"
+
+[logging]
+# 日志业务配置
+file = "logs/app.log"
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+[upload]
+# 上传业务规则
+max_file_size_mb = 100
+
+[upload.avatar]
+# 头像业务规则
+max_size_mb = 2
+max_dimension = 1024
+thumbnail_size = 128
+allowed_formats = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
+
+[upload.knowledge]
+# 知识库业务规则
+max_files = 100
+allowed_types = [".txt", ".json"]
+
+[upload.persona]
+# 人设卡业务规则
+max_files = 1
+allowed_types = [".toml"]
+
+[security]
+# 安全业务规则
+bcrypt_rounds = 12
+max_failed_login_attempts = 5
+account_lock_duration_minutes = 30
+
+[email_verification]
+# 邮箱验证业务规则
+code_expire_minutes = 2
+hourly_limit = 5
+minute_limit = 1
+
+[pagination]
+# 分页业务规则
+default_page_size = 20
+max_page_size = 100
+admin_default_page_size = 10
+
+[moderation]
+# 审核业务规则
+mute_durations = ["1d", "7d", "30d", "permanent"]
+ban_durations = ["1d", "7d", "30d", "permanent"]
+
+[statistics]
+# 统计业务规则
+min_trend_days = 1
+max_trend_days = 90
+default_trend_days = 30
+
+[cache]
+# 缓存配置（降级模式 - 缓存禁用）
+# 重要：enabled = false 时，所有缓存操作自动跳过，直接访问数据库
+# 说明：
+#   - 缓存禁用不影响业务逻辑，系统正常运行
+#   - 不需要配置 Redis 连接信息（会被忽略）
+#   - 适用于调试、故障恢复、性能对比测试
+enabled = false  # 缓存开关，false 时自动降级到数据库
+
+# 以下配置在 enabled = false 时会被忽略，但保留以便快速切换
+host = "localhost"
+port = 6379
+db = 0
+key_prefix = "maimnp"
+default_ttl = 3600
+max_connections = 10
+socket_timeout = 5
+socket_connect_timeout = 5
+retry_on_timeout = true
+
+# ============================================================================
+# 使用说明
+# ============================================================================
+# 
+# 1. 启用降级模式：
+#    将此文件复制为 config.toml 或设置环境变量 CACHE_ENABLED=false
+#
+# 2. 恢复正常模式：
+#    将 enabled 改为 true 并配置正确的 Redis 连接信息
+#
+# 3. 验证降级模式：
+#    启动应用后，检查日志中是否有 "缓存已禁用" 的提示
+#    所有 API 请求应正常工作，但响应时间可能较长
+#
+# 4. 监控指标：
+#    cache_enabled_status 指标应为 0（表示缓存禁用）
+#    cache_degradation_total 指标应保持不变（因为是配置级禁用）
+#
+# ============================================================================

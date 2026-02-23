@@ -9,7 +9,7 @@ UserService 单元测试
 import pytest
 import os
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, AsyncMock, patch
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 

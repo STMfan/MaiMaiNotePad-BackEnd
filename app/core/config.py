@@ -86,6 +86,23 @@ class Settings(BaseSettings):
     MAX_TREND_DAYS: int = config_manager.get_int("statistics.max_trend_days", 90)
     DEFAULT_TREND_DAYS: int = config_manager.get_int("statistics.default_trend_days", 30)
 
+    # 缓存配置
+    CACHE_ENABLED: bool = config_manager.get_bool("cache.enabled", True, env_var="CACHE_ENABLED")
+    CACHE_HOST: str = config_manager.get("cache.host", "localhost", env_var="CACHE_HOST")
+    CACHE_PORT: int = config_manager.get_int("cache.port", 6379, env_var="CACHE_PORT")
+    CACHE_DB: int = config_manager.get_int("cache.db", 0, env_var="CACHE_DB")
+    CACHE_PASSWORD: Optional[str] = Field(default_factory=lambda: os.getenv("CACHE_PASSWORD"))  # 从环境变量读取
+    CACHE_KEY_PREFIX: str = config_manager.get("cache.key_prefix", "maimnp", env_var="CACHE_KEY_PREFIX")
+    CACHE_DEFAULT_TTL: int = config_manager.get_int("cache.default_ttl", 3600, env_var="CACHE_DEFAULT_TTL")
+    CACHE_MAX_CONNECTIONS: int = config_manager.get_int("cache.max_connections", 10, env_var="CACHE_MAX_CONNECTIONS")
+    CACHE_SOCKET_TIMEOUT: int = config_manager.get_int("cache.socket_timeout", 5, env_var="CACHE_SOCKET_TIMEOUT")
+    CACHE_SOCKET_CONNECT_TIMEOUT: int = config_manager.get_int(
+        "cache.socket_connect_timeout", 5, env_var="CACHE_SOCKET_CONNECT_TIMEOUT"
+    )
+    CACHE_RETRY_ON_TIMEOUT: bool = config_manager.get_bool(
+        "cache.retry_on_timeout", True, env_var="CACHE_RETRY_ON_TIMEOUT"
+    )
+
     # 测试配置（可选）
     MAIMNP_BASE_URL: Optional[str] = None
     MAIMNP_USERNAME: Optional[str] = None
