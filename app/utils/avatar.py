@@ -186,11 +186,11 @@ def generate_initial_avatar(username: str, size: int = 200) -> bytes:
         if os.name == "nt":
             font_path = "C:/Windows/Fonts/arial.ttf"
             if os.path.exists(font_path):
-                font = ImageFont.truetype(font_path, size=int(size * 0.5))
+                font = ImageFont.truetype(font_path, size=int(size * 0.8))
             else:
                 font = ImageFont.load_default()
         else:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size=int(size * 0.5))
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size=int(size * 0.8))
     except Exception:
         font = ImageFont.load_default()
 

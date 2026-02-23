@@ -5,7 +5,7 @@ Pydantic 模型定义
 """
 
 from pydantic import BaseModel, EmailStr, Field, model_validator, ConfigDict
-from typing import List, Optional, Dict, Any, Literal, Generic, TypeVar
+from typing import List, Optional, Dict, Any, Literal, Generic, TypeVar, Union
 from datetime import datetime
 
 
@@ -100,7 +100,7 @@ class KnowledgeBaseUpdate(BaseModel):
     is_public: Optional[bool] = None
     is_pending: Optional[bool] = None
     content: Optional[str] = None
-    tags: Optional[List[str]] = None
+    tags: Optional[Union[str, List[str]]] = None
 
 
 class KnowledgeBaseFileResponse(BaseModel):

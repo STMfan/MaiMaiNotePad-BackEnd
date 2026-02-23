@@ -577,6 +577,22 @@ def _apply_kb_updates(kb: KnowledgeBase, update_dict: dict, db: Session) -> None
         update_dict: 更新字典
         db: 数据库会话
     """
+    tags_value = update_dict.get("tags", None)
+    if tags_value is not None:
+        if isinstance(tags_value, list):
+            cleaned_tags = []
+            for item in tags_value:
+                if item is None:
+                    continue
+                text = str(item).strip()
+                if text:
+                    cleaned_tags.append(text)
+            update_dict["tags"] = ",".join(cleaned_tags) if cleaned_tags else None
+        elif isinstance(tags_value, str):
+            normalized = tags_value.replace("，", ",")
+            parts = [part.strip() for part in normalized.split(",") if part.strip()]
+            update_dict["tags"] = ",".join(parts) if parts else None
+
     for key, value in update_dict.items():
         if hasattr(kb, key):
             setattr(kb, key, value)
