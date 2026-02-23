@@ -122,3 +122,8 @@ markers = [
     "meta: marks tests that test the testing framework itself (in tests/meta/)",
 ]
 asyncio_mode = "auto"
+
+[tool.manage]
+# 管理工具配置
+# 是否隐藏 dialog 安装提示（用户选择 'c' 后会设置为 true）
+hide_dialog_tip = false
