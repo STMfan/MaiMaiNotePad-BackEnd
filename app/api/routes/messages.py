@@ -10,19 +10,19 @@
 """
 
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.response_util import Success, Page
-from app.core.error_handlers import APIError, ValidationError, AuthorizationError, NotFoundError, DatabaseError
+from app.api.deps import get_current_user
+from app.api.response_util import Page, Success
+from app.core.database import get_db
+from app.core.error_handlers import APIError, AuthorizationError, DatabaseError, NotFoundError, ValidationError
 
 # 导入错误处理和日志记录模块
-from app.core.logging import app_logger, log_exception, log_database_operation
-from app.models.schemas import MessageCreate, MessageUpdate, MessageResponse, BaseResponse, PageResponse
-from app.api.deps import get_current_user
-from app.core.database import get_db
+from app.core.logging import app_logger, log_database_operation, log_exception
+from app.models.schemas import BaseResponse, MessageCreate, MessageResponse, MessageUpdate, PageResponse
 from app.services.message_service import MessageService
 from app.utils.websocket import message_ws_manager
 
@@ -55,7 +55,7 @@ def _validate_message_input(title: str, content: str) -> tuple[str, str]:
     return title, content
 
 
-def _validate_broadcast_permissions(message_type: str, broadcast_scope: Optional[str], user_role: str) -> None:
+def _validate_broadcast_permissions(message_type: str, broadcast_scope: str | None, user_role: str) -> None:
     """验证广播权限
 
     Args:
@@ -80,10 +80,10 @@ def _validate_broadcast_permissions(message_type: str, broadcast_scope: Optional
 
 def _collect_recipient_ids(
     message_service: MessageService,
-    recipient_id: Optional[str],
-    recipient_ids: Optional[List[str]],
+    recipient_id: str | None,
+    recipient_ids: list[str] | None,
     message_type: str,
-    broadcast_scope: Optional[str],
+    broadcast_scope: str | None,
     sender_id: str,
 ) -> set:
     """收集接收者ID
@@ -234,7 +234,7 @@ async def send_message(
     except Exception as e:
         log_exception(app_logger, "Send message error", exception=e)
         log_database_operation(app_logger, "create", "message", user_id=sender_id, success=False, error_message=str(e))
-        raise APIError("发送消息失败")
+        raise APIError("发送消息失败") from e
 
 
 @router.get("/messages/{message_id}", response_model=BaseResponse[MessageResponse])
@@ -286,13 +286,13 @@ async def get_message_detail(
         raise
     except Exception as e:
         log_exception(app_logger, "Get message detail error", exception=e)
-        raise APIError("获取消息详情失败")
+        raise APIError("获取消息详情失败") from e
 
 
 @router.get("/messages", response_model=BaseResponse[list[MessageResponse]])
 async def get_messages(
     current_user: dict = Depends(get_current_user),
-    other_user_id: Optional[str] = None,
+    other_user_id: str | None = None,
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),
@@ -352,7 +352,7 @@ async def get_messages(
         raise
     except Exception as e:
         log_exception(app_logger, "Get messages error", exception=e)
-        raise APIError("获取消息列表失败")
+        raise APIError("获取消息列表失败") from e
 
 
 @router.get("/messages/by-type/{message_type}", response_model=BaseResponse[list[MessageResponse]])
@@ -410,7 +410,7 @@ async def get_messages_by_type(
         raise
     except Exception as e:
         log_exception(app_logger, "Get messages by type error", exception=e)
-        raise APIError("按类型获取消息列表失败")
+        raise APIError("按类型获取消息列表失败") from e
 
 
 @router.post("/messages/{message_id}/read", response_model=BaseResponse[None])
@@ -466,7 +466,7 @@ async def mark_message_read(
         log_database_operation(
             app_logger, "update", "message", record_id=message_id, user_id=user_id, success=False, error_message=str(e)
         )
-        raise APIError("标记消息已读失败")
+        raise APIError("标记消息已读失败") from e
 
 
 @router.delete("/messages/{message_id}")
@@ -536,7 +536,7 @@ async def delete_message(
         log_database_operation(
             app_logger, "delete", "message", record_id=message_id, user_id=user_id, success=False, error_message=str(e)
         )
-        raise APIError("删除消息失败")
+        raise APIError("删除消息失败") from e
 
 
 def _check_message_delete_permission(message: Any, user_id: str, current_user: dict) -> bool:
@@ -670,7 +670,7 @@ async def update_message(
         log_database_operation(
             app_logger, "update", "message", record_id=message_id, user_id=user_id, success=False, error_message=str(e)
         )
-        raise APIError("更新消息失败")
+        raise APIError("更新消息失败") from e
 
 
 def _validate_message_update_data(update_data: Any) -> tuple[str, str, str]:
@@ -775,7 +775,7 @@ async def get_broadcast_messages(
         messages = message_service.get_broadcast_messages(page=page, page_size=page_size)
 
         # 获取发送者信息
-        sender_ids = list(set([msg.sender_id for msg in messages]))
+        sender_ids = list({msg.sender_id for msg in messages})
         senders = {}
         if sender_ids:
             users = message_service.get_users_by_ids(sender_ids)
@@ -783,7 +783,7 @@ async def get_broadcast_messages(
                 senders[user.id] = {"id": user.id, "username": user.username, "email": user.email}
 
         # 构建返回数据，包含统计信息
-        result: List[Dict[str, Any]] = []
+        result: list[dict[str, Any]] = []
         for msg in messages:
             stats = message_service.get_broadcast_message_stats(message_id=msg.id)
 
@@ -809,4 +809,4 @@ async def get_broadcast_messages(
         raise
     except Exception as e:
         log_exception(app_logger, "Get broadcast messages error", exception=e)
-        raise APIError("获取广播消息历史失败")
+        raise APIError("获取广播消息历史失败") from e

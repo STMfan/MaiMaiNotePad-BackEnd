@@ -16,8 +16,9 @@ import pytest
 pytestmark = pytest.mark.serial
 import json  # noqa: E402
 import time  # noqa: E402
-from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
+
 from app.core.security import create_access_token  # noqa: E402
+from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
 
 
 class TestServerMessageFormat:

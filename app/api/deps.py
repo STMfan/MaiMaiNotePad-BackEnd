@@ -4,16 +4,14 @@ API 依赖注入模块
 提供 FastAPI 路由所需的认证和授权依赖。
 """
 
-from typing import Optional
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import verify_token
 from app.core.messages import get_message
+from app.core.security import verify_token
 from app.services.user_service import UserService
-
 
 # HTTP Bearer 安全方案
 security = HTTPBearer()
@@ -142,9 +140,9 @@ async def get_moderator_user(current_user: dict = Depends(get_current_user)) -> 
 
 
 async def get_current_user_optional(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
+    credentials: HTTPAuthorizationCredentials | None = Depends(HTTPBearer(auto_error=False)),
     db: Session = Depends(get_db),
-) -> Optional[dict]:
+) -> dict | None:
     """
     获取当前已认证用户（可选，未提供令牌时返回 None）。
 

@@ -7,10 +7,9 @@
 import logging
 import logging.handlers
 import os
-from pathlib import Path
 import sys
 import traceback
-from typing import Optional
+from pathlib import Path
 
 from app.core.config import settings
 
@@ -107,7 +106,7 @@ def setup_logger(
 
 
 def log_exception(
-    logger: logging.Logger, message: str, exception: Optional[Exception] = None, reraise: bool = False
+    logger: logging.Logger, message: str, exception: Exception | None = None, reraise: bool = False
 ) -> None:
     """
     记录异常信息。
@@ -139,9 +138,9 @@ def log_api_request(
     logger: logging.Logger,
     method: str,
     path: str,
-    user_id: Optional[str] = None,
+    user_id: str | None = None,
     status_code: int = 200,
-    processing_time: Optional[float] = None,
+    processing_time: float | None = None,
 ) -> None:
     """
     记录 API 请求日志。
@@ -164,9 +163,9 @@ def log_file_operation(
     logger: logging.Logger,
     operation: str,
     file_path: str,
-    user_id: Optional[str] = None,
+    user_id: str | None = None,
     success: bool = True,
-    error_message: Optional[str] = None,
+    error_message: str | None = None,
 ) -> None:
     """
     记录文件操作日志。
@@ -191,10 +190,10 @@ def log_database_operation(
     logger: logging.Logger,
     operation: str,
     table: str,
-    record_id: Optional[str] = None,
-    user_id: Optional[str] = None,
+    record_id: str | None = None,
+    user_id: str | None = None,
     success: bool = True,
-    error_message: Optional[str] = None,
+    error_message: str | None = None,
 ) -> None:
     """
     记录数据库操作日志。

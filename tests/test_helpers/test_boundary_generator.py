@@ -4,11 +4,13 @@
 测试 BoundaryValueGenerator 类的所有功能。
 """
 
-import pytest
-import sys
 import math
+import sys
 from datetime import datetime
-from tests.helpers.boundary_generator import BoundaryValueGenerator, BoundaryValue
+
+import pytest
+
+from tests.helpers.boundary_generator import BoundaryValue, BoundaryValueGenerator
 
 
 class TestBoundaryValueGenerator:
@@ -425,7 +427,7 @@ class TestBoundaryValueGenerator:
         """测试边界值类别正确性"""
         all_boundaries = generator.generate_all_boundaries()
 
-        for type_name, boundaries in all_boundaries.items():
+        for _type_name, boundaries in all_boundaries.items():
             for bv in boundaries:
                 # 验证类别是有效的
                 assert bv.category in ["boundary", "null", "empty", "max", "min", "extreme"]
@@ -443,7 +445,7 @@ class TestBoundaryValueGenerator:
 
         valid_behaviors = ["handle_gracefully", "raise_exception", "return_none"]
 
-        for type_name, boundaries in all_boundaries.items():
+        for _type_name, boundaries in all_boundaries.items():
             for bv in boundaries:
                 assert bv.expected_behavior in valid_behaviors
 
@@ -998,11 +1000,11 @@ class TestBoundaryValueGenerator:
         assert len(basic_cases) == 15  # 5 threads * 3 operations = 15 combinations
 
         # 验证默认线程数
-        thread_counts = set(tc["num_threads"] for tc in basic_cases)
+        thread_counts = {tc["num_threads"] for tc in basic_cases}
         assert thread_counts == {2, 5, 10, 50, 100}
 
         # 验证默认操作次数
-        operation_counts = set(tc["num_operations"] for tc in basic_cases)
+        operation_counts = {tc["num_operations"] for tc in basic_cases}
         assert operation_counts == {1, 10, 100}
 
     def test_generate_concurrent_test_cases_race_condition(self, generator):
@@ -1180,7 +1182,7 @@ class TestBoundaryValueGenerator:
         test_cases = generator.generate_concurrent_test_cases(function=sample_function, operation_type="mixed")
 
         # 验证包含所有测试类型
-        test_types = set(tc["test_type"] for tc in test_cases)
+        test_types = {tc["test_type"] for tc in test_cases}
         expected_types = {
             "basic_concurrent",
             "race_condition",

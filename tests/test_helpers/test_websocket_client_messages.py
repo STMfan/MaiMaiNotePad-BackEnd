@@ -10,10 +10,12 @@ WebSocket测试客户端消息收发功能单元测试
 - 消息历史和统计
 """
 
-import pytest
 import json
 from unittest.mock import Mock
-from tests.helpers.websocket_client import WebSocketTestClient, MessageType, ConnectionState
+
+import pytest
+
+from tests.helpers.websocket_client import ConnectionState, MessageType, WebSocketTestClient
 
 
 class TestMessageReceiving:

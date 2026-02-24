@@ -6,11 +6,13 @@ WebSocket 连接清理属性测试
 **Validates: Requirements FR6 - 基于属性的测试**
 """
 
-import pytest
 import asyncio
-from hypothesis import given, strategies as st, assume, settings, HealthCheck
 import gc
 from typing import TYPE_CHECKING
+
+import pytest
+from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import strategies as st
 
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
@@ -62,10 +64,11 @@ class TestWebSocketConnectionCleanup:
 
         **Validates: Requirements FR6**
         """
-        from app.utils.websocket import message_ws_manager
-        from app.core.security import create_access_token
         from fastapi.testclient import TestClient
+
+        from app.core.security import create_access_token
         from app.main import app
+        from app.utils.websocket import message_ws_manager
 
         # 创建 token
         token = create_access_token({"sub": test_user.id, "username": test_user.username})
@@ -106,10 +109,11 @@ class TestWebSocketConnectionCleanup:
 
         **Validates: Requirements FR6**
         """
-        from app.utils.websocket import message_ws_manager
-        from app.core.security import create_access_token
         from fastapi.testclient import TestClient
+
+        from app.core.security import create_access_token
         from app.main import app
+        from app.utils.websocket import message_ws_manager
 
         # 限制连接数以避免资源耗尽
         assume(1 <= num_connections <= 5)
@@ -125,7 +129,7 @@ class TestWebSocketConnectionCleanup:
         connections = []
 
         try:
-            for i in range(num_connections):
+            for _i in range(num_connections):
                 try:
                     ws = client.websocket_connect(f"/api/ws/{token}")
                     connections.append(ws)
@@ -172,10 +176,11 @@ class TestWebSocketConnectionCleanup:
 
         **Validates: Requirements FR6**
         """
-        from app.utils.websocket import message_ws_manager
-        from app.core.security import create_access_token
         from fastapi.testclient import TestClient
+
+        from app.core.security import create_access_token
         from app.main import app
+        from app.utils.websocket import message_ws_manager
 
         # 创建 token
         token = create_access_token({"sub": test_user.id, "username": test_user.username})
@@ -215,10 +220,11 @@ class TestWebSocketConnectionCleanup:
 
         **Validates: Requirements FR6**
         """
-        from app.utils.websocket import message_ws_manager
-        from app.core.security import create_access_token
         from fastapi.testclient import TestClient
+
+        from app.core.security import create_access_token
         from app.main import app
+        from app.utils.websocket import message_ws_manager
 
         # 创建 token
         token = create_access_token({"sub": test_user.id, "username": test_user.username})
@@ -289,8 +295,9 @@ class TestMemoryLeakPrevention:
 
         **Validates: Requirements FR6**
         """
-        from app.core.security import create_access_token
         from fastapi.testclient import TestClient
+
+        from app.core.security import create_access_token
         from app.main import app
 
         # 预热：先运行一次以稳定对象数量
@@ -362,10 +369,12 @@ class TestMemoryLeakPrevention:
 
         **Validates: Requirements FR6**
         """
-        from app.core.security import create_access_token
-        from fastapi.testclient import TestClient
-        from app.main import app
         import weakref
+
+        from fastapi.testclient import TestClient
+
+        from app.core.security import create_access_token
+        from app.main import app
 
         # 创建 token
         token = create_access_token({"sub": test_user.id, "username": test_user.username})
@@ -434,10 +443,11 @@ class TestConcurrentConnectionHandling:
 
         **Validates: Requirements FR6**
         """
-        from app.utils.websocket import message_ws_manager
-        from app.core.security import create_access_token
         from fastapi.testclient import TestClient
+
+        from app.core.security import create_access_token
         from app.main import app
+        from app.utils.websocket import message_ws_manager
 
         # 限制并发数
         assume(2 <= num_concurrent <= 5)
@@ -453,7 +463,7 @@ class TestConcurrentConnectionHandling:
 
         try:
             # 创建多个并发连接
-            for i in range(num_concurrent):
+            for _i in range(num_concurrent):
                 try:
                     ws = client.websocket_connect(f"/api/ws/{token}")
                     connections.append(ws)
@@ -505,10 +515,11 @@ class TestConcurrentConnectionHandling:
 
         **Validates: Requirements FR6**
         """
-        from app.utils.websocket import message_ws_manager
-        from app.core.security import create_access_token
         from fastapi.testclient import TestClient
+
+        from app.core.security import create_access_token
         from app.main import app
+        from app.utils.websocket import message_ws_manager
 
         # 创建 token
         token = create_access_token({"sub": test_user.id, "username": test_user.username})

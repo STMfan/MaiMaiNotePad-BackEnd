@@ -7,12 +7,13 @@
 
 import uuid
 from datetime import datetime, timedelta
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 from unittest.mock import patch
 
-from app.models.database import User, EmailVerification
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
 from app.core.security import get_password_hash
+from app.models.database import EmailVerification, User
 
 
 class TestLogin:

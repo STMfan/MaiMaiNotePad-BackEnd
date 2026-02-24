@@ -7,6 +7,7 @@ Requirements: 3.6
 """
 
 from datetime import datetime, timedelta
+
 from tests.conftest import assert_error_response
 
 
@@ -712,8 +713,8 @@ class TestDatabaseOperationFailures:
         from unittest.mock import patch
 
         # Patch UserService.create_user to return None (simulating database failure)
-        with patch("app.api.routes.admin.UserService") as MockUserService:
-            mock_service = MockUserService.return_value
+        with patch("app.api.routes.admin.UserService") as mock_user_service:
+            mock_service = mock_user_service.return_value
             mock_service.get_user_by_username.return_value = None
             mock_service.get_user_by_email.return_value = None
             mock_service.create_user.return_value = None  # Simulate database failure
@@ -743,12 +744,12 @@ class TestAdminEdgeCases:
     def test_get_admin_stats_detailed_counts(self, admin_client, factory, test_db):
         """Test admin stats returns accurate counts"""
         # Create various entities
-        for i in range(5):
+        for _i in range(5):
             factory.create_user()
-        for i in range(3):
+        for _i in range(3):
             user = factory.create_user()
             factory.create_knowledge_base(uploader=user, is_public=True)
-        for i in range(2):
+        for _i in range(2):
             user = factory.create_user()
             factory.create_persona_card(uploader=user, is_pending=True)
 
@@ -1396,9 +1397,9 @@ class TestAdminSystemStatistics:
         user = factory.create_user()
 
         # 创建待审核内容
-        for i in range(7):
+        for _i in range(7):
             factory.create_knowledge_base(uploader=user, is_pending=True)
-        for i in range(4):
+        for _i in range(4):
             factory.create_persona_card(uploader=user, is_pending=True)
 
         response = admin_client.get("/api/admin/stats")

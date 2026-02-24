@@ -1,15 +1,16 @@
-import pytest
+import logging
 import os
 import sys
 import uuid
-import logging
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Optional, Union, List
+
+import pytest
 from fastapi.testclient import TestClient
+from hypothesis import HealthCheck, Verbosity, settings
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker, Session
-from hypothesis import settings, Verbosity, HealthCheck
+from sqlalchemy.orm import Session, sessionmaker
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,7 @@ def pytest_configure(config):
     # 确保测试数据库有表结构
     # 这样即使测试直接创建 TestClient 而不使用 fixture，也能正常工作
     from sqlalchemy import create_engine, inspect
+
     from app.models.database import Base
 
     engine = create_engine(test_db_url, connect_args={"check_same_thread": False})
@@ -181,7 +183,7 @@ def _check_file_available(path: Path, attempt: int, max_retries: int, retry_dela
         with open(path, "a"):
             pass  # 文件可以打开，说明没有被独占锁定
         return True
-    except (IOError, OSError):
+    except OSError:
         # 文件被锁定，等待后重试
         if attempt < max_retries - 1:
             time.sleep(retry_delay)
@@ -294,23 +296,23 @@ settings.register_profile("dev", max_examples=10, verbosity=Verbosity.normal, de
 settings.load_profile(test_config.get("HYPOTHESIS_PROFILE", "ci"))
 
 # 设置环境变量后导入
+from app.core.database import get_db  # noqa: E402
+from app.core.security import get_password_hash  # noqa: E402
 from app.models.database import (  # noqa: E402
     Base,
-    User,
+    Comment,
+    CommentReaction,
+    DownloadRecord,
     EmailVerification,
     KnowledgeBase,
     KnowledgeBaseFile,
+    Message,
     PersonaCard,
     PersonaCardFile,
-    Message,
     StarRecord,
     UploadRecord,
-    DownloadRecord,
-    Comment,
-    CommentReaction,
+    User,
 )
-from app.core.database import get_db  # noqa: E402
-from app.core.security import get_password_hash  # noqa: E402
 from tests.fixtures.data_factory import TestDataFactory  # noqa: E402
 from tests.helpers.boundary_generator import BoundaryValueGenerator  # noqa: E402
 
@@ -384,9 +386,9 @@ def override_get_db():
     """覆盖数据库依赖用于测试"""
     # 动态获取当前 worker 的会话工厂，而不是使用模块级别的全局变量
     # 这确保每个 worker 使用自己的数据库连接
-    SessionLocal = get_cached_session_factory()
+    session_local = get_cached_session_factory()
     try:
-        db = SessionLocal()
+        db = session_local()
         # 调试：验证我们使用的是正确的数据库
         worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
         db_url = os.environ.get("DATABASE_URL", "unknown")
@@ -400,9 +402,9 @@ def override_get_db():
 def test_db() -> Session:
     """创建测试数据库会话"""
     # 动态获取当前 worker 的会话工厂
-    SessionLocal = get_cached_session_factory()
+    session_local = get_cached_session_factory()
     # 使用简单的会话，不使用事务隔离，用于集成测试
-    session = SessionLocal()
+    session = session_local()
 
     try:
         yield session
@@ -411,10 +413,10 @@ def test_db() -> Session:
             # 1. 强制回滚所有事务，确保会话处于干净状态
             if session.in_transaction():
                 session.rollback()
-            
+
             # 2. 分离所有对象，避免在删除时刷新已删除的对象
             session.expunge_all()
-            
+
             # 3. 按正确顺序删除数据（子表 → 父表）
             # 正确的删除顺序（遵循外键约束）：
             # CommentReaction → Comment → DownloadRecord → UploadRecord →
@@ -434,7 +436,7 @@ def test_db() -> Session:
                 (KnowledgeBase, "knowledge_bases"),
                 (User, "users"),
             ]
-            
+
             for model, table_name in deletion_order:
                 try:
                     count = session.query(model).delete()
@@ -444,15 +446,15 @@ def test_db() -> Session:
                     logger.error(f"Failed to delete from {table_name}: {e}")
                     session.rollback()
                     raise
-            
+
             session.commit()
-            
+
             # 4. 验证清理完成
             for model, table_name in deletion_order:
                 remaining = session.query(model).count()
                 if remaining > 0:
                     logger.warning(f"Table {table_name} still has {remaining} records after cleanup")
-                    
+
         except Exception as e:
             logger.error(f"Error during test_db cleanup: {e}")
             if session.in_transaction():
@@ -993,7 +995,7 @@ def generate_null_test_cases(function: Callable, param_name: str, include_nested
 
 
 def generate_max_value_test_cases(
-    function: Callable, param_name: str, param_type: str, max_value: Optional[Union[int, float, str]] = None, **kwargs
+    function: Callable, param_name: str, param_type: str, max_value: int | float | str | None = None, **kwargs
 ):
     """
     便捷函数：为指定函数和参数生成最大值测试用例
@@ -1028,8 +1030,8 @@ def generate_max_value_test_cases(
 
 def generate_concurrent_test_cases(
     function: Callable,
-    num_threads: Optional[Union[int, List[int]]] = None,
-    num_operations: Optional[Union[int, List[int]]] = None,
+    num_threads: int | list[int] | None = None,
+    num_operations: int | list[int] | None = None,
     operation_type: str = "mixed",
 ):
     """

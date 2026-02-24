@@ -4,17 +4,17 @@
 提供 JWT 令牌管理和密码哈希功能。
 """
 
-import jwt
 import os
-import bcrypt
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
 import secrets
 import warnings
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+import bcrypt
+import jwt
 
 from app.core.config import settings
 from app.core.config_manager import config_manager
-
 
 # bcrypt 配置
 # 在测试环境中使用更少的 rounds 来加速测试（通过 BCRYPT_ROUNDS 环境变量）
@@ -28,12 +28,14 @@ if not SECRET_KEY:
     warnings.warn(
         "⚠️  警告：JWT_SECRET_KEY 环境变量未设置！已生成临时密钥，生产环境必须设置强随机密钥！",
         UserWarning,
+        stacklevel=2,
     )
 
 if SECRET_KEY == "your-secret-key-change-this-in-production":
     warnings.warn(
         "⚠️  警告：使用默认 JWT Secret Key，生产环境不安全！请设置 JWT_SECRET_KEY 环境变量！",
         UserWarning,
+        stacklevel=2,
     )
 
 ALGORITHM = settings.JWT_ALGORITHM
@@ -94,7 +96,7 @@ def get_password_hash(password: str) -> str:
     return hashed.decode("utf-8")
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """
     创建 JWT 访问令牌。
 
@@ -109,9 +111,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
     # 设置过期时间
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
     to_encode.update({"exp": expire})
 
@@ -120,7 +122,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
-def verify_token(token: str) -> Optional[Dict[str, Any]]:
+def verify_token(token: str) -> dict[str, Any] | None:
     """
     验证并解码 JWT 令牌。
 
@@ -137,7 +139,7 @@ def verify_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def get_user_from_token(token: str) -> Optional[Dict[str, Any]]:
+def get_user_from_token(token: str) -> dict[str, Any] | None:
     """
     从 JWT 令牌中提取用户信息。
 
@@ -156,7 +158,7 @@ def get_user_from_token(token: str) -> Optional[Dict[str, Any]]:
     if exp is None:
         return None
 
-    if datetime.now(timezone.utc) > datetime.fromtimestamp(exp, timezone.utc):
+    if datetime.now(UTC) > datetime.fromtimestamp(exp, UTC):
         return None
 
     return payload

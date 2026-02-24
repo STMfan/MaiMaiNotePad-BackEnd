@@ -9,28 +9,28 @@
 - 内容审核管理
 """
 
-from typing import Optional
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status as HTTPStatus, Body
+from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import status as http_status
+from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_, desc
 
-from app.api.response_util import Success, Page
+from app.api.deps import get_current_user
+from app.api.response_util import Page, Success
 from app.core.database import get_db
-from app.models.database import (
-    User,
-    KnowledgeBase,
-    PersonaCard,
-    UploadRecord,
-    Message,
-)
-from app.core.error_handlers import ValidationError, NotFoundError, ConflictError, DatabaseError
-from app.services.user_service import UserService
+from app.core.error_handlers import ConflictError, DatabaseError, NotFoundError, ValidationError
 
 # 导入错误处理和日志记录模块
-from app.core.logging import app_logger, log_exception, log_api_request, log_database_operation
-from app.api.deps import get_current_user
+from app.core.logging import app_logger, log_api_request, log_database_operation, log_exception
+from app.models.database import (
+    KnowledgeBase,
+    Message,
+    PersonaCard,
+    UploadRecord,
+    User,
+)
+from app.services.user_service import UserService
 
 # 创建路由器
 router = APIRouter()
@@ -42,7 +42,7 @@ async def get_admin_stats(current_user: dict = Depends(get_current_user), db: Se
     """获取管理员统计数据（仅限admin）"""
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         app_logger.info(f"Get admin stats: user_id={current_user.get('id')}")
@@ -79,7 +79,9 @@ async def get_admin_stats(current_user: dict = Depends(get_current_user), db: Se
         raise
     except Exception as e:
         log_exception(app_logger, "Get admin stats error", exception=e)
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取统计数据失败: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取统计数据失败: {str(e)}"
+        ) from e
 
 
 @router.get("/recent-users")
@@ -89,7 +91,7 @@ async def get_recent_users(
     """获取最近注册的用户列表（仅限admin，支持分页）"""
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         app_logger.info(f"Get recent users: user_id={current_user.get('id')}, page_size={page_size}, page={page}")
@@ -138,7 +140,9 @@ async def get_recent_users(
         raise
     except Exception as e:
         log_exception(app_logger, "Get recent users error", exception=e)
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取最近用户失败: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取最近用户失败: {str(e)}"
+        ) from e
 
 
 def _normalize_pagination_params(page_size: int, page: int) -> tuple[int, int]:
@@ -158,7 +162,7 @@ def _normalize_pagination_params(page_size: int, page: int) -> tuple[int, int]:
     return page_size, page
 
 
-def _build_user_query(db: Session, search: Optional[str], role: Optional[str]):
+def _build_user_query(db: Session, search: str | None, role: str | None):
     """构建用户查询
 
     Args:
@@ -260,15 +264,15 @@ def _build_user_info_dict(user: User, db: Session, last_upload_map: dict[str, da
 async def get_all_users(
     page_size: int = 20,
     page: int = 1,
-    search: Optional[str] = None,
-    role: Optional[str] = None,
+    search: str | None = None,
+    role: str | None = None,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """获取所有用户列表（仅限admin，支持分页、搜索、角色筛选）"""
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         app_logger.info(
@@ -302,7 +306,9 @@ async def get_all_users(
         raise
     except Exception as e:
         log_exception(app_logger, "Get all users error", exception=e)
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取用户列表失败: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取用户列表失败: {str(e)}"
+        ) from e
 
 
 def _validate_role_value(new_role: str) -> None:
@@ -387,7 +393,7 @@ async def update_user_role(
     """更新用户角色（仅限admin）"""
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         app_logger.info(
@@ -420,7 +426,9 @@ async def update_user_role(
         raise
     except Exception as e:
         log_exception(app_logger, "Update user role error", exception=e)
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"更新用户角色失败: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"更新用户角色失败: {str(e)}"
+        ) from e
 
 
 def _parse_mute_duration(duration: str) -> datetime | None:
@@ -525,7 +533,7 @@ async def mute_user(
 ):
     """禁言用户（仅限admin）"""
     if not current_user.get("is_admin", False):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         duration = body.get("duration", "7d")
@@ -560,14 +568,16 @@ async def mute_user(
         raise
     except Exception as e:
         log_exception(app_logger, "Mute user error", exception=e)
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"禁言用户失败: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"禁言用户失败: {str(e)}"
+        ) from e
 
 
 @router.post("/users/{user_id}/unmute")
 async def unmute_user(user_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """解除禁言（仅限admin）"""
     if not current_user.get("is_admin", False):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         app_logger.info(f"解除禁言: user_id={user_id}, operator={current_user.get('id')}")
@@ -610,10 +620,12 @@ async def unmute_user(user_id: str, current_user: dict = Depends(get_current_use
 
         return Success(message="用户已解除禁言", data={"userId": user_id, "isMuted": False, "mutedUntil": None})
     except NotFoundError as e:
-        raise HTTPException(status_code=HTTPStatus.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except Exception as e:
         log_exception(app_logger, "Unmute user error", exception=e)
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"解除禁言失败: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"解除禁言失败: {str(e)}"
+        ) from e
 
 
 def _validate_delete_user_request(user_id: str, current_user: dict) -> None:
@@ -679,7 +691,7 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
     """删除用户（仅限admin，软删除）"""
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         app_logger.info(f"Delete user: user_id={user_id}, operator={current_user.get('id')}")
@@ -707,7 +719,9 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
         raise
     except Exception as e:
         log_exception(app_logger, "Delete user error", exception=e)
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"删除用户失败: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"删除用户失败: {str(e)}"
+        ) from e
 
 
 @router.post("/users/{user_id}/ban")
@@ -716,7 +730,7 @@ async def ban_user(
 ):
     """封禁用户（仅限admin），支持按时长封禁"""
     if not current_user.get("is_admin", False):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         duration = body.get("duration", "permanent")
@@ -746,7 +760,9 @@ async def ban_user(
         raise
     except Exception as e:
         log_exception(app_logger, "Ban user error", exception=e)
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"封禁用户失败: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"封禁用户失败: {str(e)}"
+        ) from e
 
 
 def _validate_ban_request(user_id: str, current_user: dict) -> None:
@@ -847,7 +863,7 @@ def _send_ban_notification(
 async def unban_user(user_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """解封用户（仅限admin）"""
     if not current_user.get("is_admin", False):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         app_logger.info(f"Unban user: user_id={user_id}, operator={current_user.get('id')}")
@@ -903,7 +919,9 @@ async def unban_user(user_id: str, current_user: dict = Depends(get_current_user
         raise
     except Exception as e:
         log_exception(app_logger, "Unban user error", exception=e)
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"解封用户失败: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"解封用户失败: {str(e)}"
+        ) from e
 
 
 def _extract_user_creation_data(user_data: dict) -> tuple[str, str, str, str]:
@@ -1027,7 +1045,7 @@ async def create_user_by_admin(
     """创建新用户（仅限admin）"""
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
 
     try:
         app_logger.info(
@@ -1061,43 +1079,49 @@ async def create_user_by_admin(
         raise
     except Exception as e:
         log_exception(app_logger, "Create user by admin error", exception=e)
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"创建用户失败: {str(e)}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"创建用户失败: {str(e)}"
+        ) from e
 
 
 # 缓存统计相关路由
 @router.get("/cache/stats")
 async def get_cache_stats(current_user: dict = Depends(get_current_user)):
     """获取缓存统计信息（仅限admin）
-    
+
     返回缓存命中率、降级次数、降级原因等统计数据。
-    
+
     Args:
         current_user: 当前用户信息
-        
+
     Returns:
         Success: 包含缓存统计信息的响应
-        
+
     Raises:
         HTTPException: 权限不足或获取统计信息失败
     """
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
-    
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+
     try:
         app_logger.info(f"Get cache stats: user_id={current_user.get('id')}")
-        
+
         # 从应用实例获取缓存中间件
         from app.main import app
-        
+
         # 查找缓存中间件实例
         cache_middleware = None
         for middleware in app.user_middleware:
-            if hasattr(middleware, 'cls') and middleware.cls.__name__ == 'CacheMiddleware':
+            if (
+                hasattr(middleware, "cls")
+                and hasattr(middleware.cls, "__name__")
+                and middleware.cls.__name__ == "CacheMiddleware"
+            ):
                 # 获取中间件实例（需要从 app 的 middleware_stack 中获取）
-                cache_middleware = getattr(app.state, 'cache_middleware', None)
+                cache_middleware = getattr(app.state, "cache_middleware", None)
                 break
-        
+
         if cache_middleware is None:
             # 如果找不到中间件实例，返回默认统计信息
             app_logger.warning("缓存中间件未找到，返回默认统计信息")
@@ -1112,69 +1136,67 @@ async def get_cache_stats(current_user: dict = Depends(get_current_user)):
                     "total_cached_requests": 0,
                     "hit_rate": "0.00%",
                     "cache_enabled": False,
-                    "message": "缓存中间件未启用或未找到"
+                    "message": "缓存中间件未启用或未找到",
                 }
             )
-        
+
         # 获取统计信息
         stats = cache_middleware.get_stats()
-        
+
         log_api_request(app_logger, "GET", "/api/admin/cache/stats", current_user.get("id"), status_code=200)
         return Success(data=stats)
-        
+
     except HTTPException:
         raise
     except Exception as e:
         log_exception(app_logger, "Get cache stats error", exception=e)
         raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取缓存统计信息失败: {str(e)}"
-        )
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取缓存统计信息失败: {str(e)}"
+        ) from e
 
 
 @router.post("/cache/stats/reset")
 async def reset_cache_stats(current_user: dict = Depends(get_current_user)):
     """重置缓存统计信息（仅限admin）
-    
+
     清空所有缓存统计计数器，包括命中/未命中次数、降级统计等。
-    
+
     Args:
         current_user: 当前用户信息
-        
+
     Returns:
         Success: 重置成功的响应
-        
+
     Raises:
         HTTPException: 权限不足或重置失败
     """
     # 验证权限：仅admin
     if not current_user.get("is_admin", False):
-        raise HTTPException(status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="需要管理员权限")
-    
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+
     try:
         app_logger.info(f"Reset cache stats: user_id={current_user.get('id')}")
-        
+
         # 从应用实例获取缓存中间件
         from app.main import app
-        
+
         # 查找缓存中间件实例
-        cache_middleware = getattr(app.state, 'cache_middleware', None)
-        
+        cache_middleware = getattr(app.state, "cache_middleware", None)
+
         if cache_middleware is None:
             app_logger.warning("缓存中间件未找到，无法重置统计信息")
             return Success(message="缓存中间件未启用或未找到，无需重置")
-        
+
         # 重置统计信息
         cache_middleware.reset_stats()
-        
+
         log_api_request(app_logger, "POST", "/api/admin/cache/stats/reset", current_user.get("id"), status_code=200)
         return Success(message="缓存统计信息已重置")
-        
+
     except HTTPException:
         raise
     except Exception as e:
         log_exception(app_logger, "Reset cache stats error", exception=e)
         raise HTTPException(
-            status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"重置缓存统计信息失败: {str(e)}"
-        )
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"重置缓存统计信息失败: {str(e)}"
+        ) from e

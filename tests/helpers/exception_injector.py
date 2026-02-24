@@ -5,11 +5,12 @@
 用于系统化地测试所有服务层的异常处理和错误路径。
 """
 
-from typing import Optional, Any, Dict, Type
-from contextlib import contextmanager
-from unittest.mock import patch, MagicMock
-from sqlalchemy.exc import SQLAlchemyError
 import logging
+from contextlib import contextmanager
+from typing import Any
+from unittest.mock import MagicMock, patch
+
+from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
@@ -42,14 +43,14 @@ class ExceptionInjector:
 
     def __init__(self):
         """初始化异常注入器"""
-        self._active_patches: Dict[str, Any] = {}
-        self._original_values: Dict[str, Any] = {}
+        self._active_patches: dict[str, Any] = {}
+        self._original_values: dict[str, Any] = {}
 
     @contextmanager
     def inject_database_error(
         self,
         operation: str = "query",
-        error_type: Type[Exception] = SQLAlchemyError,
+        error_type: type[Exception] = SQLAlchemyError,
         error_message: str = "Database operation failed",
     ):
         """
@@ -105,7 +106,7 @@ class ExceptionInjector:
                 p.stop()
             logger.debug("Database error injection cleaned up")
 
-    def _inject_query_error(self, error_type: Type[Exception], error_message: str) -> Any:
+    def _inject_query_error(self, error_type: type[Exception], error_message: str) -> Any:
         """注入查询操作异常"""
         query_patch = patch("sqlalchemy.orm.Session.query")
         mock_query = query_patch.start()
@@ -113,7 +114,7 @@ class ExceptionInjector:
         logger.debug(f"Injected database error for query operation: {error_message}")
         return query_patch
 
-    def _inject_commit_error(self, error_type: Type[Exception], error_message: str) -> Any:
+    def _inject_commit_error(self, error_type: type[Exception], error_message: str) -> Any:
         """注入提交操作异常"""
         commit_patch = patch("sqlalchemy.orm.Session.commit")
         mock_commit = commit_patch.start()
@@ -121,7 +122,7 @@ class ExceptionInjector:
         logger.debug(f"Injected database error for commit operation: {error_message}")
         return commit_patch
 
-    def _inject_add_error(self, error_type: Type[Exception], error_message: str) -> Any:
+    def _inject_add_error(self, error_type: type[Exception], error_message: str) -> Any:
         """注入添加操作异常"""
         add_patch = patch("sqlalchemy.orm.Session.add")
         mock_add = add_patch.start()
@@ -129,7 +130,7 @@ class ExceptionInjector:
         logger.debug(f"Injected database error for add operation: {error_message}")
         return add_patch
 
-    def _inject_delete_error(self, error_type: Type[Exception], error_message: str) -> Any:
+    def _inject_delete_error(self, error_type: type[Exception], error_message: str) -> Any:
         """注入删除操作异常"""
         delete_patch = patch("sqlalchemy.orm.Session.delete")
         mock_delete = delete_patch.start()
@@ -137,7 +138,7 @@ class ExceptionInjector:
         logger.debug(f"Injected database error for delete operation: {error_message}")
         return delete_patch
 
-    def _inject_update_error(self, error_type: Type[Exception], error_message: str) -> Any:
+    def _inject_update_error(self, error_type: type[Exception], error_message: str) -> Any:
         """注入更新操作异常"""
         execute_patch = patch("sqlalchemy.orm.Session.execute")
         mock_execute = execute_patch.start()
@@ -145,7 +146,7 @@ class ExceptionInjector:
         logger.debug(f"Injected database error for update operation: {error_message}")
         return execute_patch
 
-    def _inject_refresh_error(self, error_type: Type[Exception], error_message: str) -> Any:
+    def _inject_refresh_error(self, error_type: type[Exception], error_message: str) -> Any:
         """注入刷新操作异常"""
         refresh_patch = patch("sqlalchemy.orm.Session.refresh")
         mock_refresh = refresh_patch.start()
@@ -153,7 +154,7 @@ class ExceptionInjector:
         logger.debug(f"Injected database error for refresh operation: {error_message}")
         return refresh_patch
 
-    def _inject_flush_error(self, error_type: Type[Exception], error_message: str) -> Any:
+    def _inject_flush_error(self, error_type: type[Exception], error_message: str) -> Any:
         """注入刷新缓存操作异常"""
         flush_patch = patch("sqlalchemy.orm.Session.flush")
         mock_flush = flush_patch.start()
@@ -161,7 +162,7 @@ class ExceptionInjector:
         logger.debug(f"Injected database error for flush operation: {error_message}")
         return flush_patch
 
-    def _inject_rollback_error(self, error_type: Type[Exception], error_message: str) -> Any:
+    def _inject_rollback_error(self, error_type: type[Exception], error_message: str) -> Any:
         """注入回滚操作异常"""
         rollback_patch = patch("sqlalchemy.orm.Session.rollback")
         mock_rollback = rollback_patch.start()
@@ -169,7 +170,7 @@ class ExceptionInjector:
         logger.debug(f"Injected database error for rollback operation: {error_message}")
         return rollback_patch
 
-    def _inject_scalar_error(self, error_type: Type[Exception], error_message: str) -> Any:
+    def _inject_scalar_error(self, error_type: type[Exception], error_message: str) -> Any:
         """注入标量查询操作异常"""
         scalar_patch = patch("sqlalchemy.orm.Query.scalar")
         mock_scalar = scalar_patch.start()
@@ -177,7 +178,7 @@ class ExceptionInjector:
         logger.debug(f"Injected database error for scalar operation: {error_message}")
         return scalar_patch
 
-    def _inject_first_error(self, error_type: Type[Exception], error_message: str) -> Any:
+    def _inject_first_error(self, error_type: type[Exception], error_message: str) -> Any:
         """注入获取第一条记录操作异常"""
         first_patch = patch("sqlalchemy.orm.Query.first")
         mock_first = first_patch.start()
@@ -185,7 +186,7 @@ class ExceptionInjector:
         logger.debug(f"Injected database error for first operation: {error_message}")
         return first_patch
 
-    def _inject_filter_error(self, error_type: Type[Exception], error_message: str) -> Any:
+    def _inject_filter_error(self, error_type: type[Exception], error_message: str) -> Any:
         """注入过滤操作异常"""
         filter_patch = patch("sqlalchemy.orm.Query.filter")
         mock_filter = filter_patch.start()
@@ -193,7 +194,7 @@ class ExceptionInjector:
         logger.debug(f"Injected database error for filter operation: {error_message}")
         return filter_patch
 
-    def _inject_count_error(self, error_type: Type[Exception], error_message: str) -> Any:
+    def _inject_count_error(self, error_type: type[Exception], error_message: str) -> Any:
         """注入计数操作异常"""
         count_patch = patch("sqlalchemy.orm.Query.count")
         mock_count = count_patch.start()
@@ -219,7 +220,7 @@ class ExceptionInjector:
         }
 
     @contextmanager
-    def inject_integrity_error(self, constraint: str = "unique_constraint", error_message: Optional[str] = None):
+    def inject_integrity_error(self, constraint: str = "unique_constraint", error_message: str | None = None):
         """
             注入数据库完整性约束错误
 
@@ -269,7 +270,7 @@ class ExceptionInjector:
             yield
 
     @contextmanager
-    def inject_validation_error(self, field: str, error_message: Optional[str] = None, error_type: str = "value_error"):
+    def inject_validation_error(self, field: str, error_message: str | None = None, error_type: str = "value_error"):
         """
         注入验证错误
 
@@ -376,7 +377,7 @@ class ExceptionInjector:
         self,
         error_message: str = "Permission denied",
         permission_type: str = "password_verify",
-        role: Optional[str] = None,
+        role: str | None = None,
     ):
         """
         注入权限错误
@@ -556,7 +557,7 @@ class ExceptionInjector:
             logger.debug("Permission error injection cleaned up")
 
     @contextmanager
-    def inject_network_error(self, error_type: str = "timeout", error_message: Optional[str] = None):
+    def inject_network_error(self, error_type: str = "timeout", error_message: str | None = None):
         """
         注入网络错误
 
@@ -631,13 +632,13 @@ class ExceptionInjector:
             if operation == "read":
                 read_patch = patch("builtins.open")
                 mock_open = read_patch.start()
-                mock_open.side_effect = IOError(error_message)
+                mock_open.side_effect = OSError(error_message)
                 patches.append(read_patch)
 
             elif operation == "write":
                 write_patch = patch("builtins.open")
                 mock_open = write_patch.start()
-                mock_open.side_effect = IOError(error_message)
+                mock_open.side_effect = OSError(error_message)
                 patches.append(write_patch)
 
             elif operation == "delete":
@@ -754,7 +755,7 @@ class ExceptionInjector:
         logger.info("All patches stopped, normal behavior restored")
 
     @contextmanager
-    def inject_multiple_errors(self, error_configs: list[Dict[str, Any]]):
+    def inject_multiple_errors(self, error_configs: list[dict[str, Any]]):
         """
         同时注入多个错误
 

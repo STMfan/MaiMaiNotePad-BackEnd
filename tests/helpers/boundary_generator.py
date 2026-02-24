@@ -5,11 +5,12 @@
 用于系统化地测试所有函数的边界情况和边界值处理。
 """
 
-from typing import Any, List, Dict, Optional, Callable, Union, Type
-from dataclasses import dataclass
 import sys
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 
 
 @dataclass
@@ -51,7 +52,7 @@ class BoundaryValueGenerator:
         self._max_string_length = 10000
         self._max_list_length = 1000
 
-    def generate_null_values(self) -> List[BoundaryValue]:
+    def generate_null_values(self) -> list[BoundaryValue]:
         """
         生成空值测试用例
 
@@ -74,9 +75,7 @@ class BoundaryValueGenerator:
             BoundaryValue(
                 value={}, description="Empty dictionary", expected_behavior="handle_gracefully", category="empty"
             ),
-            BoundaryValue(
-                value=tuple(), description="Empty tuple", expected_behavior="handle_gracefully", category="empty"
-            ),
+            BoundaryValue(value=(), description="Empty tuple", expected_behavior="handle_gracefully", category="empty"),
             BoundaryValue(
                 value=set(), description="Empty set", expected_behavior="handle_gracefully", category="empty"
             ),
@@ -84,7 +83,7 @@ class BoundaryValueGenerator:
 
     def generate_null_test_cases(
         self, function: Callable, param_name: str, include_nested: bool = True
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         为指定函数和参数生成空值测试用例
 
@@ -214,7 +213,7 @@ class BoundaryValueGenerator:
 
         return test_cases
 
-    def generate_null_combinations(self, function: Callable, param_names: List[str]) -> List[Dict[str, Any]]:
+    def generate_null_combinations(self, function: Callable, param_names: list[str]) -> list[dict[str, Any]]:
         """
         为多个参数生成空值组合测试用例
 
@@ -255,7 +254,7 @@ class BoundaryValueGenerator:
         # 所有参数都为 None 的情况
         test_case = {
             "function": function,
-            "params": {name: None for name in param_names},
+            "params": dict.fromkeys(param_names),
             "description": f"{function.__name__} with all params=None",
             "expected_behavior": "handle_gracefully",
             "category": "null",
@@ -285,9 +284,9 @@ class BoundaryValueGenerator:
         function: Callable,
         param_name: str,
         param_type: str,
-        max_value: Optional[Union[int, float, str]] = None,
+        max_value: int | float | str | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         为指定函数和参数生成最大值测试用例
 
@@ -340,8 +339,8 @@ class BoundaryValueGenerator:
             raise ValueError(f"Unsupported parameter type for max value generation: {param_type}")
 
     def _generate_string_max_cases(
-        self, function: Callable, param_name: str, max_value: Optional[int]
-    ) -> List[Dict[str, Any]]:
+        self, function: Callable, param_name: str, max_value: int | None
+    ) -> list[dict[str, Any]]:
         """生成字符串类型的最大值测试用例"""
         max_length = max_value if max_value is not None else self._max_string_length
         test_cases = []
@@ -402,8 +401,8 @@ class BoundaryValueGenerator:
         return test_cases
 
     def _generate_integer_max_cases(
-        self, function: Callable, param_name: str, max_value: Optional[int]
-    ) -> List[Dict[str, Any]]:
+        self, function: Callable, param_name: str, max_value: int | None
+    ) -> list[dict[str, Any]]:
         """生成整数类型的最大值测试用例"""
         max_int = max_value if max_value is not None else sys.maxsize
         test_cases = []
@@ -464,8 +463,8 @@ class BoundaryValueGenerator:
         return test_cases
 
     def _generate_float_max_cases(
-        self, function: Callable, param_name: str, max_value: Optional[float]
-    ) -> List[Dict[str, Any]]:
+        self, function: Callable, param_name: str, max_value: float | None
+    ) -> list[dict[str, Any]]:
         """生成浮点数类型的最大值测试用例"""
         max_float = max_value if max_value is not None else sys.float_info.max
         test_cases = []
@@ -539,18 +538,18 @@ class BoundaryValueGenerator:
         return test_cases
 
     def _generate_list_max_cases(
-        self, function: Callable, param_name: str, max_value: Optional[int], **kwargs
-    ) -> List[Dict[str, Any]]:
+        self, function: Callable, param_name: str, max_value: int | None, **kwargs
+    ) -> list[dict[str, Any]]:
         """生成列表类型的最大值测试用例"""
         max_length = max_value if max_value is not None else self._max_list_length
         element_type = kwargs.get("element_type", str)
 
         # 根据元素类型生成示例元素
-        if element_type == str:
+        if element_type is str:
             sample_element = "test"
-        elif element_type == int:
+        elif element_type is int:
             sample_element = 1
-        elif element_type == float:
+        elif element_type is float:
             sample_element = 1.0
         else:
             sample_element = "test"
@@ -613,8 +612,8 @@ class BoundaryValueGenerator:
         return test_cases
 
     def _generate_dict_max_cases(
-        self, function: Callable, param_name: str, max_value: Optional[int]
-    ) -> List[Dict[str, Any]]:
+        self, function: Callable, param_name: str, max_value: int | None
+    ) -> list[dict[str, Any]]:
         """生成字典类型的最大值测试用例"""
         max_keys = max_value if max_value is not None else 1000
         test_cases = []
@@ -674,7 +673,7 @@ class BoundaryValueGenerator:
 
         return test_cases
 
-    def generate_string_boundaries(self, max_length: Optional[int] = None) -> List[BoundaryValue]:
+    def generate_string_boundaries(self, max_length: int | None = None) -> list[BoundaryValue]:
         """
         生成字符串边界值测试用例
 
@@ -758,8 +757,8 @@ class BoundaryValueGenerator:
         ]
 
     def generate_integer_boundaries(
-        self, min_value: Optional[int] = None, max_value: Optional[int] = None
-    ) -> List[BoundaryValue]:
+        self, min_value: int | None = None, max_value: int | None = None
+    ) -> list[BoundaryValue]:
         """
         生成整数边界值测试用例
 
@@ -849,8 +848,8 @@ class BoundaryValueGenerator:
         return boundaries
 
     def generate_float_boundaries(
-        self, min_value: Optional[float] = None, max_value: Optional[float] = None
-    ) -> List[BoundaryValue]:
+        self, min_value: float | None = None, max_value: float | None = None
+    ) -> list[BoundaryValue]:
         """
         生成浮点数边界值测试用例
 
@@ -956,8 +955,8 @@ class BoundaryValueGenerator:
         return boundaries
 
     def generate_list_boundaries(
-        self, max_length: Optional[int] = None, element_type: Optional[Type] = None
-    ) -> List[BoundaryValue]:
+        self, max_length: int | None = None, element_type: type | None = None
+    ) -> list[BoundaryValue]:
         """
         生成列表边界值测试用例
 
@@ -979,11 +978,11 @@ class BoundaryValueGenerator:
             max_length = self._max_list_length
 
         # 根据元素类型生成示例元素
-        if element_type == str:
+        if element_type is str:
             sample_element = "test"
-        elif element_type == int:
+        elif element_type is int:
             sample_element = 1
-        elif element_type == float:
+        elif element_type is float:
             sample_element = 1.0
         else:
             sample_element = "test"
@@ -1022,7 +1021,7 @@ class BoundaryValueGenerator:
             ),
         ]
 
-    def generate_dict_boundaries(self, max_keys: Optional[int] = None) -> List[BoundaryValue]:
+    def generate_dict_boundaries(self, max_keys: int | None = None) -> list[BoundaryValue]:
         """
         生成字典边界值测试用例
 
@@ -1078,7 +1077,7 @@ class BoundaryValueGenerator:
             ),
         ]
 
-    def generate_datetime_boundaries(self) -> List[BoundaryValue]:
+    def generate_datetime_boundaries(self) -> list[BoundaryValue]:
         """
         生成日期时间边界值测试用例
 
@@ -1136,7 +1135,7 @@ class BoundaryValueGenerator:
             ),
         ]
 
-    def generate_boolean_boundaries(self) -> List[BoundaryValue]:
+    def generate_boolean_boundaries(self) -> list[BoundaryValue]:
         """
         生成布尔值边界值测试用例
 
@@ -1167,7 +1166,7 @@ class BoundaryValueGenerator:
             ),
         ]
 
-    def generate_uuid_boundaries(self) -> List[BoundaryValue]:
+    def generate_uuid_boundaries(self) -> list[BoundaryValue]:
         """
         生成 UUID 边界值测试用例
 
@@ -1211,7 +1210,7 @@ class BoundaryValueGenerator:
             ),
         ]
 
-    def generate_all_boundaries(self, value_type: Optional[str] = None) -> Dict[str, List[BoundaryValue]]:
+    def generate_all_boundaries(self, value_type: str | None = None) -> dict[str, list[BoundaryValue]]:
         """
         生成所有类型的边界值测试用例
 
@@ -1268,10 +1267,10 @@ class BoundaryValueGenerator:
     def generate_concurrent_test_cases(
         self,
         function: Callable,
-        num_threads: Optional[int] = None,
-        num_operations: Optional[int] = None,
+        num_threads: int | None = None,
+        num_operations: int | None = None,
         operation_type: str = "mixed",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         为指定函数生成并发测试用例
 
@@ -1444,7 +1443,7 @@ class BoundaryValueGenerator:
 
     def generate_test_cases(
         self, function: Callable, param_name: str, param_type: str, **kwargs
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         为指定函数和参数生成测试用例
 
@@ -1480,7 +1479,7 @@ class BoundaryValueGenerator:
         boundaries = self._get_boundaries_by_type(param_type, **kwargs)
         return self._convert_boundaries_to_test_cases(boundaries, function, param_name)
 
-    def _get_boundaries_by_type(self, param_type: str, **kwargs) -> List[BoundaryValue]:
+    def _get_boundaries_by_type(self, param_type: str, **kwargs) -> list[BoundaryValue]:
         """根据参数类型获取边界值列表"""
         if param_type == "string":
             return self.generate_string_boundaries(**kwargs)
@@ -1504,8 +1503,8 @@ class BoundaryValueGenerator:
             raise ValueError(f"Unsupported parameter type: {param_type}")
 
     def _convert_boundaries_to_test_cases(
-        self, boundaries: List[BoundaryValue], function: Callable, param_name: str
-    ) -> List[Dict[str, Any]]:
+        self, boundaries: list[BoundaryValue], function: Callable, param_name: str
+    ) -> list[dict[str, Any]]:
         """将边界值列表转换为测试用例列表"""
         test_cases = []
         for boundary in boundaries:

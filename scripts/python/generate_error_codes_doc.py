@@ -7,14 +7,14 @@
 """
 
 import json
-from pathlib import Path
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 
 
 def load_error_messages(json_path: str) -> dict:
     """加载错误消息 JSON 文件"""
-    with open(json_path, "r", encoding="utf-8") as f:
+    with open(json_path, encoding="utf-8") as f:
         return json.load(f)
 
 

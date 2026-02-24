@@ -5,9 +5,9 @@
 Requirements: 3.3
 """
 
-import uuid
 import io
 import os
+import uuid
 from unittest.mock import patch
 
 from app.models.database import PersonaCard, StarRecord
@@ -115,18 +115,18 @@ class TestGetPublicPersonaCards:
 
     def test_get_public_persona_cards_empty(self, client, test_db):
         """测试当没有公开人设卡时获取
-        
+
         注意：这个测试需要清除缓存，因为缓存中间件会缓存 GET 请求的响应。
         """
         # 删除所有PersonaCard（包括公开和私有的）
         from app.models.database import PersonaCard, PersonaCardFile
-        
+
         # 先删除关联的文件记录
         test_db.query(PersonaCardFile).delete()
         # 再删除人设卡
         test_db.query(PersonaCard).delete()
         test_db.commit()
-        
+
         # 添加 Cache-Control: no-cache 头来绕过缓存
         response = client.get("/api/persona/public", headers={"Cache-Control": "no-cache"})
 
@@ -224,7 +224,9 @@ class TestGetPublicPersonaCards:
         _ = factory.create_persona_card(uploader=user, name="PC 2", is_public=True)
 
         # Sort descending (newest first)
-        response = client.get("/api/persona/public?sort_by=created_at&sort_order=desc", headers={"Cache-Control": "no-cache"})
+        response = client.get(
+            "/api/persona/public?sort_by=created_at&sort_order=desc", headers={"Cache-Control": "no-cache"}
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -232,7 +234,9 @@ class TestGetPublicPersonaCards:
         assert data["data"][1]["name"] == "PC 1"
 
         # Sort ascending (oldest first)
-        response = client.get("/api/persona/public?sort_by=created_at&sort_order=asc", headers={"Cache-Control": "no-cache"})
+        response = client.get(
+            "/api/persona/public?sort_by=created_at&sort_order=asc", headers={"Cache-Control": "no-cache"}
+        )
 
         assert response.status_code == 200
         data = response.json()

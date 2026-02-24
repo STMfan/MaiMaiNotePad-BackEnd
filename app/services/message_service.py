@@ -9,11 +9,12 @@
 
 import re
 from datetime import datetime
-from typing import List, Optional, Set, Dict, Any
+from typing import Any
+
 from sqlalchemy.orm import Session
 
-from app.models.database import Message, User
 from app.core.cache.invalidation import invalidate_message_cache
+from app.models.database import Message, User
 
 
 class MessageService:
@@ -28,7 +29,7 @@ class MessageService:
         """
         self.db = db
 
-    def get_message_by_id(self, message_id: str) -> Optional[Message]:
+    def get_message_by_id(self, message_id: str) -> Message | None:
         """
         根据 ID 获取消息。
 
@@ -40,7 +41,7 @@ class MessageService:
         """
         return self.db.query(Message).filter(Message.id == message_id).first()
 
-    def get_user_messages(self, user_id: str, page: int = 1, page_size: int = 20) -> List[Message]:
+    def get_user_messages(self, user_id: str, page: int = 1, page_size: int = 20) -> list[Message]:
         """
         获取用户收到的消息列表。
 
@@ -64,7 +65,7 @@ class MessageService:
 
     def get_conversation_messages(
         self, user_id: str, other_user_id: str, page: int = 1, page_size: int = 20
-    ) -> List[Message]:
+    ) -> list[Message]:
         """
         获取两个用户之间的对话消息。
 
@@ -92,7 +93,7 @@ class MessageService:
 
     def get_user_messages_by_type(
         self, user_id: str, message_type: str, page: int = 1, page_size: int = 20
-    ) -> List[Message]:
+    ) -> list[Message]:
         """
         按类型获取用户消息。
 
@@ -115,7 +116,7 @@ class MessageService:
             .all()
         )
 
-    def get_all_users(self) -> List[User]:
+    def get_all_users(self) -> list[User]:
         """
         获取所有用户。
 
@@ -124,7 +125,7 @@ class MessageService:
         """
         return self.db.query(User).all()
 
-    def get_users_by_ids(self, user_ids: List[str]) -> List[User]:
+    def get_users_by_ids(self, user_ids: list[str]) -> list[User]:
         """
         根据 ID 列表获取用户。
 
@@ -172,13 +173,13 @@ class MessageService:
     def create_messages(
         self,
         sender_id: str,
-        recipient_ids: Set[str],
+        recipient_ids: set[str],
         title: str,
         content: str,
-        summary: Optional[str] = None,
+        summary: str | None = None,
         message_type: str = "direct",
-        broadcast_scope: Optional[str] = None,
-    ) -> List[Message]:
+        broadcast_scope: str | None = None,
+    ) -> list[Message]:
         """
         为多个接收者创建消息。
 
@@ -330,9 +331,9 @@ class MessageService:
         self,
         message_id: str,
         user_id: str,
-        title: Optional[str] = None,
-        content: Optional[str] = None,
-        summary: Optional[str] = None,
+        title: str | None = None,
+        content: str | None = None,
+        summary: str | None = None,
     ) -> bool:
         """
         更新单条消息。
@@ -374,9 +375,9 @@ class MessageService:
         self,
         message_id: str,
         sender_id: str,
-        title: Optional[str] = None,
-        content: Optional[str] = None,
-        summary: Optional[str] = None,
+        title: str | None = None,
+        content: str | None = None,
+        summary: str | None = None,
     ) -> int:
         """
         更新广播消息的所有副本。
@@ -434,7 +435,7 @@ class MessageService:
 
         return count
 
-    def get_broadcast_messages(self, page: int = 1, page_size: int = 20) -> List[Message]:
+    def get_broadcast_messages(self, page: int = 1, page_size: int = 20) -> list[Message]:
         """
         获取广播消息列表（按发送者、标题和时间去重）。
 
@@ -470,7 +471,7 @@ class MessageService:
         offset = (page - 1) * page_size
         return unique_messages[offset : offset + page_size]
 
-    def get_broadcast_message_stats(self, message_id: str) -> Dict[str, Any]:
+    def get_broadcast_message_stats(self, message_id: str) -> dict[str, Any]:
         """
         获取广播消息的统计信息。
 

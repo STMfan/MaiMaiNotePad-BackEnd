@@ -21,7 +21,7 @@ def check_version():
     print()
 
     # 1. 从 __version__.py 读取
-    from app.__version__ import __version__, __version_info__, VERSION_HISTORY
+    from app.__version__ import VERSION_HISTORY, __version__, __version_info__
 
     print(f"✓ app.__version__.__version__: {__version__}")
     print(f"✓ app.__version__.__version_info__: {__version_info__}")

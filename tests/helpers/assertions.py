@@ -3,8 +3,6 @@
 提供常用的断言方法，简化测试代码
 """
 
-from typing import List, Union
-
 
 def assert_success_response(response, expected_data_keys=None):
     """
@@ -48,9 +46,7 @@ def assert_pagination_response(response, expected_page, expected_page_size):
     assert "total_pages" in pagination
 
 
-def assert_error_response(
-    response, expected_status_codes: Union[int, List[int]], expected_message_keywords: Union[str, List[str]]
-):
+def assert_error_response(response, expected_status_codes: int | list[int], expected_message_keywords: str | list[str]):
     """
     断言错误响应格式和内容
     处理 FastAPI 验证错误（422 with 'detail'）和自定义 API 错误（with 'error'）

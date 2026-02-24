@@ -5,17 +5,17 @@ API routes module - 统一注册所有路由
 from fastapi import APIRouter
 
 from app.api.routes import (
-    users,
-    auth,
-    knowledge,
-    persona,
-    messages,
     admin,
-    review,
-    dictionary,
+    auth,
     comments,
+    dictionary,
+    knowledge,
+    messages,
     metrics,
     moderation,
+    persona,
+    review,
+    users,
 )
 
 # 创建主 APIRouter

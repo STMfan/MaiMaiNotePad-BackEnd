@@ -9,8 +9,8 @@ import pytest
 
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
-from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
 from app.core.security import create_access_token  # noqa: E402
+from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
 
 
 class TestWebSocketValidConnection:
@@ -399,6 +399,7 @@ class TestWebSocketExceptionDisconnect:
         通过跟踪disconnect调用来验证异常处理时的清理逻辑。
         """
         from unittest.mock import patch
+
         from app.utils.websocket import message_ws_manager
 
         # 创建有效的JWT token
@@ -449,6 +450,7 @@ class TestWebSocketConnectionCleanup:
         覆盖代码：websocket.py 第56-59行（正常断开时的disconnect调用）
         """
         from unittest.mock import patch
+
         from app.utils.websocket import message_ws_manager
 
         # 创建有效的JWT token
@@ -494,6 +496,7 @@ class TestWebSocketConnectionCleanup:
         覆盖代码：websocket.py 第60-63行（异常时的disconnect调用）
         """
         from unittest.mock import patch
+
         from app.utils.websocket import message_ws_manager
 
         # 创建有效的JWT token
@@ -681,10 +684,11 @@ class TestWebSocketConcurrentConnections:
 
         覆盖代码：websocket.py 第35-55行（多用户并发）
         """
-        from app.models.database import User
-        from app.core.security import get_password_hash
         import uuid
         from datetime import datetime
+
+        from app.core.security import get_password_hash
+        from app.models.database import User
         from app.utils.websocket import message_ws_manager
 
         # 创建3个测试用户

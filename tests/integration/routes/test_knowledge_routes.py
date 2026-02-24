@@ -908,6 +908,7 @@ class TestKnowledgeDatabaseErrorHandling:
     def test_upload_knowledge_base_db_connection_error(self, authenticated_client, monkeypatch):
         """Test uploading KB when database connection fails"""
         from unittest.mock import patch
+
         from sqlalchemy.exc import OperationalError
 
         file_content = b"Test content"
@@ -933,6 +934,7 @@ class TestKnowledgeDatabaseErrorHandling:
     def test_get_public_knowledge_bases_db_query_timeout(self, client, monkeypatch):
         """Test getting public KBs when query times out"""
         from unittest.mock import patch
+
         from sqlalchemy.exc import TimeoutError as SQLTimeoutError
 
         # Mock the service method to raise timeout error
@@ -955,6 +957,7 @@ class TestKnowledgeDatabaseErrorHandling:
     ):
         """Test starring KB when unique constraint is violated"""
         from unittest.mock import patch
+
         from sqlalchemy.exc import IntegrityError
 
         kb = factory.create_knowledge_base(is_public=True)
@@ -978,6 +981,7 @@ class TestKnowledgeDatabaseErrorHandling:
     def test_update_knowledge_base_db_commit_error(self, authenticated_client, test_user, factory, monkeypatch):
         """Test updating KB when database commit fails"""
         from unittest.mock import patch
+
         from sqlalchemy.exc import DatabaseError as SQLDatabaseError
 
         kb = factory.create_knowledge_base(uploader=test_user)
@@ -1000,6 +1004,7 @@ class TestKnowledgeDatabaseErrorHandling:
     def test_delete_knowledge_base_foreign_key_constraint(self, authenticated_client, test_user, factory, monkeypatch):
         """Test deleting KB when foreign key constraint is violated"""
         from unittest.mock import patch
+
         from sqlalchemy.exc import IntegrityError
 
         kb = factory.create_knowledge_base(uploader=test_user)
@@ -1023,6 +1028,7 @@ class TestKnowledgeDatabaseErrorHandling:
     def test_get_knowledge_base_db_session_error(self, client, factory, monkeypatch):
         """Test getting KB details when database session fails"""
         from unittest.mock import patch
+
         from sqlalchemy.exc import InvalidRequestError
 
         user = factory.create_user()
@@ -1046,6 +1052,7 @@ class TestKnowledgeDatabaseErrorHandling:
     def test_add_files_db_rollback_on_error(self, authenticated_client, test_user, factory, monkeypatch):
         """Test adding files with database rollback on error"""
         from unittest.mock import patch
+
         from sqlalchemy.exc import OperationalError
 
         kb = factory.create_knowledge_base(uploader=test_user)
@@ -1071,6 +1078,7 @@ class TestKnowledgeDatabaseErrorHandling:
     def test_star_knowledge_base_db_deadlock(self, authenticated_client, test_user, factory, monkeypatch):
         """Test starring KB when database deadlock occurs"""
         from unittest.mock import patch
+
         from sqlalchemy.exc import OperationalError
 
         kb = factory.create_knowledge_base(is_public=True)
@@ -1092,6 +1100,7 @@ class TestKnowledgeDatabaseErrorHandling:
     def test_get_user_knowledge_bases_db_connection_pool_exhausted(self, authenticated_client, test_user, monkeypatch):
         """Test getting user KBs when connection pool is exhausted"""
         from unittest.mock import patch
+
         from sqlalchemy.exc import TimeoutError as SQLTimeoutError
 
         # Mock service method to raise pool timeout
@@ -1112,6 +1121,7 @@ class TestKnowledgeDatabaseErrorHandling:
     def test_update_knowledge_base_db_lock_timeout(self, authenticated_client, test_user, factory, monkeypatch):
         """Test updating KB when database lock timeout occurs"""
         from unittest.mock import patch
+
         from sqlalchemy.exc import OperationalError
 
         kb = factory.create_knowledge_base(uploader=test_user)
@@ -1133,6 +1143,7 @@ class TestKnowledgeDatabaseErrorHandling:
     def test_delete_file_db_transaction_error(self, authenticated_client, test_user, factory, monkeypatch):
         """Test deleting file when transaction fails"""
         from unittest.mock import patch
+
         from sqlalchemy.exc import InvalidRequestError
 
         kb = factory.create_knowledge_base(uploader=test_user)
@@ -1156,6 +1167,7 @@ class TestKnowledgeDatabaseErrorHandling:
     def test_download_knowledge_base_db_query_error(self, authenticated_client, test_user, factory, monkeypatch):
         """Test downloading KB when database query fails"""
         from unittest.mock import patch
+
         from sqlalchemy.exc import DatabaseError as SQLDatabaseError
 
         kb = factory.create_knowledge_base(uploader=test_user, is_public=True)
@@ -2312,7 +2324,7 @@ class TestKnowledgeZipDownloadErrorHandling:
 
     def test_download_kb_zipfile_write_error(self, authenticated_client, test_user, factory, monkeypatch):
         """Test downloading KB when zipfile.ZipFile.write fails"""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         kb = factory.create_knowledge_base(uploader=test_user, is_public=True)
         factory.create_knowledge_base_file(knowledge_base=kb)
@@ -2384,8 +2396,8 @@ class TestKnowledgeZipDownloadErrorHandling:
 
     def test_download_kb_zipfile_corrupted(self, authenticated_client, test_user, factory, monkeypatch):
         """Test downloading KB when ZIP file becomes corrupted during creation"""
-        from unittest.mock import patch, MagicMock
         import zipfile
+        from unittest.mock import MagicMock, patch
 
         kb = factory.create_knowledge_base(uploader=test_user, is_public=True)
         factory.create_knowledge_base_file(knowledge_base=kb)
@@ -2410,7 +2422,7 @@ class TestKnowledgeZipDownloadErrorHandling:
 
     def test_download_kb_file_read_error_during_zip(self, authenticated_client, test_user, factory, monkeypatch):
         """Test downloading KB when file cannot be read during ZIP creation"""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         kb = factory.create_knowledge_base(uploader=test_user, is_public=True)
         factory.create_knowledge_base_file(knowledge_base=kb)
@@ -2421,7 +2433,7 @@ class TestKnowledgeZipDownloadErrorHandling:
                 mock_zip_instance = MagicMock()
                 mock_zip_instance.__enter__ = MagicMock(return_value=mock_zip_instance)
                 mock_zip_instance.__exit__ = MagicMock(return_value=False)
-                mock_zip_instance.write.side_effect = IOError("Cannot read file")
+                mock_zip_instance.write.side_effect = OSError("Cannot read file")
                 mock_zipfile.return_value = mock_zip_instance
 
                 response = authenticated_client.get(f"/api/knowledge/{kb.id}/download")
@@ -2436,15 +2448,13 @@ class TestKnowledgeZipDownloadErrorHandling:
 
     def test_download_kb_cleanup_on_zip_error(self, authenticated_client, test_user, factory, monkeypatch):
         """Test that temporary ZIP file is cleaned up when creation fails"""
-        from unittest.mock import patch, MagicMock
-        import os
+        from unittest.mock import MagicMock, patch
 
         kb = factory.create_knowledge_base(uploader=test_user, is_public=True)
         factory.create_knowledge_base_file(knowledge_base=kb)
 
         # Track if os.remove was called
         remove_called = []
-        os.remove
 
         def mock_remove(path):
             remove_called.append(path)

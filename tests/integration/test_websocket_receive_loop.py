@@ -14,8 +14,9 @@ import pytest
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
 import time  # noqa: E402
-from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
+
 from app.core.security import create_access_token  # noqa: E402
+from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
 
 
 class TestWebSocketReceiveLoop:
@@ -358,7 +359,7 @@ class TestWebSocketReceiveLoopEdgeCases:
 
             # 发送消息，中间有较长间隔
             intervals = [0.1, 0.2, 0.3]
-            for i, interval in enumerate(intervals):
+            for _i, interval in enumerate(intervals):
                 # 等待
                 time.sleep(interval)
 

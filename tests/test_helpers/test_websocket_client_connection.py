@@ -8,10 +8,12 @@ WebSocket测试客户端连接管理单元测试
 - 连接健康检查
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from tests.helpers.websocket_client import WebSocketTestClient, ConnectionState
 import time
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+
+from tests.helpers.websocket_client import ConnectionState, WebSocketTestClient
 
 
 class TestConnectionState:

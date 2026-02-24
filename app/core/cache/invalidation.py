@@ -6,14 +6,17 @@
 """
 
 import asyncio
-from typing import Optional, List
+from collections.abc import Callable
+from functools import wraps
+from typing import Any
+
 from app.core.logging import app_logger as logger
 
 
-def invalidate_cache_sync(cache_manager, patterns: List[str]):
+def invalidate_cache_sync(cache_manager, patterns: list[str]):
     """
     同步方式失效缓存（用于同步代码中）
-    
+
     Args:
         cache_manager: 缓存管理器实例
         patterns: 要失效的缓存模式列表
@@ -29,16 +32,16 @@ def invalidate_cache_sync(cache_manager, patterns: List[str]):
             # 没有运行的事件循环，创建新的
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            
+
             for pattern in patterns:
                 try:
                     loop.run_until_complete(cache_manager.invalidate_pattern(pattern))
                     logger.info(f"已清除缓存: pattern={pattern}")
                 except Exception as e:
                     logger.warning(f"清除缓存失败 (pattern={pattern}): {e}")
-            
+
             loop.close()
-        
+
     except Exception as e:
         logger.error(f"缓存失效操作失败: {e}")
 
@@ -46,7 +49,7 @@ def invalidate_cache_sync(cache_manager, patterns: List[str]):
 async def _async_invalidate_pattern(cache_manager, pattern: str):
     """
     异步清除缓存模式（内部辅助函数）
-    
+
     Args:
         cache_manager: 缓存管理器实例
         pattern: 缓存模式
@@ -62,187 +65,212 @@ async def _async_invalidate_pattern(cache_manager, pattern: str):
 # 业务特定的缓存失效函数
 # ============================================================================
 
-def invalidate_persona_cache(pc_id: Optional[str] = None):
+
+def invalidate_persona_cache(pc_id: str | None = None):
     """
     失效人设卡相关的缓存
-    
+
     Args:
         pc_id: 人设卡ID（可选），如果提供则只清除特定人设卡的缓存
     """
     from app.core.cache.factory import get_cache_manager
-    
+
     cache_manager = get_cache_manager()
     if not cache_manager.is_enabled():
         return
-    
+
     patterns = [
         "maimnp:http:*persona/public*",  # 所有公开人设卡列表的缓存
     ]
-    
+
     if pc_id:
         # 如果指定了人设卡ID，还要清除该人设卡详情的缓存
         patterns.append(f"maimnp:http:*persona/{pc_id}*")
-    
+
     invalidate_cache_sync(cache_manager, patterns)
 
 
-def invalidate_knowledge_cache(kb_id: Optional[str] = None, uploader_id: Optional[str] = None):
+def invalidate_knowledge_cache(kb_id: str | None = None, uploader_id: str | None = None):
     """
     失效知识库相关的缓存
-    
+
     Args:
         kb_id: 知识库ID（可选），如果提供则清除特定知识库的缓存
         uploader_id: 上传者ID（可选），如果提供则清除该用户的知识库列表缓存
     """
     from app.core.cache.factory import get_cache_manager
-    
+
     cache_manager = get_cache_manager()
     if not cache_manager.is_enabled():
         return
-    
+
     patterns = [
         "maimnp:kb:public:*",  # 公开知识库列表的缓存
     ]
-    
+
     if kb_id:
         # 清除特定知识库详情的缓存
         patterns.append(f"maimnp:http:*knowledge/{kb_id}*")
-    
+
     if uploader_id:
         # 清除用户知识库列表的缓存
         patterns.append(f"maimnp:kb:user:{uploader_id}:*")
-    
+
     invalidate_cache_sync(cache_manager, patterns)
 
 
-def invalidate_user_cache(user_id: Optional[str] = None):
+def invalidate_user_cache(user_id: str | None = None):
     """
     失效用户相关的缓存
-    
+
     Args:
         user_id: 用户ID（可选），如果不提供则清除所有用户相关缓存
     """
     from app.core.cache.factory import get_cache_manager
-    
+
     cache_manager = get_cache_manager()
     if not cache_manager.is_enabled():
         return
-    
+
     patterns = []
-    
+
     if user_id:
-        patterns.extend([
-            f"maimnp:http:*users/{user_id}*",  # 用户详情的缓存
-            f"user:{user_id}",  # 用户数据的缓存
-        ])
+        patterns.extend(
+            [
+                f"maimnp:http:*users/{user_id}*",  # 用户详情的缓存
+                f"user:{user_id}",  # 用户数据的缓存
+            ]
+        )
     else:
         # 清除所有用户相关缓存
-        patterns.extend([
-            "maimnp:http:*users*",
-            "user:*",
-        ])
-    
+        patterns.extend(
+            [
+                "maimnp:http:*users*",
+                "user:*",
+            ]
+        )
+
     invalidate_cache_sync(cache_manager, patterns)
 
 
-def invalidate_message_cache(message_id: Optional[str] = None, user_id: Optional[str] = None):
+def invalidate_message_cache(message_id: str | None = None, user_id: str | None = None):
     """
     失效消息相关的缓存
-    
+
     Args:
         message_id: 消息ID（可选）
         user_id: 用户ID（可选），清除该用户的消息列表缓存
     """
     from app.core.cache.factory import get_cache_manager
-    
+
     cache_manager = get_cache_manager()
     if not cache_manager.is_enabled():
         return
-    
+
     patterns = [
         "maimnp:http:*messages*",  # 清除所有消息相关缓存
     ]
-    
+
     if message_id:
         patterns.append(f"maimnp:http:*messages/{message_id}*")
-    
+
     if user_id:
         patterns.append(f"maimnp:http:*messages*user_id={user_id}*")
-    
+
     invalidate_cache_sync(cache_manager, patterns)
 
 
-def invalidate_comment_cache(comment_id: Optional[str] = None, target_id: Optional[str] = None):
+def invalidate_comment_cache(comment_id: str | None = None, target_id: str | None = None):
     """
     失效评论相关的缓存
-    
+
     Args:
         comment_id: 评论ID（可选）
         target_id: 目标ID（可选），清除该目标的评论列表缓存
     """
     from app.core.cache.factory import get_cache_manager
-    
+
     cache_manager = get_cache_manager()
     if not cache_manager.is_enabled():
         return
-    
+
     patterns = [
         "maimnp:http:*comments*",  # 清除所有评论相关缓存
     ]
-    
+
     if comment_id:
         patterns.append(f"maimnp:http:*comments/{comment_id}*")
-    
+
     if target_id:
         patterns.append(f"maimnp:http:*comments*target_id={target_id}*")
-    
+
     invalidate_cache_sync(cache_manager, patterns)
 
 
-def auto_invalidate_cache(cache_patterns: List[str]):
+def auto_invalidate_cache(cache_patterns: list[str]):
     """
     装饰器：在函数执行成功后自动失效指定模式的缓存
-    
+
     Args:
         cache_patterns: 要失效的缓存模式列表
-        
+
     Example:
         @auto_invalidate_cache(["maimnp:http:*persona/public*"])
         def update_persona_card(self, pc_id: str, data: dict):
             # 更新逻辑
             pass
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
             # 执行原函数
             result = func(*args, **kwargs)
-            
-            # 如果函数执行成功，清除缓存
-            # 对于返回 (success, message, data) 的函数
-            if isinstance(result, tuple) and len(result) >= 1:
-                success = result[0]
-                if success:
-                    try:
-                        from app.core.cache.factory import get_cache_manager
-                        cache_manager = get_cache_manager()
-                        
-                        if cache_manager.is_enabled():
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            
-                            for pattern in cache_patterns:
-                                try:
-                                    loop.run_until_complete(cache_manager.invalidate_pattern(pattern))
-                                    logger.debug(f"自动清除缓存: pattern={pattern}")
-                                except Exception as e:
-                                    logger.warning(f"自动清除缓存失败 (pattern={pattern}): {e}")
-                            
-                            loop.close()
-                    except Exception as e:
-                        logger.error(f"自动缓存失效失败: {e}")
-            
+
+            # 检查是否需要清除缓存
+            if _should_invalidate_cache(result):
+                _invalidate_cache_patterns(cache_patterns)
+
             return result
-        
+
         return wrapper
+
     return decorator
+
+
+def _should_invalidate_cache(result: Any) -> bool:
+    """判断是否应该清除缓存"""
+    # 对于返回 (success, message, data) 的函数
+    if isinstance(result, tuple) and len(result) >= 1:
+        return result[0]  # success 标志
+    return False
+
+
+def _invalidate_cache_patterns(cache_patterns: list[str]) -> None:
+    """清除指定模式的缓存"""
+    try:
+        from app.core.cache.factory import get_cache_manager
+
+        cache_manager = get_cache_manager()
+
+        if not cache_manager.is_enabled():
+            return
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        for pattern in cache_patterns:
+            _invalidate_single_pattern(loop, cache_manager, pattern)
+
+        loop.close()
+    except Exception as e:
+        logger.error(f"自动缓存失效失败: {e}")
+
+
+def _invalidate_single_pattern(loop, cache_manager, pattern: str) -> None:
+    """清除单个缓存模式"""
+    try:
+        loop.run_until_complete(cache_manager.invalidate_pattern(pattern))
+        logger.debug(f"自动清除缓存: pattern={pattern}")
+    except Exception as e:
+        logger.warning(f"自动清除缓存失败 (pattern={pattern}): {e}")

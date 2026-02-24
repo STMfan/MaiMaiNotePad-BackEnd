@@ -4,9 +4,10 @@ Pydantic 模型定义
 用于 API 请求和响应的数据验证与序列化。
 """
 
-from pydantic import BaseModel, EmailStr, Field, model_validator, ConfigDict
-from typing import List, Optional, Dict, Any, Literal, Generic, TypeVar, Union
 from datetime import datetime
+from typing import Any, Generic, Literal, TypeVar
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 # 用户相关模型
@@ -21,8 +22,8 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     """用户信息更新请求模型"""
 
-    username: Optional[str] = None
-    email: Optional[EmailStr] = None
+    username: str | None = None
+    email: EmailStr | None = None
 
 
 class UserResponse(BaseModel):
@@ -38,8 +39,8 @@ class UserResponse(BaseModel):
     is_moderator: bool
     is_super_admin: bool
     created_at: datetime
-    avatar_path: Optional[str] = None
-    avatar_updated_at: Optional[datetime] = None
+    avatar_path: str | None = None
+    avatar_updated_at: datetime | None = None
 
 
 class CurrentUserResponse(BaseModel):
@@ -49,10 +50,10 @@ class CurrentUserResponse(BaseModel):
     username: str
     email: str
     role: str
-    avatar_url: Optional[str] = None
-    avatar_updated_at: Optional[str] = None
+    avatar_url: str | None = None
+    avatar_updated_at: str | None = None
     is_muted: bool = False
-    muted_until: Optional[datetime] = None
+    muted_until: datetime | None = None
 
 
 class LoginResponse(BaseModel):
@@ -62,7 +63,7 @@ class LoginResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int
-    user: Dict[str, Any]
+    user: dict[str, Any]
 
 
 class TokenResponse(BaseModel):
@@ -86,21 +87,21 @@ class KnowledgeBaseCreate(BaseModel):
 
     name: str
     description: str
-    copyright_owner: Optional[str] = None
-    content: Optional[str] = None
-    tags: Optional[List[str]] = Field(default_factory=lambda: [])
+    copyright_owner: str | None = None
+    content: str | None = None
+    tags: list[str] | None = Field(default_factory=lambda: [])
 
 
 class KnowledgeBaseUpdate(BaseModel):
     """知识库更新请求模型"""
 
-    name: Optional[str] = None
-    description: Optional[str] = None
-    copyright_owner: Optional[str] = None
-    is_public: Optional[bool] = None
-    is_pending: Optional[bool] = None
-    content: Optional[str] = None
-    tags: Optional[Union[str, List[str]]] = None
+    name: str | None = None
+    description: str | None = None
+    copyright_owner: str | None = None
+    is_public: bool | None = None
+    is_pending: bool | None = None
+    content: str | None = None
+    tags: str | list[str] | None = None
 
 
 class KnowledgeBaseFileResponse(BaseModel):
@@ -118,29 +119,29 @@ class KnowledgeBaseResponse(BaseModel):
     name: str
     description: str
     uploader_id: str
-    copyright_owner: Optional[str]
+    copyright_owner: str | None
     star_count: int
     is_public: bool
     is_pending: bool
-    base_path: Optional[str]
+    base_path: str | None
     created_at: datetime
     updated_at: datetime
-    files: List[KnowledgeBaseFileResponse] = Field(default_factory=list)
-    content: Optional[str] = None
-    tags: List[str] = Field(default_factory=list)
+    files: list[KnowledgeBaseFileResponse] = Field(default_factory=list)
+    content: str | None = None
+    tags: list[str] = Field(default_factory=list)
     downloads: int = 0
-    download_url: Optional[str] = None
-    preview_url: Optional[str] = None
-    version: Optional[str] = None
-    size: Optional[int] = None
-    author: Optional[str] = None
-    author_id: Optional[str] = None
+    download_url: str | None = None
+    preview_url: str | None = None
+    version: str | None = None
+    size: int | None = None
+    author: str | None = None
+    author_id: str | None = None
 
 
 class KnowledgeBasePaginatedResponse(BaseModel):
     """知识库分页响应模型"""
 
-    items: List[KnowledgeBaseResponse]
+    items: list[KnowledgeBaseResponse]
     total: int
     page: int
     page_size: int
@@ -152,21 +153,21 @@ class PersonaCardCreate(BaseModel):
 
     name: str
     description: str
-    copyright_owner: Optional[str] = None
-    content: Optional[str] = None
-    tags: Optional[List[str]] = Field(default_factory=lambda: [])
+    copyright_owner: str | None = None
+    content: str | None = None
+    tags: list[str] | None = Field(default_factory=lambda: [])
 
 
 class PersonaCardUpdate(BaseModel):
     """人设卡更新请求模型"""
 
-    name: Optional[str] = None
-    description: Optional[str] = None
-    copyright_owner: Optional[str] = None
-    is_public: Optional[bool] = None
-    is_pending: Optional[bool] = None
-    content: Optional[str] = None
-    tags: Optional[List[str]] = None
+    name: str | None = None
+    description: str | None = None
+    copyright_owner: str | None = None
+    is_public: bool | None = None
+    is_pending: bool | None = None
+    content: str | None = None
+    tags: list[str] | None = None
 
 
 class PersonaCardResponse(BaseModel):
@@ -176,29 +177,29 @@ class PersonaCardResponse(BaseModel):
     name: str
     description: str
     uploader_id: str
-    copyright_owner: Optional[str]
+    copyright_owner: str | None
     star_count: int
     is_public: bool
     is_pending: bool
     created_at: datetime
     updated_at: datetime
-    files: List[Dict[str, Any]] = Field(default_factory=list)
-    content: Optional[str] = None
-    tags: List[str] = Field(default_factory=list)
+    files: list[dict[str, Any]] = Field(default_factory=list)
+    content: str | None = None
+    tags: list[str] = Field(default_factory=list)
     downloads: int = 0
-    download_url: Optional[str] = None
-    preview_url: Optional[str] = None
-    version: Optional[str] = None
-    size: Optional[int] = None
-    author: Optional[str] = None
-    author_id: Optional[str] = None
+    download_url: str | None = None
+    preview_url: str | None = None
+    version: str | None = None
+    size: int | None = None
+    author: str | None = None
+    author_id: str | None = None
     stars: int = 0
 
 
 class PersonaCardPaginatedResponse(BaseModel):
     """人设卡分页响应模型"""
 
-    items: List[PersonaCardResponse]
+    items: list[PersonaCardResponse]
     total: int
     page: int
     page_size: int
@@ -210,11 +211,11 @@ class MessageCreate(BaseModel):
 
     title: str
     content: str
-    summary: Optional[str] = None
-    recipient_id: Optional[str] = None
-    recipient_ids: Optional[List[str]] = None
+    summary: str | None = None
+    recipient_id: str | None = None
+    recipient_ids: list[str] | None = None
     message_type: Literal["direct", "announcement"] = "direct"
-    broadcast_scope: Optional[Literal["all_users"]] = None
+    broadcast_scope: Literal["all_users"] | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -242,9 +243,9 @@ class MessageCreate(BaseModel):
 class MessageUpdate(BaseModel):
     """消息更新请求模型"""
 
-    title: Optional[str] = None
-    content: Optional[str] = None
-    summary: Optional[str] = None
+    title: str | None = None
+    content: str | None = None
+    summary: str | None = None
 
 
 class MessageResponse(BaseModel):
@@ -255,9 +256,9 @@ class MessageResponse(BaseModel):
     recipient_id: str
     title: str
     content: str
-    summary: Optional[str] = None
+    summary: str | None = None
     message_type: Literal["direct", "announcement"]
-    broadcast_scope: Optional[str]
+    broadcast_scope: str | None
     is_read: bool
     created_at: datetime
 
@@ -298,7 +299,7 @@ class BaseResponse(BaseModel, Generic[T]):
 
     success: bool = True
     message: str = ""
-    data: Optional[T] = None
+    data: T | None = None
 
 
 class PageResponse(BaseModel, Generic[T]):
@@ -306,7 +307,7 @@ class PageResponse(BaseModel, Generic[T]):
 
     success: bool = True
     message: str = ""
-    data: List[T]
+    data: list[T]
     pagination: Pagination
 
 
@@ -323,9 +324,11 @@ class ModerationRequest(BaseModel):
 class ModerationResult(BaseModel):
     """内容审核结果模型"""
 
-    decision: Literal["true", "false", "unknown"] = Field(..., description="审核决策：true（通过）、false（拒绝）、unknown（不确定）")
+    decision: Literal["true", "false", "unknown"] = Field(
+        ..., description="审核决策：true（通过）、false（拒绝）、unknown（不确定）"
+    )
     confidence: float = Field(..., ge=0.0, le=1.0, description="违规置信度，0~1 之间的浮点数")
-    violation_types: List[Literal["porn", "politics", "abuse"]] = Field(
+    violation_types: list[Literal["porn", "politics", "abuse"]] = Field(
         default_factory=list, description="违规类型列表，可包含 porn（色情）、politics（涉政）、abuse（辱骂）"
     )
 
@@ -334,6 +337,5 @@ class ModerationResponse(BaseModel):
     """内容审核响应模型"""
 
     success: bool = Field(..., description="请求是否成功")
-    result: Optional[ModerationResult] = Field(None, description="审核结果")
-    message: Optional[str] = Field(None, description="附加消息")
-
+    result: ModerationResult | None = Field(None, description="审核结果")
+    message: str | None = Field(None, description="附加消息")

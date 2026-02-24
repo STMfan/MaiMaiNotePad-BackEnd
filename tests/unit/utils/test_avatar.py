@@ -8,28 +8,29 @@
 """
 
 import io
+from unittest.mock import mock_open, patch
+
 from PIL import Image
-from unittest.mock import patch, mock_open
 
 from app.utils.avatar import (
-    ensure_avatar_dir,
-    validate_image_file,
-    process_avatar_image,
-    generate_initial_avatar,
-    save_avatar_file,
-    delete_avatar_file,
-    AVATAR_MAX_SIZE,
     AVATAR_MAX_DIMENSION,
-    AVATAR_UPLOAD_DIR,
+    AVATAR_MAX_SIZE,
     AVATAR_THUMBNAIL_SIZE,
+    AVATAR_UPLOAD_DIR,
+    delete_avatar_file,
+    ensure_avatar_dir,
+    generate_initial_avatar,
+    process_avatar_image,
+    save_avatar_file,
+    validate_image_file,
 )
 
 
-def create_test_image(width=200, height=200, format="PNG", mode="RGB"):
+def create_test_image(width=200, height=200, img_format="PNG", mode="RGB"):
     """创建测试图片"""
     img = Image.new(mode, (width, height), color="red")
     buffer = io.BytesIO()
-    img.save(buffer, format=format)
+    img.save(buffer, format=img_format)
     return buffer.getvalue()
 
 
@@ -57,7 +58,7 @@ class TestImageValidation:
 
     def test_validate_image_file_valid_jpg(self):
         """测试验证有效的JPG图片"""
-        content = create_test_image(format="JPEG")
+        content = create_test_image(img_format="JPEG")
         is_valid, error = validate_image_file(content, "avatar.jpg")
 
         assert is_valid is True
@@ -65,7 +66,7 @@ class TestImageValidation:
 
     def test_validate_image_file_valid_png(self):
         """测试验证有效的PNG图片"""
-        content = create_test_image(format="PNG")
+        content = create_test_image(img_format="PNG")
         is_valid, error = validate_image_file(content, "avatar.png")
 
         assert is_valid is True
@@ -155,7 +156,7 @@ class TestImageProcessing:
 
     def test_process_avatar_image_rgba_mode(self):
         """测试处理RGBA模式图片"""
-        content = create_test_image(200, 200, format="PNG", mode="RGBA")
+        content = create_test_image(200, 200, img_format="PNG", mode="RGBA")
         processed, thumbnail = process_avatar_image(content)
 
         # 应该转换为RGB

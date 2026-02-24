@@ -4,13 +4,13 @@
 提供 SQLAlchemy 引擎创建、会话工厂和依赖注入支持。
 """
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session, declarative_base
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from app.core.config import settings
-
 
 # 创建数据库引擎
 engine = create_engine(

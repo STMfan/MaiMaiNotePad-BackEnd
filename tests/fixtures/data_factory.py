@@ -3,13 +3,13 @@
 用于创建测试所需的各种数据对象
 """
 
-import uuid
 import os
-from typing import Optional
+import uuid
+
 from sqlalchemy.orm import Session
 
-from app.models.database import User, KnowledgeBase, PersonaCard, Message, Comment, KnowledgeBaseFile, PersonaCardFile
 from app.core.security import get_password_hash
+from app.models.database import Comment, KnowledgeBase, KnowledgeBaseFile, Message, PersonaCard, PersonaCardFile, User
 
 # 密码哈希缓存，避免重复计算
 # 使用 worker-specific 字典以避免并行测试中的状态污染
@@ -77,7 +77,7 @@ class TestDataFactory:
         kwargs["is_moderator"] = True
         return self.create_user(**kwargs)
 
-    def create_knowledge_base(self, uploader: Optional[User] = None, **kwargs) -> KnowledgeBase:
+    def create_knowledge_base(self, uploader: User | None = None, **kwargs) -> KnowledgeBase:
         """创建测试知识库"""
         if uploader is None:
             uploader = self.create_user()
@@ -99,7 +99,7 @@ class TestDataFactory:
         self.db.refresh(kb)
         return kb
 
-    def create_persona_card(self, uploader: Optional[User] = None, **kwargs) -> PersonaCard:
+    def create_persona_card(self, uploader: User | None = None, **kwargs) -> PersonaCard:
         """创建测试人设卡"""
         if uploader is None:
             uploader = self.create_user()
@@ -122,7 +122,7 @@ class TestDataFactory:
         self.db.refresh(pc)
         return pc
 
-    def create_message(self, sender: Optional[User] = None, recipient: Optional[User] = None, **kwargs) -> Message:
+    def create_message(self, sender: User | None = None, recipient: User | None = None, **kwargs) -> Message:
         """创建测试消息"""
         if sender is None:
             sender = self.create_user()
@@ -145,7 +145,7 @@ class TestDataFactory:
         self.db.refresh(message)
         return message
 
-    def create_comment(self, author: Optional[User] = None, **kwargs) -> Comment:
+    def create_comment(self, author: User | None = None, **kwargs) -> Comment:
         """创建测试评论"""
         if author is None:
             author = self.create_user()
@@ -164,7 +164,7 @@ class TestDataFactory:
         self.db.refresh(comment)
         return comment
 
-    def create_knowledge_base_file(self, knowledge_base: Optional[KnowledgeBase] = None, **kwargs) -> KnowledgeBaseFile:
+    def create_knowledge_base_file(self, knowledge_base: KnowledgeBase | None = None, **kwargs) -> KnowledgeBaseFile:
         """创建测试知识库文件"""
         if knowledge_base is None:
             knowledge_base = self.create_knowledge_base()
@@ -186,7 +186,7 @@ class TestDataFactory:
         self.db.refresh(kb_file)
         return kb_file
 
-    def create_persona_card_file(self, persona_card: Optional[PersonaCard] = None, **kwargs) -> PersonaCardFile:
+    def create_persona_card_file(self, persona_card: PersonaCard | None = None, **kwargs) -> PersonaCardFile:
         """创建测试人设卡文件"""
         if persona_card is None:
             persona_card = self.create_persona_card()
@@ -209,7 +209,7 @@ class TestDataFactory:
         return pc_file
 
     def create_star_record(
-        self, user: Optional[User] = None, target_id: str = None, target_type: str = "knowledge_base", **kwargs
+        self, user: User | None = None, target_id: str = None, target_type: str = "knowledge_base", **kwargs
     ):
         """创建测试 Star 记录"""
         from app.models.database import StarRecord

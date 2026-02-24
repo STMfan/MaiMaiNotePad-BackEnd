@@ -1,13 +1,13 @@
 """响应工具模块 - 提供统一的API响应格式化函数"""
 
-from typing import Optional, TypeVar, List
+from typing import TypeVar
 
 from app.models.schemas import BaseResponse, PageResponse, Pagination
 
 T = TypeVar("T")
 
 
-def Success(message: Optional[str] = None, data: Optional[T] = None) -> BaseResponse[Optional[T]]:
+def success(message: str | None = None, data: T | None = None) -> BaseResponse[T | None]:
     """创建成功响应
 
     Args:
@@ -17,10 +17,10 @@ def Success(message: Optional[str] = None, data: Optional[T] = None) -> BaseResp
     Returns:
         BaseResponse: 成功响应对象
     """
-    return BaseResponse[Optional[T]](success=True, message=message or "", data=data)
+    return BaseResponse[T | None](success=True, message=message or "", data=data)
 
 
-def Error(message: Optional[str] = None, data: Optional[T] = None) -> BaseResponse[Optional[T]]:
+def error(message: str | None = None, data: T | None = None) -> BaseResponse[T | None]:
     """创建错误响应
 
     Args:
@@ -30,10 +30,10 @@ def Error(message: Optional[str] = None, data: Optional[T] = None) -> BaseRespon
     Returns:
         BaseResponse: 错误响应对象
     """
-    return BaseResponse[Optional[T]](success=False, message=message or "", data=data)
+    return BaseResponse[T | None](success=False, message=message or "", data=data)
 
 
-def Page(data: List[T], page: int, page_size: int, total: int, message: Optional[str] = None) -> PageResponse[T]:
+def page(data: list[T], page: int, page_size: int, total: int, message: str | None = None) -> PageResponse[T]:
     """创建分页响应
 
     Args:
@@ -54,3 +54,9 @@ def Page(data: List[T], page: int, page_size: int, total: int, message: Optional
     )
 
     return PageResponse[T](success=True, message=message or "", data=data, pagination=pagination)
+
+
+# 向后兼容的别名（已弃用，请使用小写版本）
+Success = success
+Error = error
+Page = page

@@ -40,7 +40,7 @@ def main():
         # 初始化审核服务
         print("正在初始化审核服务...")
         service = ModerationService()
-        print(f"✅ 审核服务初始化成功")
+        print("✅ 审核服务初始化成功")
         print(f"使用模型: {service.model}")
         print(f"API 地址: {service.base_url}\n")
 
@@ -49,6 +49,7 @@ def main():
             ("这是一条正常的评论，讨论技术问题。", "comment"),
             ("今天天气真好，适合出去玩。", "post"),
             ("Python 是一门很棒的编程语言。", "content"),
+            ("你他妈就是个傻逼", "comment")
         ]
 
         print("开始测试审核功能...\n")

@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from unittest.mock import patch
 
-from app.models.database import User, Message
+from app.models.database import Message, User
 from tests.conftest import assert_error_response
 
 

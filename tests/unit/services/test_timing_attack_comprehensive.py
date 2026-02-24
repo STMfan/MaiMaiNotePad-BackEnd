@@ -11,11 +11,12 @@
 任务: 4.3.3 - 测试计时攻击防护
 """
 
-from unittest.mock import Mock, patch, call
+from unittest.mock import Mock, call, patch
+
 from sqlalchemy.orm import Session
 
-from app.services.user_service import UserService
 from app.models.database import User
+from app.services.user_service import UserService
 
 
 class TestTimingAttackProtection:

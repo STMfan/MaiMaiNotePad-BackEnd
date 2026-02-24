@@ -6,26 +6,29 @@
 **Validates: Requirements 2.2 - 降级策略**
 """
 
-import pytest
-from hypothesis import given, strategies as st, settings, HealthCheck, assume
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
 import asyncio
+from typing import Any
 from unittest.mock import AsyncMock
 
-from app.core.cache.manager import CacheManager
+import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
+from pydantic import BaseModel
 
+from app.core.cache.manager import CacheManager
 
 # ============================================================================
 # 测试数据模型
 # ============================================================================
 
-class TestModel(BaseModel):
-    """测试用的 Pydantic 模型"""
+
+class CacheTestModel(BaseModel):
+    """测试用的 Pydantic 模型（重命名避免 pytest 收集）"""
+
     id: str
     name: str
     value: int
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
 
 
 # ============================================================================
@@ -34,12 +37,7 @@ class TestModel(BaseModel):
 
 # 缓存键策略
 cache_keys = st.text(
-    min_size=1,
-    max_size=50,
-    alphabet=st.characters(
-        whitelist_categories=('Lu', 'Ll', 'Nd'),
-        whitelist_characters=':_-'
-    )
+    min_size=1, max_size=50, alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters=":_-")
 )
 
 # 字典值策略
@@ -51,23 +49,16 @@ dict_values = st.dictionaries(
         st.booleans(),
     ),
     min_size=1,
-    max_size=10
+    max_size=10,
 )
 
 # Pydantic 模型策略
 test_models = st.builds(
-    TestModel,
+    CacheTestModel,
     id=st.text(min_size=1, max_size=20),
     name=st.text(min_size=1, max_size=50),
     value=st.integers(min_value=0, max_value=10000),
-    metadata=st.one_of(
-        st.none(),
-        st.dictionaries(
-            st.text(min_size=1, max_size=10),
-            st.text(max_size=20),
-            max_size=3
-        )
-    )
+    metadata=st.one_of(st.none(), st.dictionaries(st.text(min_size=1, max_size=10), st.text(max_size=20), max_size=3)),
 )
 
 
@@ -75,25 +66,26 @@ test_models = st.builds(
 # 辅助函数
 # ============================================================================
 
+
 def create_mock_redis():
     """创建模拟的 Redis 客户端
-    
+
     Returns:
         AsyncMock: 模拟的 Redis 客户端，支持基本的 get/set/delete 操作
     """
     mock_redis = AsyncMock()
     storage = {}
     ttl_storage = {}
-    
+
     async def mock_set(key, value, ttl=None):
         storage[key] = value
         if ttl is not None:
             ttl_storage[key] = ttl
         return True
-    
+
     async def mock_get(key):
         return storage.get(key)
-    
+
     async def mock_delete(key):
         if key in storage:
             del storage[key]
@@ -101,27 +93,28 @@ def create_mock_redis():
                 del ttl_storage[key]
             return True
         return False
-    
+
     async def mock_exists(key):
         return key in storage
-    
+
     async def mock_delete_pattern(pattern):
         """模拟批量删除操作"""
         # 简单实现：删除所有匹配的键
         import fnmatch
+
         deleted_count = 0
         keys_to_delete = []
-        
+
         for key in list(storage.keys()):
             if fnmatch.fnmatch(key, pattern):
                 keys_to_delete.append(key)
-        
+
         for key in keys_to_delete:
             await mock_delete(key)
             deleted_count += 1
-        
+
         return deleted_count
-    
+
     mock_redis.set = mock_set
     mock_redis.get = mock_get
     mock_redis.delete = mock_delete
@@ -129,13 +122,14 @@ def create_mock_redis():
     mock_redis.delete_pattern = mock_delete_pattern
     mock_redis._storage = storage
     mock_redis._ttl_storage = ttl_storage
-    
+
     return mock_redis
 
 
 # ============================================================================
 # 属性测试类
 # ============================================================================
+
 
 class TestCacheDegradationTransparency:
     """
@@ -146,18 +140,14 @@ class TestCacheDegradationTransparency:
     且对调用方透明。
 
     数学表示:
-    ∀k, f: (cache_enabled = False ∨ redis_unavailable = True) ⟹ 
+    ∀k, f: (cache_enabled = False ∨ redis_unavailable = True) ⟹
       (get_cached(k, fetch_func=f) = f() ∧ no_redis_operation_executed)
 
     **Validates: Requirements 2.2 - 降级策略**
     """
 
     @given(key=cache_keys, value=dict_values)
-    @settings(
-        max_examples=50,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=50, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_disabled_cache_returns_same_value(self, key, value):
         """
@@ -169,19 +159,19 @@ class TestCacheDegradationTransparency:
         """
         # 创建模拟 Redis 客户端
         mock_redis = create_mock_redis()
-        
+
         # 定义数据获取函数
         def fetch_func():
             return value
-        
+
         # 场景 1：缓存启用
         manager_enabled = CacheManager(redis_client=mock_redis, enabled=True)
         result_enabled = await manager_enabled.get_cached(key, fetch_func=fetch_func)
-        
+
         # 场景 2：缓存禁用
         manager_disabled = CacheManager(redis_client=None, enabled=False)
         result_disabled = await manager_disabled.get_cached(key, fetch_func=fetch_func)
-        
+
         # 验证透明性：两种情况返回相同的值
         assert result_enabled == result_disabled == value, (
             f"缓存启用和禁用时应该返回相同的值\n"
@@ -191,11 +181,7 @@ class TestCacheDegradationTransparency:
         )
 
     @given(key=cache_keys, model=test_models)
-    @settings(
-        max_examples=50,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=50, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_disabled_cache_model_consistency(self, key, model):
         """
@@ -207,27 +193,19 @@ class TestCacheDegradationTransparency:
         """
         # 创建模拟 Redis 客户端
         mock_redis = create_mock_redis()
-        
+
         # 定义数据获取函数
         def fetch_func():
             return model
-        
+
         # 场景 1：缓存启用
         manager_enabled = CacheManager(redis_client=mock_redis, enabled=True)
-        result_enabled = await manager_enabled.get_cached(
-            key, 
-            fetch_func=fetch_func,
-            model=TestModel
-        )
-        
+        result_enabled = await manager_enabled.get_cached(key, fetch_func=fetch_func, model=CacheTestModel)
+
         # 场景 2：缓存禁用
         manager_disabled = CacheManager(redis_client=None, enabled=False)
-        result_disabled = await manager_disabled.get_cached(
-            key, 
-            fetch_func=fetch_func,
-            model=TestModel
-        )
-        
+        result_disabled = await manager_disabled.get_cached(key, fetch_func=fetch_func, model=CacheTestModel)
+
         # 验证透明性
         assert result_enabled == result_disabled == model, (
             f"缓存启用和禁用时模型应该一致\n"
@@ -237,11 +215,7 @@ class TestCacheDegradationTransparency:
         )
 
     @given(key=cache_keys, value=dict_values)
-    @settings(
-        max_examples=30,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_disabled_cache_no_redis_operations(self, key, value):
         """
@@ -253,48 +227,41 @@ class TestCacheDegradationTransparency:
         """
         # 创建模拟 Redis 客户端（带调用计数）
         mock_redis = create_mock_redis()
-        
+
         # 记录 Redis 操作次数
         redis_call_count = 0
         original_get = mock_redis.get
         original_set = mock_redis.set
-        
+
         async def counted_get(key):
             nonlocal redis_call_count
             redis_call_count += 1
             return await original_get(key)
-        
+
         async def counted_set(key, value, ttl=None):
             nonlocal redis_call_count
             redis_call_count += 1
             return await original_set(key, value, ttl)
-        
+
         mock_redis.get = counted_get
         mock_redis.set = counted_set
-        
+
         # 定义数据获取函数
         def fetch_func():
             return value
-        
+
         # 缓存禁用
         manager_disabled = CacheManager(redis_client=mock_redis, enabled=False)
         result = await manager_disabled.get_cached(key, fetch_func=fetch_func)
-        
+
         # 验证：不访问 Redis
-        assert redis_call_count == 0, (
-            f"缓存禁用时不应该访问 Redis\n"
-            f"Redis 操作次数: {redis_call_count}"
-        )
-        
+        assert redis_call_count == 0, f"缓存禁用时不应该访问 Redis\n" f"Redis 操作次数: {redis_call_count}"
+
         # 验证：返回正确的值
         assert result == value
 
     @given(key=cache_keys, value=dict_values)
-    @settings(
-        max_examples=30,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_async_fetch_func_degradation(self, key, value):
         """
@@ -306,20 +273,20 @@ class TestCacheDegradationTransparency:
         """
         # 创建模拟 Redis 客户端
         mock_redis = create_mock_redis()
-        
+
         # 定义异步数据获取函数
         async def async_fetch_func():
             await asyncio.sleep(0.01)  # 模拟异步操作
             return value
-        
+
         # 场景 1：缓存启用
         manager_enabled = CacheManager(redis_client=mock_redis, enabled=True)
         result_enabled = await manager_enabled.get_cached(key, fetch_func=async_fetch_func)
-        
+
         # 场景 2：缓存禁用
         manager_disabled = CacheManager(redis_client=None, enabled=False)
         result_disabled = await manager_disabled.get_cached(key, fetch_func=async_fetch_func)
-        
+
         # 验证透明性
         assert result_enabled == result_disabled == value, (
             f"异步 fetch_func 在缓存启用和禁用时应该返回相同的值\n"
@@ -339,11 +306,7 @@ class TestCacheDegradationNoExceptions:
     """
 
     @given(key=cache_keys, value=dict_values)
-    @settings(
-        max_examples=30,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_get_cached_no_exception_when_disabled(self, key, value):
         """
@@ -353,10 +316,10 @@ class TestCacheDegradationNoExceptions:
         """
         # 缓存禁用（redis_client 为 None）
         manager = CacheManager(redis_client=None, enabled=False)
-        
+
         def fetch_func():
             return value
-        
+
         # 不应该抛出异常
         try:
             result = await manager.get_cached(key, fetch_func=fetch_func)
@@ -365,11 +328,7 @@ class TestCacheDegradationNoExceptions:
             pytest.fail(f"缓存禁用时不应该抛出异常: {e}")
 
     @given(key=cache_keys, value=dict_values)
-    @settings(
-        max_examples=30,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_set_cached_no_exception_when_disabled(self, key, value):
         """
@@ -379,7 +338,7 @@ class TestCacheDegradationNoExceptions:
         """
         # 缓存禁用
         manager = CacheManager(redis_client=None, enabled=False)
-        
+
         # 不应该抛出异常
         try:
             result = await manager.set_cached(key, value)
@@ -388,11 +347,7 @@ class TestCacheDegradationNoExceptions:
             pytest.fail(f"缓存禁用时不应该抛出异常: {e}")
 
     @given(key=cache_keys)
-    @settings(
-        max_examples=30,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_invalidate_no_exception_when_disabled(self, key):
         """
@@ -402,7 +357,7 @@ class TestCacheDegradationNoExceptions:
         """
         # 缓存禁用
         manager = CacheManager(redis_client=None, enabled=False)
-        
+
         # 不应该抛出异常
         try:
             result = await manager.invalidate(key)
@@ -411,11 +366,7 @@ class TestCacheDegradationNoExceptions:
             pytest.fail(f"缓存禁用时不应该抛出异常: {e}")
 
     @given(pattern=st.text(min_size=1, max_size=20))
-    @settings(
-        max_examples=30,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_invalidate_pattern_no_exception_when_disabled(self, pattern):
         """
@@ -425,7 +376,7 @@ class TestCacheDegradationNoExceptions:
         """
         # 缓存禁用
         manager = CacheManager(redis_client=None, enabled=False)
-        
+
         # 不应该抛出异常
         try:
             result = await manager.invalidate_pattern(pattern)
@@ -444,11 +395,7 @@ class TestCacheDegradationOperationBehavior:
     """
 
     @given(key=cache_keys, value=dict_values)
-    @settings(
-        max_examples=30,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_set_cached_returns_true_when_disabled(self, key, value):
         """
@@ -459,20 +406,13 @@ class TestCacheDegradationOperationBehavior:
         **Validates: Requirements 2.2**
         """
         manager = CacheManager(redis_client=None, enabled=False)
-        
+
         result = await manager.set_cached(key, value)
-        
-        assert result is True, (
-            f"缓存禁用时 set_cached 应该返回 True\n"
-            f"实际返回: {result}"
-        )
+
+        assert result is True, f"缓存禁用时 set_cached 应该返回 True\n" f"实际返回: {result}"
 
     @given(key=cache_keys)
-    @settings(
-        max_examples=30,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_invalidate_returns_true_when_disabled(self, key):
         """
@@ -481,20 +421,13 @@ class TestCacheDegradationOperationBehavior:
         **Validates: Requirements 2.2**
         """
         manager = CacheManager(redis_client=None, enabled=False)
-        
+
         result = await manager.invalidate(key)
-        
-        assert result is True, (
-            f"缓存禁用时 invalidate 应该返回 True\n"
-            f"实际返回: {result}"
-        )
+
+        assert result is True, f"缓存禁用时 invalidate 应该返回 True\n" f"实际返回: {result}"
 
     @given(pattern=st.text(min_size=1, max_size=20))
-    @settings(
-        max_examples=30,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_invalidate_pattern_returns_zero_when_disabled(self, pattern):
         """
@@ -503,20 +436,13 @@ class TestCacheDegradationOperationBehavior:
         **Validates: Requirements 2.2**
         """
         manager = CacheManager(redis_client=None, enabled=False)
-        
+
         result = await manager.invalidate_pattern(pattern)
-        
-        assert result == 0, (
-            f"缓存禁用时 invalidate_pattern 应该返回 0\n"
-            f"实际返回: {result}"
-        )
+
+        assert result == 0, f"缓存禁用时 invalidate_pattern 应该返回 0\n" f"实际返回: {result}"
 
     @given(key=cache_keys, value=dict_values)
-    @settings(
-        max_examples=30,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_get_cached_without_fetch_func_when_disabled(self, key, value):
         """
@@ -525,14 +451,11 @@ class TestCacheDegradationOperationBehavior:
         **Validates: Requirements 2.2**
         """
         manager = CacheManager(redis_client=None, enabled=False)
-        
+
         # 不提供 fetch_func
         result = await manager.get_cached(key)
-        
-        assert result is None, (
-            f"缓存禁用且无 fetch_func 时应该返回 None\n"
-            f"实际返回: {result}"
-        )
+
+        assert result is None, f"缓存禁用且无 fetch_func 时应该返回 None\n" f"实际返回: {result}"
 
 
 class TestCacheDegradationEdgeCases:
@@ -553,18 +476,18 @@ class TestCacheDegradationEdgeCases:
         """
         mock_redis = create_mock_redis()
         key = "test:none"
-        
+
         def fetch_none():
             return None
-        
+
         # 缓存启用
         manager_enabled = CacheManager(redis_client=mock_redis, enabled=True)
         result_enabled = await manager_enabled.get_cached(key, fetch_func=fetch_none)
-        
+
         # 缓存禁用
         manager_disabled = CacheManager(redis_client=None, enabled=False)
         result_disabled = await manager_disabled.get_cached(key, fetch_func=fetch_none)
-        
+
         # 验证透明性
         assert result_enabled is None
         assert result_disabled is None
@@ -580,18 +503,18 @@ class TestCacheDegradationEdgeCases:
         mock_redis = create_mock_redis()
         key = "test:empty_dict"
         value = {}
-        
+
         def fetch_func():
             return value
-        
+
         # 缓存启用
         manager_enabled = CacheManager(redis_client=mock_redis, enabled=True)
         result_enabled = await manager_enabled.get_cached(key, fetch_func=fetch_func)
-        
+
         # 缓存禁用
         manager_disabled = CacheManager(redis_client=None, enabled=False)
         result_disabled = await manager_disabled.get_cached(key, fetch_func=fetch_func)
-        
+
         # 验证透明性
         assert result_enabled == result_disabled == value
 
@@ -606,23 +529,19 @@ class TestCacheDegradationEdgeCases:
         """
         mock_redis = create_mock_redis()
         key = "test:unicode"
-        value = {
-            "name": "测试用户",
-            "description": "这是一个包含中文的描述",
-            "emoji": "😀🎉🚀"
-        }
-        
+        value = {"name": "测试用户", "description": "这是一个包含中文的描述", "emoji": "😀🎉🚀"}
+
         def fetch_func():
             return value
-        
+
         # 缓存启用
         manager_enabled = CacheManager(redis_client=mock_redis, enabled=True)
         result_enabled = await manager_enabled.get_cached(key, fetch_func=fetch_func)
-        
+
         # 缓存禁用
         manager_disabled = CacheManager(redis_client=None, enabled=False)
         result_disabled = await manager_disabled.get_cached(key, fetch_func=fetch_func)
-        
+
         # 验证透明性
         assert result_enabled == result_disabled == value
         assert result_enabled["name"] == "测试用户"
@@ -639,39 +558,39 @@ class TestCacheDegradationEdgeCases:
         mock_redis = create_mock_redis()
         key = "test:multiple"
         value = {"count": 0}
-        
+
         # 使用计数器验证 fetch_func 被调用的次数
         call_count_enabled = 0
         call_count_disabled = 0
-        
+
         def fetch_func_enabled():
             nonlocal call_count_enabled
             call_count_enabled += 1
             return value
-        
+
         def fetch_func_disabled():
             nonlocal call_count_disabled
             call_count_disabled += 1
             return value
-        
+
         # 缓存启用：第一次调用 fetch_func，后续走缓存
         manager_enabled = CacheManager(redis_client=mock_redis, enabled=True)
         result1 = await manager_enabled.get_cached(key, fetch_func=fetch_func_enabled)
         result2 = await manager_enabled.get_cached(key, fetch_func=fetch_func_enabled)
         result3 = await manager_enabled.get_cached(key, fetch_func=fetch_func_enabled)
-        
+
         assert call_count_enabled == 1, "缓存启用时只应该调用一次 fetch_func"
         assert result1 == result2 == result3 == value
-        
+
         # 缓存禁用：每次都调用 fetch_func
         manager_disabled = CacheManager(redis_client=None, enabled=False)
         result4 = await manager_disabled.get_cached(key, fetch_func=fetch_func_disabled)
         result5 = await manager_disabled.get_cached(key, fetch_func=fetch_func_disabled)
         result6 = await manager_disabled.get_cached(key, fetch_func=fetch_func_disabled)
-        
+
         assert call_count_disabled == 3, "缓存禁用时每次都应该调用 fetch_func"
         assert result4 == result5 == result6 == value
-        
+
         # 验证透明性：返回值一致
         assert result1 == result4 == value
 
@@ -688,15 +607,15 @@ class TestCacheDegradationEdgeCases:
         mock_redis = create_mock_redis()
         manager1 = CacheManager(redis_client=mock_redis, enabled=True)
         assert manager1.is_enabled() is True
-        
+
         # 场景 2：缓存禁用
         manager2 = CacheManager(redis_client=mock_redis, enabled=False)
         assert manager2.is_enabled() is False
-        
+
         # 场景 3：没有 Redis 客户端
         manager3 = CacheManager(redis_client=None, enabled=True)
         assert manager3.is_enabled() is False
-        
+
         # 场景 4：缓存禁用且没有 Redis 客户端
         manager4 = CacheManager(redis_client=None, enabled=False)
         assert manager4.is_enabled() is False

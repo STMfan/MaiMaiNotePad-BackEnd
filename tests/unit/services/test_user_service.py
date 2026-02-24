@@ -6,15 +6,16 @@ UserService 单元测试
 需求: 2.2 - 服务层单元测试
 """
 
-import pytest
 import os
 from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, patch
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
+from unittest.mock import Mock, patch
 
-from app.services.user_service import UserService
+import pytest
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+
 from app.models.database import User
+from app.services.user_service import UserService
 
 
 class TestUserRetrieval:
@@ -2165,8 +2166,9 @@ class TestDashboardTrendStats:
 
     def test_get_dashboard_trend_stats_with_data(self, test_db, factory):
         """测试有数据的趋势统计"""
-        from app.models.database import KnowledgeBase, PersonaCard, DownloadRecord, StarRecord
         import uuid
+
+        from app.models.database import DownloadRecord, KnowledgeBase, PersonaCard, StarRecord
 
         user = factory.create_user()
 

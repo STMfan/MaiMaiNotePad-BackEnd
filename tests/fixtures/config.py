@@ -7,7 +7,6 @@
 
 import os
 from pathlib import Path
-from typing import Dict, Optional
 
 
 class TestConfig:
@@ -20,7 +19,7 @@ class TestConfig:
     __test__ = False  # 告诉 pytest 不要收集这个类
 
     def __init__(self):
-        self.config: Dict[str, str] = {}
+        self.config: dict[str, str] = {}
         self._load_config()
 
     def _load_config(self):
@@ -42,7 +41,7 @@ class TestConfig:
 
     def _parse_env_file(self, file_path: Path):
         """解析环境文件并提取键值对"""
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             for line in f:
                 line = line.strip()
                 # 跳过注释和空行
@@ -64,7 +63,7 @@ class TestConfig:
             "TEST_PARALLEL": "true",
         }
 
-    def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
+    def get(self, key: str, default: str | None = None) -> str | None:
         """获取配置值"""
         return self.config.get(key, default)
 

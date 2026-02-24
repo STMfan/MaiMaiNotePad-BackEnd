@@ -5,10 +5,11 @@ AI 内容审核服务模块
 支持色情、涉政、辱骂等违规内容的检测。
 """
 
-import os
 import json
 import logging
-from typing import Dict, List, Optional
+import os
+from typing import Any
+
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ class ModerationService:
 
 请严格按照上述格式输出，不要添加任何解释或额外文字。"""
 
-    def __init__(self, api_key: Optional[str] = None, base_url: str = "https://api.siliconflow.cn/v1"):
+    def __init__(self, api_key: str | None = None, base_url: str = "https://api.siliconflow.cn/v1"):
         """
         初始化审核服务
 
@@ -84,7 +85,7 @@ class ModerationService:
 
     def moderate(
         self, text: str, text_type: str = "comment", temperature: float = 0.1, max_tokens: int = 100
-    ) -> Dict[str, any]:
+    ) -> dict[str, Any]:
         """
         对文本进行内容审核
 
@@ -142,7 +143,7 @@ class ModerationService:
             logger.error(f"审核过程发生异常: {e}", exc_info=True)
             return self._get_default_unknown_result()
 
-    def _validate_result(self, result: Dict) -> bool:
+    def _validate_result(self, result: dict) -> bool:
         """
         验证审核结果格式是否正确
 
@@ -176,7 +177,7 @@ class ModerationService:
 
         return True
 
-    def _get_default_unknown_result(self) -> Dict[str, any]:
+    def _get_default_unknown_result(self) -> dict[str, Any]:
         """
         获取默认的"不确定"结果（用于异常情况）
 
@@ -187,7 +188,7 @@ class ModerationService:
 
 
 # 全局服务实例（延迟初始化）
-_moderation_service: Optional[ModerationService] = None
+_moderation_service: ModerationService | None = None
 
 
 def get_moderation_service() -> ModerationService:

@@ -7,9 +7,10 @@ EmailService 单元测试
 需求: 2.2 - 服务层单元测试
 """
 
-import pytest
 import smtplib
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from app.services.email_service import EmailService, send_email
 

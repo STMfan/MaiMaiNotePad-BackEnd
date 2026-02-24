@@ -4,15 +4,16 @@ WebSocket测试客户端模块
 提供用于测试WebSocket连接的客户端类，支持token认证、消息收发和错误模拟。
 """
 
-from typing import Optional, Dict, Any, Union, List
-from fastapi.testclient import TestClient
-from starlette.testclient import WebSocketTestSession
+import json
+import logging
+import time
+from collections import deque
 from contextlib import contextmanager
 from enum import Enum
-import time
-import logging
-import json
-from collections import deque
+from typing import Any
+
+from fastapi.testclient import TestClient
+from starlette.testclient import WebSocketTestSession
 
 logger = logging.getLogger(__name__)
 
@@ -77,21 +78,21 @@ class WebSocketTestClient:
         """
         self.test_client = test_client
         self.token = token
-        self.websocket: Optional[WebSocketTestSession] = None
+        self.websocket: WebSocketTestSession | None = None
         self._url = f"/api/ws/{token}"
         self._state = ConnectionState.DISCONNECTED
         self._connection_timeout = connection_timeout
         self._max_retries = max_retries
         self._retry_count = 0
-        self._last_error: Optional[Exception] = None
-        self._connection_start_time: Optional[float] = None
+        self._last_error: Exception | None = None
+        self._connection_start_time: float | None = None
 
         # 消息收发相关
         self._message_timeout = message_timeout
         self._enable_message_queue = enable_message_queue
         self._message_queue: deque = deque()
-        self._sent_messages: List[Dict[str, Any]] = []
-        self._received_messages: List[Dict[str, Any]] = []
+        self._sent_messages: list[dict[str, Any]] = []
+        self._received_messages: list[dict[str, Any]] = []
 
     @contextmanager
     def connect(self):
@@ -200,7 +201,7 @@ class WebSocketTestClient:
         """
         return self._state == ConnectionState.CONNECTED and self.websocket is not None
 
-    def get_connection_duration(self) -> Optional[float]:
+    def get_connection_duration(self) -> float | None:
         """
         获取连接持续时间
 
@@ -216,7 +217,7 @@ class WebSocketTestClient:
             return time.time() - self._connection_start_time
         return None
 
-    def check_connection_health(self) -> Dict[str, Any]:
+    def check_connection_health(self) -> dict[str, Any]:
         """
         检查连接健康状态
 
@@ -259,8 +260,8 @@ class WebSocketTestClient:
         logger.info("Connection state reset")
 
     def receive_message(
-        self, timeout: Optional[float] = None, message_type: MessageType = MessageType.JSON
-    ) -> Union[Dict[str, Any], str, bytes, None]:
+        self, timeout: float | None = None, message_type: MessageType = MessageType.JSON
+    ) -> dict[str, Any] | str | bytes | None:
         """
         接收WebSocket消息（支持超时和多种消息类型）
 
@@ -325,14 +326,14 @@ class WebSocketTestClient:
             return None
         except json.JSONDecodeError as e:
             logger.error(f"Failed to decode JSON message: {e}")
-            raise ValueError(f"Invalid JSON message: {e}")
+            raise ValueError(f"Invalid JSON message: {e}") from e
         except Exception as e:
             logger.error(f"Error receiving message: {e}")
             raise
 
     def receive_message_with_validation(
-        self, expected_fields: List[str], timeout: Optional[float] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, expected_fields: list[str], timeout: float | None = None
+    ) -> dict[str, Any] | None:
         """
         接收并验证JSON消息包含期望的字段
 
@@ -367,7 +368,7 @@ class WebSocketTestClient:
         logger.debug(f"Message validation passed: {expected_fields}")
         return message
 
-    def try_receive_message(self, timeout: float = 0.1) -> Optional[Dict[str, Any]]:
+    def try_receive_message(self, timeout: float = 0.1) -> dict[str, Any] | None:
         """
         尝试接收消息（非阻塞，快速超时）
 
@@ -386,9 +387,7 @@ class WebSocketTestClient:
         """
         return self.receive_message(timeout=timeout, message_type=MessageType.JSON)
 
-    def send_message(
-        self, message: Union[str, Dict[str, Any], bytes], message_type: Optional[MessageType] = None
-    ) -> bool:
+    def send_message(self, message: str | dict[str, Any] | bytes, message_type: MessageType | None = None) -> bool:
         """
         发送WebSocket消息（支持多种消息类型）
 
@@ -443,7 +442,7 @@ class WebSocketTestClient:
             logger.error(f"Error sending message: {e}")
             return False
 
-    def _detect_message_type(self, message: Union[str, Dict[str, Any], bytes]) -> MessageType:
+    def _detect_message_type(self, message: str | dict[str, Any] | bytes) -> MessageType:
         """自动检测消息类型"""
         if isinstance(message, dict):
             return MessageType.JSON
@@ -452,7 +451,7 @@ class WebSocketTestClient:
         else:
             return MessageType.TEXT
 
-    def _send_json_type(self, message: Union[str, Dict[str, Any]]) -> None:
+    def _send_json_type(self, message: str | dict[str, Any]) -> None:
         """发送JSON类型消息"""
         if isinstance(message, dict):
             self.websocket.send_json(message)
@@ -460,21 +459,21 @@ class WebSocketTestClient:
             json_data = json.loads(message) if isinstance(message, str) else message
             self.websocket.send_json(json_data)
 
-    def _send_text_type(self, message: Union[str, Dict[str, Any], bytes]) -> None:
+    def _send_text_type(self, message: str | dict[str, Any] | bytes) -> None:
         """发送文本类型消息"""
         text_message = message if isinstance(message, str) else str(message)
         self.websocket.send_text(text_message)
 
-    def _send_binary_type(self, message: Union[str, bytes]) -> None:
+    def _send_binary_type(self, message: str | bytes) -> None:
         """发送二进制类型消息"""
         binary_message = message if isinstance(message, bytes) else message.encode()
         self.websocket.send_bytes(binary_message)
 
-    def _record_sent_message(self, message_type: MessageType, message: Union[str, Dict[str, Any], bytes]) -> None:
+    def _record_sent_message(self, message_type: MessageType, message: str | dict[str, Any] | bytes) -> None:
         """记录已发送的消息"""
         self._sent_messages.append({"type": message_type.value, "data": message, "timestamp": time.time()})
 
-    def send_json_message(self, data: Dict[str, Any]) -> bool:
+    def send_json_message(self, data: dict[str, Any]) -> bool:
         """
         发送JSON消息（便捷方法）
 
@@ -519,7 +518,7 @@ class WebSocketTestClient:
         """
         return self.send_message(data, message_type=MessageType.BINARY)
 
-    def get_sent_messages(self) -> List[Dict[str, Any]]:
+    def get_sent_messages(self) -> list[dict[str, Any]]:
         """
         获取已发送的消息历史
 
@@ -532,7 +531,7 @@ class WebSocketTestClient:
         """
         return self._sent_messages.copy()
 
-    def get_received_messages(self) -> List[Dict[str, Any]]:
+    def get_received_messages(self) -> list[dict[str, Any]]:
         """
         获取已接收的消息历史
 
@@ -558,7 +557,7 @@ class WebSocketTestClient:
         self._message_queue.clear()
         logger.debug("Message history cleared")
 
-    def get_message_statistics(self) -> Dict[str, Any]:
+    def get_message_statistics(self) -> dict[str, Any]:
         """
         获取消息统计信息
 
@@ -772,7 +771,7 @@ class WebSocketTestClient:
         else:
             raise ValueError(f"Unknown error type: {error_type}")
 
-    def simulate_auth_failure(self, failure_type: str = "invalid_token") -> Dict[str, Any]:
+    def simulate_auth_failure(self, failure_type: str = "invalid_token") -> dict[str, Any]:
         """
         模拟认证失败
 
@@ -893,7 +892,7 @@ class WebSocketTestClient:
 
     def simulate_intermittent_connection(
         self, disconnect_after: float = 1.0, reconnect_delay: float = 0.5
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         模拟间歇性连接（连接-断开-重连）
 
@@ -948,7 +947,7 @@ class WebSocketTestClient:
 
         return result
 
-    def get_exception_simulation_capabilities(self) -> Dict[str, List[str]]:
+    def get_exception_simulation_capabilities(self) -> dict[str, list[str]]:
         """
         获取支持的异常模拟类型
 

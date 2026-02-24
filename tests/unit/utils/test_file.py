@@ -5,20 +5,21 @@ app/utils/file.py 单元测试
 """
 
 import os
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from fastapi import UploadFile, HTTPException
+from fastapi import HTTPException, UploadFile
 
 from app.utils.file import (
-    validate_file_type,
-    validate_file_size,
-    validate_file_content_size,
+    delete_file,
+    ensure_directory_exists,
+    generate_unique_filename,
+    get_file_extension,
     save_uploaded_file,
     save_uploaded_file_with_size,
-    ensure_directory_exists,
-    delete_file,
-    get_file_extension,
-    generate_unique_filename,
+    validate_file_content_size,
+    validate_file_size,
+    validate_file_type,
 )
 
 

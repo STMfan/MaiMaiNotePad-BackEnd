@@ -5,17 +5,18 @@ FileUploadService 单元测试
 """
 
 import os
-import pytest
-import tempfile
 import shutil
-import toml
-from unittest.mock import Mock, AsyncMock
-from fastapi import UploadFile, HTTPException
+import tempfile
 from datetime import datetime
+from unittest.mock import AsyncMock, Mock
 
-from app.services.file_upload_service import FileUploadService
-from app.models.database import KnowledgeBase, PersonaCard, KnowledgeBaseFile, PersonaCardFile
+import pytest
+import toml
+from fastapi import HTTPException, UploadFile
+
 from app.core.error_handlers import ValidationError
+from app.models.database import KnowledgeBase, KnowledgeBaseFile, PersonaCard, PersonaCardFile
+from app.services.file_upload_service import FileUploadService
 
 
 class TestFileUploadServiceInit:
@@ -188,7 +189,7 @@ description = "A test character"
         assert os.path.exists(toml_file_path)
 
         # 验证 TOML 内容
-        with open(toml_file_path, "r", encoding="utf-8") as f:
+        with open(toml_file_path, encoding="utf-8") as f:
             saved_toml = toml.load(f)
         assert saved_toml["meta"]["version"] == "1.0.0"
 
@@ -1352,9 +1353,6 @@ class TestFileOperationErrors:
         service = FileUploadService(test_db)
 
         # Mock json.dump 失败
-        import json
-
-        json.dump
 
         def mock_dump(*args, **kwargs):
             raise Exception("JSON dump error")
@@ -1903,8 +1901,9 @@ description = "No version here"
         user = factory.create_user()
 
         # 创建知识库但不创建目录
-        from app.models.database import KnowledgeBase
         import uuid
+
+        from app.models.database import KnowledgeBase
 
         kb = KnowledgeBase(
             id=str(uuid.uuid4()),
@@ -2001,8 +2000,9 @@ description = "No version here"
         """测试从不存在的知识库目录删除文件"""
         user = factory.create_user()
 
-        from app.models.database import KnowledgeBase, KnowledgeBaseFile
         import uuid
+
+        from app.models.database import KnowledgeBase, KnowledgeBaseFile
 
         kb = KnowledgeBase(
             id=str(uuid.uuid4()),
@@ -2047,8 +2047,9 @@ description = "No version here"
         """测试创建 ZIP 时目录不存在"""
         user = factory.create_user()
 
-        from app.models.database import KnowledgeBase, KnowledgeBaseFile
         import uuid
+
+        from app.models.database import KnowledgeBase, KnowledgeBaseFile
 
         kb = KnowledgeBase(
             id=str(uuid.uuid4()),
@@ -2094,9 +2095,10 @@ description = "No version here"
         """测试为人格卡创建 ZIP"""
         user = factory.create_user()
 
-        from app.models.database import PersonaCard, PersonaCardFile
-        import uuid
         import tempfile
+        import uuid
+
+        from app.models.database import PersonaCard, PersonaCardFile
 
         temp_dir = tempfile.mkdtemp()
         try:

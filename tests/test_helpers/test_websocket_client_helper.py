@@ -5,6 +5,7 @@
 """
 
 import pytest
+
 from tests.helpers.websocket_client import WebSocketTestClient
 
 
@@ -22,6 +23,7 @@ def test_websocket_client_initialization(client):
 def test_websocket_client_receive_without_connection():
     """测试在未建立连接时接收消息应该抛出异常"""
     from fastapi.testclient import TestClient
+
     from app.main import app
 
     client = TestClient(app)
@@ -34,6 +36,7 @@ def test_websocket_client_receive_without_connection():
 def test_websocket_client_send_without_connection():
     """测试在未建立连接时发送消息应该抛出异常"""
     from fastapi.testclient import TestClient
+
     from app.main import app
 
     client = TestClient(app)

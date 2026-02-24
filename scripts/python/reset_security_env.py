@@ -1,10 +1,9 @@
+import os
 import secrets
 import shutil
 import subprocess
 import sys
-import os
 from pathlib import Path
-
 
 RED = "\033[31m"
 YELLOW = "\033[33m"
@@ -162,8 +161,8 @@ def verify_superadmin(root: Path) -> bool:
         # 重新加载环境变量
         load_dotenv(override=True)
 
-        from app.models.database import User
         from app.core.security import verify_password
+        from app.models.database import User
 
         # 读取配置
         superadmin_username = os.getenv("SUPERADMIN_USERNAME", "superadmin")
@@ -172,8 +171,8 @@ def verify_superadmin(root: Path) -> bool:
 
         # 连接数据库
         engine = create_engine(database_url)
-        SessionLocal = sessionmaker(bind=engine)
-        db = SessionLocal()
+        session_local = sessionmaker(bind=engine)
+        db = session_local()
 
         try:
             # 查询超级管理员
@@ -227,7 +226,7 @@ def confirm_reset(root: Path) -> None:
         answer = input("请输入大写 'RESET' 以确认执行清档操作（输入其他内容取消）：").strip()
     except EOFError:
         print("未确认，已取消清档。")
-        raise SystemExit(1)
+        raise SystemExit(1) from None
     if answer != "RESET":
         print("未输入正确确认文本，已取消清档。")
         raise SystemExit(1)

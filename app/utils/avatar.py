@@ -4,13 +4,14 @@
 提供头像上传、图片处理、首字母头像生成等功能。
 """
 
-import os
-import io
-from datetime import datetime
-from typing import Tuple, Union
-from PIL import Image, ImageDraw, ImageFont
-from PIL.ImageFont import FreeTypeFont, ImageFont as DefaultImageFont
 import hashlib
+import io
+import os
+from datetime import datetime
+
+from PIL import Image, ImageDraw, ImageFont
+from PIL.ImageFont import FreeTypeFont
+from PIL.ImageFont import ImageFont as DefaultImageFont
 
 from app.core.config_manager import config_manager
 
@@ -40,7 +41,7 @@ def ensure_avatar_dir() -> None:
     os.makedirs(AVATAR_UPLOAD_DIR, exist_ok=True)
 
 
-def validate_image_file(content: bytes, filename: str) -> Tuple[bool, str]:
+def validate_image_file(content: bytes, filename: str) -> tuple[bool, str]:
     """
     验证图片文件的有效性
 
@@ -78,7 +79,7 @@ def validate_image_file(content: bytes, filename: str) -> Tuple[bool, str]:
     return True, ""
 
 
-def process_avatar_image(content: bytes) -> Tuple[bytes, bytes]:
+def process_avatar_image(content: bytes) -> tuple[bytes, bytes]:
     """
     处理头像图片
 
@@ -182,7 +183,7 @@ def generate_initial_avatar(username: str, size: int = 200) -> bytes:
                 draw.rectangle((mx0, y0, mx1, y1), fill=pattern_color)
 
     try:
-        font: Union[FreeTypeFont, DefaultImageFont]
+        font: FreeTypeFont | DefaultImageFont
         if os.name == "nt":
             font_path = "C:/Windows/Fonts/arial.ttf"
             if os.path.exists(font_path):
@@ -206,7 +207,7 @@ def generate_initial_avatar(username: str, size: int = 200) -> bytes:
     return buffer.getvalue()
 
 
-def save_avatar_file(user_id: str, content: bytes, file_ext: str = ".jpg") -> Tuple[str, str]:
+def save_avatar_file(user_id: str, content: bytes, file_ext: str = ".jpg") -> tuple[str, str]:
     """
     保存头像文件
 

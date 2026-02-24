@@ -6,21 +6,24 @@
 **Validates: Requirements 1.2 - 数据序列化**
 """
 
-import pytest
-from hypothesis import given, strategies as st, settings, HealthCheck
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
 import json
+from typing import Any
+
+import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
+from pydantic import BaseModel
 
 from app.core.cache.manager import CacheManager
-
 
 # ============================================================================
 # 测试数据模型
 # ============================================================================
 
+
 class SimpleModel(BaseModel):
     """简单的测试模型"""
+
     id: str
     name: str
     value: int
@@ -28,10 +31,11 @@ class SimpleModel(BaseModel):
 
 class NestedModel(BaseModel):
     """嵌套的测试模型"""
+
     id: str
-    data: Dict[str, Any]
-    items: List[str]
-    optional_field: Optional[str] = None
+    data: dict[str, Any]
+    items: list[str]
+    optional_field: str | None = None
 
 
 # ============================================================================
@@ -51,14 +55,9 @@ basic_json_values = st.one_of(
 json_dicts = st.recursive(
     basic_json_values,
     lambda children: st.one_of(
-        st.lists(children, max_size=5),
-        st.dictionaries(
-            st.text(min_size=1, max_size=20),
-            children,
-            max_size=5
-        )
+        st.lists(children, max_size=5), st.dictionaries(st.text(min_size=1, max_size=20), children, max_size=5)
     ),
-    max_leaves=10
+    max_leaves=10,
 )
 
 # 简单字典策略
@@ -70,7 +69,7 @@ simple_dicts = st.dictionaries(
         st.booleans(),
     ),
     min_size=1,
-    max_size=10
+    max_size=10,
 )
 
 # Pydantic 模型策略
@@ -78,25 +77,22 @@ simple_models = st.builds(
     SimpleModel,
     id=st.text(min_size=1, max_size=20),
     name=st.text(min_size=1, max_size=50),
-    value=st.integers(min_value=0, max_value=1000)
+    value=st.integers(min_value=0, max_value=1000),
 )
 
 nested_models = st.builds(
     NestedModel,
     id=st.text(min_size=1, max_size=20),
-    data=st.dictionaries(
-        st.text(min_size=1, max_size=10),
-        st.text(max_size=20),
-        max_size=3
-    ),
+    data=st.dictionaries(st.text(min_size=1, max_size=10), st.text(max_size=20), max_size=3),
     items=st.lists(st.text(max_size=20), max_size=5),
-    optional_field=st.one_of(st.none(), st.text(max_size=20))
+    optional_field=st.one_of(st.none(), st.text(max_size=20)),
 )
 
 
 # ============================================================================
 # 属性测试类
 # ============================================================================
+
 
 class TestSerializationIdempotence:
     """
@@ -112,11 +108,7 @@ class TestSerializationIdempotence:
     """
 
     @given(data=simple_dicts)
-    @settings(
-        max_examples=50,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=50, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_dict_serialization_idempotence(self, data):
         """
@@ -128,23 +120,17 @@ class TestSerializationIdempotence:
         """
         # 序列化
         serialized = json.dumps(data, ensure_ascii=False)
-        
+
         # 反序列化
         deserialized = json.loads(serialized)
-        
+
         # 验证幂等性
         assert deserialized == data, (
-            f"序列化后反序列化的数据应该与原始数据相同\n"
-            f"原始数据: {data}\n"
-            f"反序列化后: {deserialized}"
+            f"序列化后反序列化的数据应该与原始数据相同\n" f"原始数据: {data}\n" f"反序列化后: {deserialized}"
         )
 
     @given(model=simple_models)
-    @settings(
-        max_examples=50,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=50, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_pydantic_model_serialization_idempotence(self, model):
         """
@@ -156,28 +142,22 @@ class TestSerializationIdempotence:
         """
         # 序列化为 JSON 字符串
         serialized = model.model_dump_json()
-        
+
         # 反序列化回 Pydantic 模型
         deserialized = SimpleModel.model_validate_json(serialized)
-        
+
         # 验证幂等性
         assert deserialized == model, (
-            f"序列化后反序列化的模型应该与原始模型相同\n"
-            f"原始模型: {model}\n"
-            f"反序列化后: {deserialized}"
+            f"序列化后反序列化的模型应该与原始模型相同\n" f"原始模型: {model}\n" f"反序列化后: {deserialized}"
         )
-        
+
         # 验证各个字段
         assert deserialized.id == model.id
         assert deserialized.name == model.name
         assert deserialized.value == model.value
 
     @given(model=nested_models)
-    @settings(
-        max_examples=50,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=50, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_nested_model_serialization_idempotence(self, model):
         """
@@ -189,17 +169,13 @@ class TestSerializationIdempotence:
         """
         # 序列化
         serialized = model.model_dump_json()
-        
+
         # 反序列化
         deserialized = NestedModel.model_validate_json(serialized)
-        
+
         # 验证幂等性
-        assert deserialized == model, (
-            f"嵌套模型序列化后应该保持不变\n"
-            f"原始: {model}\n"
-            f"反序列化: {deserialized}"
-        )
-        
+        assert deserialized == model, f"嵌套模型序列化后应该保持不变\n" f"原始: {model}\n" f"反序列化: {deserialized}"
+
         # 验证嵌套字段
         assert deserialized.id == model.id
         assert deserialized.data == model.data
@@ -207,11 +183,7 @@ class TestSerializationIdempotence:
         assert deserialized.optional_field == model.optional_field
 
     @given(data=json_dicts)
-    @settings(
-        max_examples=30,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_complex_json_serialization_idempotence(self, data):
         """
@@ -223,15 +195,13 @@ class TestSerializationIdempotence:
         """
         # 序列化
         serialized = json.dumps(data, ensure_ascii=False)
-        
+
         # 反序列化
         deserialized = json.loads(serialized)
-        
+
         # 验证幂等性
         assert deserialized == data, (
-            f"复杂 JSON 结构序列化后应该保持不变\n"
-            f"原始: {data}\n"
-            f"反序列化: {deserialized}"
+            f"复杂 JSON 结构序列化后应该保持不变\n" f"原始: {data}\n" f"反序列化: {deserialized}"
         )
 
 
@@ -245,11 +215,7 @@ class TestCacheManagerSerialization:
     """
 
     @given(data=simple_dicts)
-    @settings(
-        max_examples=30,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_cache_manager_dict_round_trip(self, data):
         """
@@ -260,46 +226,38 @@ class TestCacheManagerSerialization:
         **Validates: Requirements 1.2**
         """
         from unittest.mock import AsyncMock
-        
+
         # 创建模拟的 Redis 客户端
         mock_redis = AsyncMock()
-        
+
         # 模拟 Redis 的 set 和 get 操作
         stored_value = None
-        
+
         async def mock_set(key, value, ttl=None):
             nonlocal stored_value
             stored_value = value
             return True
-        
+
         async def mock_get(key):
             return stored_value
-        
+
         mock_redis.set = mock_set
         mock_redis.get = mock_get
-        
+
         # 创建 CacheManager
         manager = CacheManager(redis_client=mock_redis, enabled=True)
-        
+
         # 设置缓存
         await manager.set_cached("test:key", data)
-        
+
         # 获取缓存
         retrieved = await manager.get_cached("test:key")
-        
+
         # 验证幂等性
-        assert retrieved == data, (
-            f"通过 CacheManager 缓存的数据应该保持不变\n"
-            f"原始: {data}\n"
-            f"获取: {retrieved}"
-        )
+        assert retrieved == data, f"通过 CacheManager 缓存的数据应该保持不变\n" f"原始: {data}\n" f"获取: {retrieved}"
 
     @given(model=simple_models)
-    @settings(
-        max_examples=30,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_cache_manager_model_round_trip(self, model):
         """
@@ -310,50 +268,42 @@ class TestCacheManagerSerialization:
         **Validates: Requirements 1.2**
         """
         from unittest.mock import AsyncMock
-        
+
         # 创建模拟的 Redis 客户端
         mock_redis = AsyncMock()
-        
+
         stored_value = None
-        
+
         async def mock_set(key, value, ttl=None):
             nonlocal stored_value
             stored_value = value
             return True
-        
+
         async def mock_get(key):
             return stored_value
-        
+
         mock_redis.set = mock_set
         mock_redis.get = mock_get
-        
+
         # 创建 CacheManager
         manager = CacheManager(redis_client=mock_redis, enabled=True)
-        
+
         # 设置缓存（Pydantic 模型）
         await manager.set_cached("test:model", model)
-        
+
         # 获取缓存（指定模型类型）
         retrieved = await manager.get_cached("test:model", model=SimpleModel)
-        
+
         # 验证幂等性
-        assert retrieved == model, (
-            f"通过 CacheManager 缓存的模型应该保持不变\n"
-            f"原始: {model}\n"
-            f"获取: {retrieved}"
-        )
-        
+        assert retrieved == model, f"通过 CacheManager 缓存的模型应该保持不变\n" f"原始: {model}\n" f"获取: {retrieved}"
+
         # 验证字段
         assert retrieved.id == model.id
         assert retrieved.name == model.name
         assert retrieved.value == model.value
 
     @given(model=nested_models)
-    @settings(
-        max_examples=30,
-        deadline=None,
-        suppress_health_check=[HealthCheck.function_scoped_fixture]
-    )
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     @pytest.mark.asyncio
     async def test_cache_manager_nested_model_round_trip(self, model):
         """
@@ -364,39 +314,35 @@ class TestCacheManagerSerialization:
         **Validates: Requirements 1.2**
         """
         from unittest.mock import AsyncMock
-        
+
         # 创建模拟的 Redis 客户端
         mock_redis = AsyncMock()
-        
+
         stored_value = None
-        
+
         async def mock_set(key, value, ttl=None):
             nonlocal stored_value
             stored_value = value
             return True
-        
+
         async def mock_get(key):
             return stored_value
-        
+
         mock_redis.set = mock_set
         mock_redis.get = mock_get
-        
+
         # 创建 CacheManager
         manager = CacheManager(redis_client=mock_redis, enabled=True)
-        
+
         # 设置缓存
         await manager.set_cached("test:nested", model)
-        
+
         # 获取缓存
         retrieved = await manager.get_cached("test:nested", model=NestedModel)
-        
+
         # 验证幂等性
-        assert retrieved == model, (
-            f"嵌套模型通过缓存后应该保持不变\n"
-            f"原始: {model}\n"
-            f"获取: {retrieved}"
-        )
-        
+        assert retrieved == model, f"嵌套模型通过缓存后应该保持不变\n" f"原始: {model}\n" f"获取: {retrieved}"
+
         # 验证嵌套字段
         assert retrieved.id == model.id
         assert retrieved.data == model.data
@@ -444,15 +390,11 @@ class TestSerializationEdgeCases:
 
         **Validates: Requirements 1.2**
         """
-        data = {
-            "name": "测试用户",
-            "description": "这是一个测试描述，包含中文字符",
-            "emoji": "😀🎉"
-        }
-        
+        data = {"name": "测试用户", "description": "这是一个测试描述，包含中文字符", "emoji": "😀🎉"}
+
         serialized = json.dumps(data, ensure_ascii=False)
         deserialized = json.loads(serialized)
-        
+
         assert deserialized == data
         assert deserialized["name"] == "测试用户"
         assert deserialized["description"] == "这是一个测试描述，包含中文字符"
@@ -469,12 +411,12 @@ class TestSerializationEdgeCases:
             "quotes": 'He said "Hello"',
             "newline": "Line1\nLine2",
             "tab": "Col1\tCol2",
-            "backslash": "C:\\Users\\test"
+            "backslash": "C:\\Users\\test",
         }
-        
+
         serialized = json.dumps(data)
         deserialized = json.loads(serialized)
-        
+
         assert deserialized == data
 
     @pytest.mark.asyncio

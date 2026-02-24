@@ -4,27 +4,28 @@
 测试 app/error_handlers.py 中的错误处理功能
 """
 
-import pytest
 import json
-from unittest.mock import Mock, patch, mock_open
-from fastapi import Request, HTTPException
+from unittest.mock import Mock, mock_open, patch
+
+import pytest
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp
 
 from app.core.error_handlers import (
-    resolve_error_code,
-    load_error_messages,
-    resolve_display_message,
-    ErrorHandlerMiddleware,
     APIError,
-    ValidationError,
     AuthenticationError,
     AuthorizationError,
-    NotFoundError,
     ConflictError,
-    RateLimitError,
-    FileOperationError,
     DatabaseError,
+    ErrorHandlerMiddleware,
+    FileOperationError,
+    NotFoundError,
+    RateLimitError,
+    ValidationError,
+    load_error_messages,
+    resolve_display_message,
+    resolve_error_code,
     setup_exception_handlers,
 )
 

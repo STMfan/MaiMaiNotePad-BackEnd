@@ -7,9 +7,8 @@
 
 import re
 import sys
-from pathlib import Path
-from typing import List, Dict, Tuple, Optional
 from collections import defaultdict
+from pathlib import Path
 
 
 class LogAnalyzer:
@@ -19,7 +18,7 @@ class LogAnalyzer:
         self.log_dir = log_dir
         self.log_files = [log_dir / "maimnp.log", log_dir / "maimnp_error.log"]
 
-    def extract_search_terms(self, query: str) -> Dict[str, List[str]]:
+    def extract_search_terms(self, query: str) -> dict[str, list[str]]:
         """从查询文本中提取搜索关键词"""
         terms = {"status_codes": [], "error_codes": [], "request_ids": [], "keywords": []}
 
@@ -61,7 +60,7 @@ class LogAnalyzer:
 
         return terms
 
-    def search_logs(self, terms: Dict[str, List[str]], max_results: int = 50) -> List[Dict]:
+    def search_logs(self, terms: dict[str, list[str]], max_results: int = 50) -> list[dict]:
         """搜索日志文件（按优先级搜索，找到高优先级结果后停止）"""
         results = []
         search_priorities = self._get_search_priorities()
@@ -84,7 +83,7 @@ class LogAnalyzer:
 
         return results
 
-    def _get_search_priorities(self) -> List[Tuple[int, str, str]]:
+    def _get_search_priorities(self) -> list[tuple[int, str, str]]:
         """获取搜索优先级配置"""
         return [
             (1, "request_ids", "请求ID"),
@@ -94,8 +93,8 @@ class LogAnalyzer:
         ]
 
     def _search_by_priority(
-        self, term_values: List[str], term_key: str, term_name: str, priority: int, max_results: int
-    ) -> List[Dict]:
+        self, term_values: list[str], term_key: str, term_name: str, priority: int, max_results: int
+    ) -> list[dict]:
         """按指定优先级搜索日志"""
         results = []
 
@@ -117,12 +116,12 @@ class LogAnalyzer:
         return results
 
     def _search_in_file(
-        self, log_file, term_values: List[str], term_name: str, priority: int, remaining_results: int
-    ) -> List[Dict]:
+        self, log_file, term_values: list[str], term_name: str, priority: int, remaining_results: int
+    ) -> list[dict]:
         """在单个日志文件中搜索"""
         results = []
 
-        with open(log_file, "r", encoding="utf-8") as f:
+        with open(log_file, encoding="utf-8") as f:
             lines = f.readlines()
 
         for i, line in enumerate(lines):
@@ -137,7 +136,7 @@ class LogAnalyzer:
 
         return results
 
-    def _find_match_in_line(self, line: str, term_values: List[str]) -> Optional[str]:
+    def _find_match_in_line(self, line: str, term_values: list[str]) -> str | None:
         """在日志行中查找匹配的搜索词"""
         for term_value in term_values:
             if term_value in line:
@@ -149,11 +148,11 @@ class LogAnalyzer:
         log_file,
         line_index: int,
         line: str,
-        all_lines: List[str],
+        all_lines: list[str],
         term_name: str,
         match_value: str,
         priority: int,
-    ) -> Dict:
+    ) -> dict:
         """创建日志搜索结果对象"""
         timestamp = self._extract_timestamp(line)
         level = self._extract_log_level(line)
@@ -180,13 +179,13 @@ class LogAnalyzer:
         level_match = re.search(r"\s+-\s+(?:maimnp\s+-\s+)?(DEBUG|INFO|WARNING|ERROR|CRITICAL)\s+-\s+", line)
         return level_match.group(1) if level_match else "UNKNOWN"
 
-    def _get_context_lines(self, all_lines: List[str], line_index: int, context_size: int = 2) -> List[str]:
+    def _get_context_lines(self, all_lines: list[str], line_index: int, context_size: int = 2) -> list[str]:
         """获取日志行的上下文（前后各 context_size 行）"""
         context_start = max(0, line_index - context_size)
         context_end = min(len(all_lines), line_index + context_size + 1)
         return all_lines[context_start:context_end]
 
-    def analyze_results(self, results: List[Dict]) -> Dict:
+    def analyze_results(self, results: list[dict]) -> dict:
         """分析搜索结果"""
         analysis = {
             "total_count": len(results),
@@ -235,7 +234,7 @@ class LogAnalyzer:
 
         return analysis
 
-    def format_output(self, results: List[Dict], analysis: Dict, show_context: bool = True):
+    def format_output(self, results: list[dict], analysis: dict, show_context: bool = True):
         """格式化输出结果"""
         print()
         print("=" * 80)
@@ -255,7 +254,7 @@ class LogAnalyzer:
         print()
         print("=" * 80)
 
-    def _print_statistics(self, analysis: Dict):
+    def _print_statistics(self, analysis: dict):
         """打印统计信息"""
         print("📊 统计信息")
         print("-" * 80)
@@ -269,12 +268,12 @@ class LogAnalyzer:
 
         print()
 
-    def _print_time_range(self, time_range: Dict):
+    def _print_time_range(self, time_range: dict):
         """打印时间范围"""
         if time_range["earliest"]:
             print(f"时间范围: {time_range['earliest']} ~ {time_range['latest']}")
 
-    def _print_level_distribution(self, by_level: Dict):
+    def _print_level_distribution(self, by_level: dict):
         """打印日志级别分布"""
         if by_level:
             print("日志级别: ", end="")
@@ -296,7 +295,7 @@ class LogAnalyzer:
         if request_ids:
             print(f"请求ID数量: {len(request_ids)}")
 
-    def _print_detailed_results(self, results: List[Dict], show_context: bool):
+    def _print_detailed_results(self, results: list[dict], show_context: bool):
         """打印详细记录"""
         priority = results[0].get("priority", 0)
         search_type = self._get_search_type_name(priority)
@@ -312,7 +311,7 @@ class LogAnalyzer:
         priority_names = {1: "🔴 请求ID匹配", 2: "🟠 错误码匹配", 3: "🟡 状态码匹配", 4: "🟢 关键词匹配"}
         return priority_names.get(priority, "搜索结果")
 
-    def _print_single_result(self, index: int, result: Dict, show_context: bool):
+    def _print_single_result(self, index: int, result: dict, show_context: bool):
         """打印单条日志结果"""
         color, reset = self._get_level_color(result["level"])
 
@@ -327,7 +326,7 @@ class LogAnalyzer:
         if show_context and len(result["context"]) > 1:
             self._print_context(result["context"], result["content"])
 
-    def _get_level_color(self, level: str) -> Tuple[str, str]:
+    def _get_level_color(self, level: str) -> tuple[str, str]:
         """获取日志级别对应的颜色代码"""
         level_colors = {
             "DEBUG": "\033[36m",  # 青色
@@ -346,7 +345,7 @@ class LogAnalyzer:
             return text[:max_length] + "..."
         return text
 
-    def _print_context(self, context: List[str], current_content: str):
+    def _print_context(self, context: list[str], current_content: str):
         """打印上下文行"""
         print("    上下文:")
         for ctx_line in context:

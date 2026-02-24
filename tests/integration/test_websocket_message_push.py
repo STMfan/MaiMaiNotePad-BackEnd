@@ -9,10 +9,11 @@ import pytest
 
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
-from unittest.mock import patch, AsyncMock  # noqa: E402
-from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
+from unittest.mock import AsyncMock, patch  # noqa: E402
+
 from app.core.security import create_access_token  # noqa: E402
 from app.utils.websocket import message_ws_manager  # noqa: E402
+from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
 
 
 class TestWebSocketInitialMessagePush:

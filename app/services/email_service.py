@@ -6,7 +6,7 @@
 
 import smtplib
 from email.mime.text import MIMEText
-from typing import Union
+
 from app.core.config import settings
 
 
@@ -38,7 +38,7 @@ class EmailService:
         message["To"] = receiver
         message["Subject"] = subject
 
-        smtp: Union[smtplib.SMTP, smtplib.SMTP_SSL, None] = None
+        smtp: smtplib.SMTP | smtplib.SMTP_SSL | None = None
         try:
             # 根据端口选择连接方式
             if self.mail_port == 465:
@@ -58,13 +58,15 @@ class EmailService:
             smtp.sendmail(self.mail_user, receiver, message.as_string())
 
         except smtplib.SMTPAuthenticationError as e:
-            raise RuntimeError(f"邮件发送失败: 邮箱认证失败 - {str(e)}")
+            raise RuntimeError(f"邮件发送失败: 邮箱认证失败 - {str(e)}") from e
         except smtplib.SMTPConnectError as e:
-            raise RuntimeError(f"邮件发送失败: 无法连接到SMTP服务器 {self.mail_host}:{self.mail_port} - {str(e)}")
+            raise RuntimeError(
+                f"邮件发送失败: 无法连接到SMTP服务器 {self.mail_host}:{self.mail_port} - {str(e)}"
+            ) from e
         except smtplib.SMTPException as e:
-            raise RuntimeError(f"邮件发送失败: SMTP错误 - {str(e)}")
+            raise RuntimeError(f"邮件发送失败: SMTP错误 - {str(e)}") from e
         except Exception as e:
-            raise RuntimeError(f"邮件发送失败: {str(e)}")
+            raise RuntimeError(f"邮件发送失败: {str(e)}") from e
         finally:
             # 确保连接正确关闭
             if smtp:

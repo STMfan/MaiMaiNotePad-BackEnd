@@ -55,6 +55,36 @@ exclude = [
     "uploads",
 ]
 
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C90", "I", "N", "UP", "B", "A", "C4"]
+ignore = [
+    "E501",  # 行长度（有些行确实需要长一点）
+    "B008",  # 函数调用在默认参数中（FastAPI 的 Depends 是标准用法）
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+# 测试文件排除复杂度检查和一些测试特定的规则
+"tests/**/*.py" = [
+    "C901",  # 复杂度检查
+    "T201",  # print 语句（测试中用于调试）
+    "E402",  # 模块级导入不在顶部（某些测试需要特殊导入顺序）
+    "B017",  # 盲目捕获 Exception（测试中可以接受）
+]
+# 示例文件排除复杂度检查
+"examples/**/*.py" = ["C901", "T201"]
+# Alembic 迁移文件排除所有检查
+"alembic/versions/*.py" = ["E", "F", "W", "C90"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "tests"]
+
 [tool.mypy]
 python_version = "3.11"
 # 渐进式类型检查配置 - 适合现有项目

@@ -6,11 +6,13 @@
 **Validates: Requirements FR6 - 基于属性的测试**
 """
 
-import pytest
-from hypothesis import given, strategies as st, settings, HealthCheck
-from unittest.mock import patch
-from sqlalchemy.exc import SQLAlchemyError
 import logging
+from unittest.mock import patch
+
+import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
+from sqlalchemy.exc import SQLAlchemyError
 
 # Mark all tests in this file as serial
 pytestmark = pytest.mark.serial
@@ -151,8 +153,9 @@ class TestDatabaseTransactionRollback:
 
         **Validates: Requirements FR6**
         """
-        from app.services.user_service import UserService
         import uuid
+
+        from app.services.user_service import UserService
 
         service = UserService(test_db)
 
@@ -186,8 +189,9 @@ class TestDatabaseTransactionRollback:
 
         **Validates: Requirements FR6**
         """
-        from app.services.persona_service import PersonaService
         import uuid
+
+        from app.services.persona_service import PersonaService
 
         service = PersonaService(test_db)
 
@@ -230,9 +234,10 @@ class TestDatabaseTransactionRollback:
 
         **Validates: Requirements FR6**
         """
-        from app.services.knowledge_service import KnowledgeService
-        import uuid
         import tempfile
+        import uuid
+
+        from app.services.knowledge_service import KnowledgeService
 
         service = KnowledgeService(test_db)
 
@@ -313,9 +318,9 @@ class TestErrorLogging:
 
         **Validates: Requirements FR6**
         """
-        from app.services.user_service import UserService
-        from app.services.persona_service import PersonaService
         from app.services.knowledge_service import KnowledgeService
+        from app.services.persona_service import PersonaService
+        from app.services.user_service import UserService
 
         # MessageService 当前没有异常处理，已移除
 
@@ -362,8 +367,8 @@ class TestExceptionPropagation:
 
         **Validates: Requirements FR6**
         """
-        from app.services.user_service import UserService
         from app.services.persona_service import PersonaService
+        from app.services.user_service import UserService
 
         # FileService 没有 get_file_by_id 方法，已移除
 

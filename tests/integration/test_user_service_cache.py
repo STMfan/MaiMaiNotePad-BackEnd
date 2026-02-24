@@ -11,11 +11,10 @@ Requirements: 4.3（集成测试）
 """
 
 import pytest
-import asyncio
 from sqlalchemy.orm import Session
 
+from app.core.cache.factory import reset_cache_manager
 from app.services.user_service import UserService
-from app.core.cache.factory import get_cache_manager, reset_cache_manager
 from tests.fixtures.data_factory import TestDataFactory
 
 
@@ -30,11 +29,9 @@ class TestUserServiceCacheIntegration:
         reset_cache_manager()
 
     @pytest.mark.asyncio
-    async def test_get_user_by_id_caches_result(
-        self, test_db: Session, factory: TestDataFactory
-    ):
+    async def test_get_user_by_id_caches_result(self, test_db: Session, factory: TestDataFactory):
         """测试 get_user_by_id 缓存结果
-        
+
         验证：
         - 首次调用从数据库获取数据
         - 第二次调用从缓存获取数据（如果缓存启用）
@@ -56,12 +53,10 @@ class TestUserServiceCacheIntegration:
         assert result2.username == "testuser"
 
     @pytest.mark.asyncio
-    async def test_get_user_by_username_caches_result(
-        self, test_db: Session, factory: TestDataFactory
-    ):
+    async def test_get_user_by_username_caches_result(self, test_db: Session, factory: TestDataFactory):
         """测试 get_user_by_username 缓存结果"""
         service = UserService(test_db)
-        user = factory.create_user(username="cacheuser", email="cache@example.com")
+        factory.create_user(username="cacheuser", email="cache@example.com")
 
         # 首次调用
         result1 = service.get_user_by_username("cacheuser")
@@ -74,11 +69,9 @@ class TestUserServiceCacheIntegration:
         assert result2.username == "cacheuser"
 
     @pytest.mark.asyncio
-    async def test_update_user_invalidates_cache(
-        self, test_db: Session, factory: TestDataFactory
-    ):
+    async def test_update_user_invalidates_cache(self, test_db: Session, factory: TestDataFactory):
         """测试更新用户时缓存失效
-        
+
         验证：
         - 更新用户后，缓存被正确失效
         - 再次获取用户时返回最新数据
@@ -92,9 +85,7 @@ class TestUserServiceCacheIntegration:
         assert result1.username == "oldname"
 
         # 更新用户
-        updated_user = service.update_user(
-            user.id, username="newname", email="new@example.com"
-        )
+        updated_user = service.update_user(user.id, username="newname", email="new@example.com")
         assert updated_user is not None
         assert updated_user.username == "newname"
 
@@ -105,11 +96,9 @@ class TestUserServiceCacheIntegration:
         assert result2.email == "new@example.com"
 
     @pytest.mark.asyncio
-    async def test_update_user_invalidates_username_cache(
-        self, test_db: Session, factory: TestDataFactory
-    ):
+    async def test_update_user_invalidates_username_cache(self, test_db: Session, factory: TestDataFactory):
         """测试更新用户名时旧用户名缓存失效
-        
+
         验证：
         - 更新用户名后，旧用户名的缓存被失效
         - 新用户名可以正常查询
@@ -136,21 +125,18 @@ class TestUserServiceCacheIntegration:
         assert result3.id == user.id
 
     @pytest.mark.asyncio
-    async def test_cache_disabled_fallback(
-        self, test_db: Session, factory: TestDataFactory
-    ):
+    async def test_cache_disabled_fallback(self, test_db: Session, factory: TestDataFactory):
         """测试缓存禁用时的降级行为
-        
+
         验证：
         - 缓存禁用时，所有操作仍能正常工作
         - 数据直接从数据库获取
         """
-        from app.core.cache.manager import CacheManager
-        
+
         service = UserService(test_db)
         # 手动设置缓存为禁用状态
         # 注意：UserService 不直接持有 cache_manager，缓存通过装饰器处理
-        
+
         user = factory.create_user(username="nocache", email="nocache@example.com")
 
         # 即使缓存禁用，查询仍应正常工作
@@ -159,11 +145,9 @@ class TestUserServiceCacheIntegration:
         assert result.id == user.id
         assert result.username == "nocache"
 
-    def test_concurrent_access(
-        self, test_db: Session, factory: TestDataFactory
-    ):
+    def test_concurrent_access(self, test_db: Session, factory: TestDataFactory):
         """测试并发访问场景
-        
+
         验证：
         - 多个并发请求能正确处理
         - 缓存在并发场景下工作正常
@@ -172,10 +156,7 @@ class TestUserServiceCacheIntegration:
         user = factory.create_user(username="concurrent", email="concurrent@example.com")
 
         # 多次获取同一用户
-        results = [
-            service.get_user_by_id(user.id)
-            for _ in range(10)
-        ]
+        results = [service.get_user_by_id(user.id) for _ in range(10)]
 
         # 所有结果应该一致
         assert len(results) == 10
@@ -185,11 +166,9 @@ class TestUserServiceCacheIntegration:
             assert result.username == "concurrent"
 
     @pytest.mark.asyncio
-    async def test_cache_miss_then_hit(
-        self, test_db: Session, factory: TestDataFactory
-    ):
+    async def test_cache_miss_then_hit(self, test_db: Session, factory: TestDataFactory):
         """测试缓存未命中后命中的场景
-        
+
         验证：
         - 首次查询不存在的用户（缓存未命中）
         - 创建用户后查询（缓存命中或数据库查询）
@@ -210,11 +189,9 @@ class TestUserServiceCacheIntegration:
         assert result2.username == "newuser"
 
     @pytest.mark.asyncio
-    async def test_multiple_users_cache_isolation(
-        self, test_db: Session, factory: TestDataFactory
-    ):
+    async def test_multiple_users_cache_isolation(self, test_db: Session, factory: TestDataFactory):
         """测试多个用户的缓存隔离
-        
+
         验证：
         - 不同用户的缓存互不干扰
         - 更新一个用户不影响其他用户的缓存
@@ -241,11 +218,9 @@ class TestUserServiceCacheIntegration:
         assert result2_again.username == "user2"
 
     @pytest.mark.asyncio
-    async def test_cache_with_nonexistent_user(
-        self, test_db: Session, factory: TestDataFactory
-    ):
+    async def test_cache_with_nonexistent_user(self, test_db: Session, factory: TestDataFactory):
         """测试查询不存在用户的缓存行为
-        
+
         验证：
         - 查询不存在的用户返回 None
         - 空值可能被缓存（防止缓存穿透）
@@ -256,6 +231,6 @@ class TestUserServiceCacheIntegration:
         # 多次查询不存在的用户
         result1 = service.get_user_by_id(non_existent_id)
         result2 = service.get_user_by_id(non_existent_id)
-        
+
         assert result1 is None
         assert result2 is None

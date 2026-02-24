@@ -5,17 +5,18 @@
 
 import os
 import shutil
+import tempfile
 import zipfile
 from datetime import datetime
-from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session
+from typing import Any
+
 import toml
-import tempfile
+from sqlalchemy.orm import Session
 from werkzeug.utils import secure_filename
 
 from app.core.config import settings
 from app.core.config_manager import config_manager
-from app.models.database import KnowledgeBase, PersonaCard, KnowledgeBaseFile, PersonaCardFile, User
+from app.models.database import KnowledgeBase, KnowledgeBaseFile, PersonaCard, PersonaCardFile, User
 
 
 class FileValidationError(Exception):
@@ -104,9 +105,9 @@ class FileService:
             return file_path, file_size
 
         except Exception as e:
-            raise FileDatabaseError(f"文件保存失败: {str(e)}")
+            raise FileDatabaseError(f"文件保存失败: {str(e)}") from e
 
-    def _validate_file_type(self, filename: str, allowed_types: List[str]) -> bool:
+    def _validate_file_type(self, filename: str, allowed_types: list[str]) -> bool:
         """验证文件类型
 
         Args:
@@ -132,7 +133,7 @@ class FileService:
         """
         return file_size <= self.MAX_FILE_SIZE
 
-    def _extract_version_from_toml(self, data: Dict[str, Any]) -> Optional[str]:
+    def _extract_version_from_toml(self, data: dict[str, Any]) -> str | None:
         """从TOML数据中提取版本号
 
         Args:
@@ -157,7 +158,7 @@ class FileService:
         # 深度搜索版本字段
         return self._deep_search_version(data)
 
-    def _extract_version_from_top_level(self, data: dict) -> Optional[str]:
+    def _extract_version_from_top_level(self, data: dict) -> str | None:
         """从顶层字段提取版本号
 
         Args:
@@ -173,7 +174,7 @@ class FileService:
                 return str(value)
         return None
 
-    def _extract_version_from_meta_fields(self, data: dict) -> Optional[str]:
+    def _extract_version_from_meta_fields(self, data: dict) -> str | None:
         """从meta或card字段中提取版本号
 
         Args:
@@ -194,7 +195,7 @@ class FileService:
                         return str(value)
         return None
 
-    def _deep_search_version(self, data: dict) -> Optional[str]:
+    def _deep_search_version(self, data: dict) -> str | None:
         """深度搜索版本字段
 
         Args:
@@ -204,7 +205,7 @@ class FileService:
             版本号或None
         """
         visited = set()
-        stack: List[Any] = [data]
+        stack: list[Any] = [data]
 
         while stack:
             current = stack.pop()
@@ -226,7 +227,7 @@ class FileService:
 
         return None
 
-    def _search_version_in_dict(self, data: dict, stack: list) -> Optional[str]:
+    def _search_version_in_dict(self, data: dict, stack: list) -> str | None:
         """在字典中搜索版本字段
 
         Args:
@@ -262,13 +263,13 @@ class FileService:
 
     def upload_knowledge_base(
         self,
-        files: List[tuple[str, bytes]],  # List of (filename, content)
+        files: list[tuple[str, bytes]],  # List of (filename, content)
         name: str,
         description: str,
         uploader_id: str,
-        copyright_owner: Optional[str] = None,
-        content: Optional[str] = None,
-        tags: Optional[str] = None,
+        copyright_owner: str | None = None,
+        content: str | None = None,
+        tags: str | None = None,
     ) -> KnowledgeBase:
         """上传知识库
 
@@ -349,17 +350,17 @@ class FileService:
             # 清理已创建的目录
             if os.path.exists(kb_dir):
                 shutil.rmtree(kb_dir)
-            raise FileDatabaseError(f"知识库保存失败: {str(e)}")
+            raise FileDatabaseError(f"知识库保存失败: {str(e)}") from e
 
     def upload_persona_card(
         self,
-        files: List[tuple[str, bytes]],  # List of (filename, content)
+        files: list[tuple[str, bytes]],  # List of (filename, content)
         name: str,
         description: str,
         uploader_id: str,
         copyright_owner: str,
-        content: Optional[str] = None,
-        tags: Optional[str] = None,
+        content: str | None = None,
+        tags: str | None = None,
     ) -> PersonaCard:
         """上传人设卡
 
@@ -394,9 +395,9 @@ class FileService:
             self._cleanup_persona_card_directory(pc_dir)
             if isinstance(e, (FileValidationError, FileDatabaseError)):
                 raise
-            raise FileDatabaseError(f"人设卡保存失败: {str(e)}")
+            raise FileDatabaseError(f"人设卡保存失败: {str(e)}") from e
 
-    def _validate_persona_card_files(self, files: List[tuple[str, bytes]]) -> tuple[str, bytes]:
+    def _validate_persona_card_files(self, files: list[tuple[str, bytes]]) -> tuple[str, bytes]:
         """验证人设卡文件
 
         Args:
@@ -454,7 +455,7 @@ class FileService:
 
     def _process_persona_card_file(
         self, file_content: bytes, filename: str, pc_dir: str
-    ) -> tuple[str, int, Optional[str]]:
+    ) -> tuple[str, int, str | None]:
         """处理人设卡文件
 
         Args:
@@ -490,7 +491,7 @@ class FileService:
             FileValidationError: 解析失败
         """
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 toml_data = toml.load(f)
             persona_version = self._extract_version_from_toml(toml_data)
             if not persona_version:
@@ -505,7 +506,7 @@ class FileService:
             raise FileValidationError(
                 "人设卡配置解析失败：TOML 语法错误，请检查 bot_config.toml 格式是否正确",
                 code="PERSONA_TOML_PARSE_ERROR",
-            )
+            ) from None
 
     def _create_persona_card_record(
         self,
@@ -513,10 +514,10 @@ class FileService:
         description: str,
         uploader_id: str,
         copyright_owner: str,
-        content: Optional[str],
-        tags: Optional[str],
+        content: str | None,
+        tags: str | None,
         base_path: str,
-        version: Optional[str],
+        version: str | None,
     ) -> PersonaCard:
         """创建人设卡数据库记录
 
@@ -580,7 +581,7 @@ class FileService:
         if os.path.exists(pc_dir):
             shutil.rmtree(pc_dir)
 
-    def get_knowledge_base_content(self, kb_id: str) -> Dict[str, Any]:
+    def get_knowledge_base_content(self, kb_id: str) -> dict[str, Any]:
         """获取知识库内容
 
         Args:
@@ -620,7 +621,7 @@ class FileService:
             ],
         }
 
-    def get_persona_card_content(self, pc_id: str) -> Dict[str, Any]:
+    def get_persona_card_content(self, pc_id: str) -> dict[str, Any]:
         """获取人设卡内容
 
         Args:
@@ -661,7 +662,7 @@ class FileService:
             ],
         }
 
-    def add_files_to_knowledge_base(self, kb_id: str, files: List[tuple[str, bytes]], user_id: str) -> KnowledgeBase:
+    def add_files_to_knowledge_base(self, kb_id: str, files: list[tuple[str, bytes]], user_id: str) -> KnowledgeBase:
         """向知识库添加文件
 
         Args:
@@ -689,7 +690,7 @@ class FileService:
             self.db.rollback()
             if isinstance(e, (FileValidationError, FileDatabaseError)):
                 raise
-            raise FileDatabaseError(f"添加文件失败: {str(e)}")
+            raise FileDatabaseError(f"添加文件失败: {str(e)}") from e
 
     def _get_knowledge_base_for_file_addition(self, kb_id: str) -> KnowledgeBase:
         """获取知识库用于文件添加
@@ -708,7 +709,7 @@ class FileService:
             raise FileValidationError("知识库不存在", code="KB_NOT_FOUND")
         return kb
 
-    def _get_current_knowledge_base_files(self, kb_id: str) -> List:
+    def _get_current_knowledge_base_files(self, kb_id: str) -> list:
         """获取知识库当前文件列表
 
         Args:
@@ -719,7 +720,7 @@ class FileService:
         """
         return self.db.query(KnowledgeBaseFile).filter(KnowledgeBaseFile.knowledge_base_id == kb_id).all()
 
-    def _validate_knowledge_base_file_addition(self, files: List[tuple[str, bytes]], current_files: List) -> None:
+    def _validate_knowledge_base_file_addition(self, files: list[tuple[str, bytes]], current_files: list) -> None:
         """验证知识库文件添加
 
         Args:
@@ -749,7 +750,7 @@ class FileService:
                 code="FILE_COUNT_EXCEEDED",
             )
 
-    def _check_knowledge_base_duplicate_filenames(self, files: List[tuple[str, bytes]], current_files: List) -> None:
+    def _check_knowledge_base_duplicate_filenames(self, files: list[tuple[str, bytes]], current_files: list) -> None:
         """检查知识库重复文件名
 
         Args:
@@ -764,7 +765,7 @@ class FileService:
             if filename in existing_file_names:
                 raise FileValidationError(f"文件名已存在: {filename}", code="DUPLICATE_FILENAME")
 
-    def _validate_knowledge_base_files_type_and_size(self, files: List[tuple[str, bytes]]) -> None:
+    def _validate_knowledge_base_files_type_and_size(self, files: list[tuple[str, bytes]]) -> None:
         """验证知识库文件类型和大小
 
         Args:
@@ -802,7 +803,7 @@ class FileService:
             raise FileDatabaseError("知识库目录不存在")
         return kb_dir
 
-    def _save_knowledge_base_files(self, kb_id: str, files: List[tuple[str, bytes]], kb_dir: str) -> None:
+    def _save_knowledge_base_files(self, kb_id: str, files: list[tuple[str, bytes]], kb_dir: str) -> None:
         """保存知识库文件
 
         Args:
@@ -870,7 +871,7 @@ class FileService:
 
         except Exception as e:
             self.db.rollback()
-            raise FileDatabaseError(f"删除文件失败: {str(e)}")
+            raise FileDatabaseError(f"删除文件失败: {str(e)}") from e
 
     def delete_knowledge_base(self, kb_id: str, user_id: str) -> bool:
         """删除整个知识库
@@ -973,7 +974,7 @@ class FileService:
             # 清理临时文件
             if os.path.exists(zip_path):
                 os.remove(zip_path)
-            raise FileDatabaseError(f"创建压缩包失败: {str(e)}")
+            raise FileDatabaseError(f"创建压缩包失败: {str(e)}") from e
 
     def create_persona_card_zip(self, pc_id: str) -> dict:
         """创建人设卡的ZIP文件
@@ -1049,9 +1050,9 @@ class FileService:
             # 清理临时文件
             if os.path.exists(zip_path):
                 os.remove(zip_path)
-            raise FileDatabaseError(f"创建压缩包失败: {str(e)}")
+            raise FileDatabaseError(f"创建压缩包失败: {str(e)}") from e
 
-    def get_knowledge_base_file_path(self, kb_id: str, file_id: str) -> Optional[dict]:
+    def get_knowledge_base_file_path(self, kb_id: str, file_id: str) -> dict | None:
         """获取知识库中指定文件的完整路径
 
         Args:
@@ -1078,7 +1079,7 @@ class FileService:
 
         return {"file_name": kb_file.original_name, "file_path": kb_file.file_path}
 
-    def get_persona_card_file_path(self, pc_id: str, file_id: str) -> Optional[dict]:
+    def get_persona_card_file_path(self, pc_id: str, file_id: str) -> dict | None:
         """获取人设卡中指定文件的信息
 
         Args:

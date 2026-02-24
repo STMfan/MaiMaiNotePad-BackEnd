@@ -6,13 +6,14 @@ MessageService 单元测试
 需求：1.2 - 消息服务单元测试
 """
 
-import pytest
 from datetime import datetime
 from unittest.mock import Mock
+
+import pytest
 from sqlalchemy.orm import Session
 
-from app.services.message_service import MessageService
 from app.models.database import Message, User
+from app.services.message_service import MessageService
 
 
 class TestMessageValidation:
@@ -645,8 +646,9 @@ class TestExceptionHandling:
 
     def test_delete_broadcast_messages_database_exception(self):
         """Test database exception in delete_broadcast_messages"""
-        from sqlalchemy.exc import SQLAlchemyError
         from datetime import datetime
+
+        from sqlalchemy.exc import SQLAlchemyError
 
         db = Mock(spec=Session)
         service = MessageService(db)
@@ -676,8 +678,9 @@ class TestExceptionHandling:
 
     def test_update_broadcast_messages_database_exception(self):
         """Test database exception in update_broadcast_messages"""
-        from sqlalchemy.exc import SQLAlchemyError
         from datetime import datetime
+
+        from sqlalchemy.exc import SQLAlchemyError
 
         db = Mock(spec=Session)
         service = MessageService(db)

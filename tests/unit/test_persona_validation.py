@@ -5,11 +5,13 @@
 需求：1.3
 """
 
-import pytest
 from io import BytesIO
+
+import pytest
 from fastapi import UploadFile
-from app.services.file_upload_service import FileUploadService
+
 from app.core.error_handlers import ValidationError
+from app.services.file_upload_service import FileUploadService
 
 
 class TestPersonaCardValidation:

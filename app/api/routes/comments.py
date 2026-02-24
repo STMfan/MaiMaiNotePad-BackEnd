@@ -10,20 +10,19 @@
 """
 
 from datetime import datetime
-from typing import Optional, List, Any, Union
+from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Body
-
-from app.models.database import Comment, CommentReaction, KnowledgeBase, PersonaCard, User
-from app.api.response_util import Success
-from app.core.error_handlers import APIError, ValidationError, AuthorizationError, NotFoundError
-from app.api.deps import get_current_user
-from app.core.database import get_db
-from app.core.logging import app_logger, log_exception
-from app.utils.websocket import message_ws_manager
+from fastapi import APIRouter, Body, Depends, Query
 from sqlalchemy.orm import Session
-from app.core.cache.invalidation import invalidate_comment_cache
 
+from app.api.deps import get_current_user
+from app.api.response_util import Success
+from app.core.cache.invalidation import invalidate_comment_cache
+from app.core.database import get_db
+from app.core.error_handlers import APIError, AuthorizationError, NotFoundError, ValidationError
+from app.core.logging import app_logger, log_exception
+from app.models.database import Comment, CommentReaction, KnowledgeBase, PersonaCard, User
+from app.utils.websocket import message_ws_manager
 
 router = APIRouter()
 
@@ -79,7 +78,7 @@ async def get_comments(
             for r in reaction_rows:
                 reactions_map[r.comment_id] = r.reaction_type
 
-        result: List[dict] = []
+        result: list[dict] = []
         for c in comments:
             user = users.get(c.user_id)
             result.append(
@@ -100,7 +99,7 @@ async def get_comments(
         return Success(message="获取评论成功", data=result)
     except Exception as e:
         log_exception(app_logger, "Get comments error", exception=e)
-        raise APIError("获取评论失败")
+        raise APIError("获取评论失败") from e
 
 
 def _validate_comment_input(content: str, target_type: str, target_id: Any) -> str:
@@ -157,7 +156,7 @@ def _check_user_mute_status(user: User) -> None:
         )
 
 
-def _get_comment_target(db: Session, target_type: str, target_id: Any) -> Union[KnowledgeBase, PersonaCard]:
+def _get_comment_target(db: Session, target_type: str, target_id: Any) -> KnowledgeBase | PersonaCard:
     """获取评论目标对象
 
     Args:
@@ -171,7 +170,7 @@ def _get_comment_target(db: Session, target_type: str, target_id: Any) -> Union[
     Raises:
         NotFoundError: 目标不存在
     """
-    target: Optional[Union[KnowledgeBase, PersonaCard]]
+    target: KnowledgeBase | PersonaCard | None
     if target_type == "knowledge":
         target = db.query(KnowledgeBase).filter(KnowledgeBase.id == target_id).first()
     else:
@@ -183,7 +182,7 @@ def _get_comment_target(db: Session, target_type: str, target_id: Any) -> Union[
     return target
 
 
-def _get_parent_comment(db: Session, parent_id: Any, target_type: str, target_id: Any) -> Optional[Comment]:
+def _get_parent_comment(db: Session, parent_id: Any, target_type: str, target_id: Any) -> Comment | None:
     """获取父级评论
 
     Args:
@@ -213,7 +212,7 @@ def _get_parent_comment(db: Session, parent_id: Any, target_type: str, target_id
     return parent
 
 
-def _collect_notification_recipients(user: User, parent: Optional[Comment], target: Any, target_type: str) -> set:
+def _collect_notification_recipients(user: User, parent: Comment | None, target: Any, target_type: str) -> set:
     """收集需要通知的用户ID
 
     Args:
@@ -239,9 +238,7 @@ def _collect_notification_recipients(user: User, parent: Optional[Comment], targ
     return recipients
 
 
-def _send_comment_notifications(
-    db: Session, user: User, content: str, parent: Optional[Comment], recipients: set
-) -> None:
+def _send_comment_notifications(db: Session, user: User, content: str, parent: Comment | None, recipients: set) -> None:
     """发送评论通知消息
 
     Args:
@@ -366,7 +363,7 @@ async def create_comment(
         raise
     except Exception as e:
         log_exception(app_logger, "Create comment error", exception=e)
-        raise APIError("发表评论失败")
+        raise APIError("发表评论失败") from e
 
 
 @router.post(
@@ -398,8 +395,8 @@ async def react_comment(
             .first()
         )
 
-        before_type: Optional[str] = reaction.reaction_type if reaction else None
-        after_type: Optional[str] = _process_reaction_action(db, comment, reaction, action, user_id, comment_id)
+        before_type: str | None = reaction.reaction_type if reaction else None
+        after_type: str | None = _process_reaction_action(db, comment, reaction, action, user_id, comment_id)
 
         db.commit()
         db.refresh(comment)
@@ -423,12 +420,12 @@ async def react_comment(
         raise
     except Exception as e:
         log_exception(app_logger, "React comment error", exception=e)
-        raise APIError("操作失败")
+        raise APIError("操作失败") from e
 
 
 def _process_reaction_action(
-    db: Session, comment: Comment, reaction: Optional[CommentReaction], action: str, user_id: Any, comment_id: str
-) -> Optional[str]:
+    db: Session, comment: Comment, reaction: CommentReaction | None, action: str, user_id: Any, comment_id: str
+) -> str | None:
     """处理反应操作并返回操作后的反应类型
 
     Args:
@@ -451,7 +448,7 @@ def _process_reaction_action(
     return None
 
 
-def _handle_clear_reaction(db: Session, comment: Comment, reaction: Optional[CommentReaction]) -> Optional[str]:
+def _handle_clear_reaction(db: Session, comment: Comment, reaction: CommentReaction | None) -> str | None:
     """处理清除反应操作
 
     Args:
@@ -475,8 +472,8 @@ def _handle_clear_reaction(db: Session, comment: Comment, reaction: Optional[Com
 
 
 def _handle_like_reaction(
-    db: Session, comment: Comment, reaction: Optional[CommentReaction], user_id: Any, comment_id: str
-) -> Optional[str]:
+    db: Session, comment: Comment, reaction: CommentReaction | None, user_id: Any, comment_id: str
+) -> str | None:
     """处理点赞操作
 
     Args:
@@ -509,8 +506,8 @@ def _handle_like_reaction(
 
 
 def _handle_dislike_reaction(
-    db: Session, comment: Comment, reaction: Optional[CommentReaction], user_id: Any, comment_id: str
-) -> Optional[str]:
+    db: Session, comment: Comment, reaction: CommentReaction | None, user_id: Any, comment_id: str
+) -> str | None:
     """处理踩操作
 
     Args:
@@ -542,7 +539,7 @@ def _handle_dislike_reaction(
     return "dislike"
 
 
-def _determine_my_reaction(action: str, after_type: Optional[str]) -> Optional[str]:
+def _determine_my_reaction(action: str, after_type: str | None) -> str | None:
     """确定用户当前的反应状态
 
     Args:
@@ -562,7 +559,7 @@ def _determine_my_reaction(action: str, after_type: Optional[str]) -> Optional[s
 
 
 def _should_send_notification(
-    after_type: Optional[str], before_type: Optional[str], user_id: Any, comment_user_id: Any
+    after_type: str | None, before_type: str | None, user_id: Any, comment_user_id: Any
 ) -> bool:
     """判断是否需要发送通知
 
@@ -638,7 +635,7 @@ def _check_target_owner_permission(comment: Comment, user_id: str, db: Session) 
     Returns:
         是否有权限
     """
-    target_obj: Optional[Any] = None
+    target_obj: Any | None = None
     if comment.target_type == "knowledge":
         target_obj = db.query(KnowledgeBase).filter(KnowledgeBase.id == comment.target_id).first()
     else:
@@ -732,7 +729,7 @@ async def delete_comment(
         raise
     except Exception as e:
         log_exception(app_logger, "Delete comment error", exception=e)
-        raise APIError("删除评论失败")
+        raise APIError("删除评论失败") from e
 
 
 def _validate_restore_comment_permission(comment: Comment, current_user: dict, db: Session) -> None:
@@ -801,4 +798,4 @@ async def restore_comment(
         raise
     except Exception as e:
         log_exception(app_logger, "Restore comment error", exception=e)
-        raise APIError("撤销删除评论失败")
+        raise APIError("撤销删除评论失败") from e

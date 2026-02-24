@@ -8,20 +8,21 @@
 任务：15.5.1 - security.py (77% → 95%)
 """
 
-import pytest
+from datetime import UTC, datetime, timedelta
+
 import jwt
-from datetime import datetime, timedelta, timezone
+import pytest
 
 from app.core.security import (
-    verify_password,
-    get_password_hash,
-    create_access_token,
-    verify_token,
-    get_user_from_token,
-    create_user_token,
-    create_refresh_token,
-    SECRET_KEY,
     ALGORITHM,
+    SECRET_KEY,
+    create_access_token,
+    create_refresh_token,
+    create_user_token,
+    get_password_hash,
+    get_user_from_token,
+    verify_password,
+    verify_token,
 )
 
 
@@ -167,8 +168,8 @@ class TestJWTTokenGeneration:
 
         # 解码验证过期时间
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        exp = datetime.fromtimestamp(payload["exp"], timezone.utc)
-        now = datetime.now(timezone.utc)
+        exp = datetime.fromtimestamp(payload["exp"], UTC)
+        now = datetime.now(UTC)
 
         # 验证过期时间大约是30分钟后
         time_diff = (exp - now).total_seconds()

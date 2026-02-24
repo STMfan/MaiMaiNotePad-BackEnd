@@ -7,8 +7,9 @@
 """
 
 import pytest
-from hypothesis import given, strategies as st, assume, settings, HealthCheck
 from fastapi.testclient import TestClient
+from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import strategies as st
 from sqlalchemy.orm import Session
 
 
@@ -186,9 +187,10 @@ class TestAuthenticationConsistency:
 
         **Validates: Requirements 3.8**
         """
-        from app.main import app
-        from app.core.security import create_access_token
         from datetime import timedelta
+
+        from app.core.security import create_access_token
+        from app.main import app
 
         client = TestClient(app)
 
@@ -215,8 +217,8 @@ class TestAuthenticationConsistency:
 
         **Validates: Requirements 3.8**
         """
-        from app.main import app
         from app.core.security import create_access_token
+        from app.main import app
 
         client = TestClient(app)
 

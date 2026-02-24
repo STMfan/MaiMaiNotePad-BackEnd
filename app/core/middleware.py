@@ -7,9 +7,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
 from app.core.logging import app_logger
 
@@ -38,35 +38,41 @@ def setup_middlewares(app: FastAPI) -> None:
         try:
             from app.core.cache.factory import get_cache_manager
             from app.core.cache.middleware import CacheMiddleware
-            
+
             cache_manager = get_cache_manager()
-            
+
             # 创建缓存中间件实例
             cache_middleware = CacheMiddleware(
                 app=app,
                 cache_manager=cache_manager,
                 default_ttl=300,  # 默认 5 分钟
                 cache_query_params=True,
-                excluded_paths=["/api/admin", "/api/auth", "/api/ws", "/api/review", "/api/users/me"]  # 排除管理、认证、WebSocket、审核和用户个人信息路径
+                excluded_paths=[
+                    "/api/admin",
+                    "/api/auth",
+                    "/api/ws",
+                    "/api/review",
+                    "/api/users/me",
+                ],  # 排除管理、认证、WebSocket、审核和用户个人信息路径
             )
-            
+
             # 将中间件实例保存到 app.state，以便 API 端点访问
             app.state.cache_middleware = cache_middleware
-            
+
             # 添加中间件到应用
             app.add_middleware(
                 CacheMiddleware,
                 cache_manager=cache_manager,
                 default_ttl=300,
                 cache_query_params=True,
-                excluded_paths=["/api/admin", "/api/auth", "/api/ws", "/api/review", "/api/users/me"]
+                excluded_paths=["/api/admin", "/api/auth", "/api/ws", "/api/review", "/api/users/me"],
             )
-            
+
             if cache_manager.is_enabled():
                 app_logger.info("缓存中间件已启用")
             else:
                 app_logger.info("缓存中间件已添加（降级模式：缓存禁用）")
-                
+
         except Exception as e:
             app_logger.warning(f"缓存中间件初始化失败，将跳过缓存功能: {str(e)}")
             app.state.cache_middleware = None

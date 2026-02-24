@@ -3,9 +3,8 @@
 提供生成各种测试数据的辅助方法
 """
 
-import uuid
 import io
-from typing import Optional
+import uuid
 
 
 class TestDataGenerator:
@@ -54,7 +53,7 @@ class TestDataGenerator:
         return (filename, io.BytesIO(content), content_type)
 
     @staticmethod
-    def generate_toml_file(version: str = "1.0.0", additional_content: Optional[str] = None):
+    def generate_toml_file(version: str = "1.0.0", additional_content: str | None = None):
         """
         生成有效的 TOML 配置文件
 

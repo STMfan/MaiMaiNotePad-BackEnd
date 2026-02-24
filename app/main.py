@@ -7,19 +7,19 @@ FastAPI 应用主入口文件，负责应用初始化、路由注册、中间件
 import os
 import sys
 import traceback
-from pathlib import Path
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, WebSocket
 from dotenv import load_dotenv
+from fastapi import FastAPI, WebSocket
 
-from app.core.config import settings
-from app.core.logging import app_logger
-from app.core.middleware import setup_middlewares
 from app.api import api_router
 from app.api.websocket import message_websocket_endpoint
+from app.core.config import settings
 from app.core.error_handlers import setup_exception_handlers
+from app.core.logging import app_logger
+from app.core.middleware import setup_middlewares
 
 # 加载环境变量
 load_dotenv()
@@ -71,7 +71,7 @@ try:
     setup_static_routes(app)
 except ImportError:
     # 如果 static_routes 不存在，使用内联实现
-    from fastapi import Request, HTTPException
+    from fastapi import HTTPException, Request
     from fastapi.responses import FileResponse
 
     @app.get("/uploads/avatars/{file_path:path}")
@@ -90,7 +90,7 @@ except ImportError:
         try:
             full_path.resolve().relative_to(avatars_dir.resolve())
         except ValueError:
-            raise HTTPException(status_code=403, detail="Invalid file path")
+            raise HTTPException(status_code=403, detail="Invalid file path") from None
 
         if not full_path.exists() or not full_path.is_file():
             raise HTTPException(status_code=404, detail="Avatar not found")

@@ -6,26 +6,21 @@
 """
 
 from app.core.cache.config import CacheConfig, create_cache_config_from_settings
-from app.core.cache.manager import CacheManager
-from app.core.cache.redis_client import RedisClient
-from app.core.cache.factory import (
-    create_redis_client,
-    create_cache_manager,
-    get_cache_manager,
-    reset_cache_manager
-)
-from app.core.cache.decorators import cached, cache_invalidate
-from app.core.cache.middleware import CacheMiddleware
+from app.core.cache.decorators import cache_invalidate, cached
+from app.core.cache.factory import create_cache_manager, create_redis_client, get_cache_manager, reset_cache_manager
 from app.core.cache.logger import CacheLogger, get_cache_logger
+from app.core.cache.manager import CacheManager
 from app.core.cache.metrics import (
     CacheMetrics,
-    get_cache_metrics,
-    cache_hits_total,
-    cache_misses_total,
     cache_degradation_total,
     cache_enabled_status,
-    cache_operation_duration
+    cache_hits_total,
+    cache_misses_total,
+    cache_operation_duration,
+    get_cache_metrics,
 )
+from app.core.cache.middleware import CacheMiddleware
+from app.core.cache.redis_client import RedisClient
 
 __all__ = [
     "CacheConfig",
@@ -47,5 +42,5 @@ __all__ = [
     "cache_misses_total",
     "cache_degradation_total",
     "cache_enabled_status",
-    "cache_operation_duration"
+    "cache_operation_duration",
 ]

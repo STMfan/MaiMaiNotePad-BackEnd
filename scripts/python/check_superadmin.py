@@ -20,8 +20,8 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 # 加载环境变量
 load_dotenv()
 
+from app.core.security import get_password_hash, verify_password  # noqa: E402
 from app.models.database import User  # noqa: E402
-from app.core.security import verify_password, get_password_hash  # noqa: E402
 
 
 def check_superadmin():
@@ -53,8 +53,8 @@ def check_superadmin():
 
     try:
         engine = create_engine(database_url)
-        SessionLocal = sessionmaker(bind=engine)
-        db = SessionLocal()
+        session_local = sessionmaker(bind=engine)
+        db = session_local()
         print("✅ 数据库连接成功")
         print()
     except Exception as e:
@@ -74,7 +74,7 @@ def check_superadmin():
             print("建议操作:")
             print("1. 重启应用，系统会自动创建超级管理员")
             print(
-                "2. 或运行: python -c 'from app.services.user_service import UserService; from app.core.database import SessionLocal; db = SessionLocal(); UserService(db).ensure_super_admin_exists()'"
+                "2. 或运行: python -c 'from app.services.user_service import UserService; from app.core.database import SessionLocal; db = session_local(); UserService(db).ensure_super_admin_exists()'"
             )
             return
 

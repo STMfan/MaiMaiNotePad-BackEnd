@@ -18,13 +18,12 @@
     - 只为覆盖率低于 50% 的文件生成模板
 """
 
-import os
 import ast
 import json
-from typing import List, Dict
+import os
 
 
-def analyze_coverage(coverage_file: str = "coverage.json") -> Dict:
+def analyze_coverage(coverage_file: str = "coverage.json") -> dict:
     """分析覆盖率文件，找出未覆盖的代码"""
     if not os.path.exists(coverage_file):
         print(f"❌ 错误: 找不到覆盖率文件 '{coverage_file}'")
@@ -33,7 +32,7 @@ def analyze_coverage(coverage_file: str = "coverage.json") -> Dict:
         return {}
 
     try:
-        with open(coverage_file, "r") as f:
+        with open(coverage_file) as f:
             coverage_data = json.load(f)
     except json.JSONDecodeError as e:
         print(f"❌ 错误: 无法解析覆盖率文件: {e}")
@@ -54,10 +53,10 @@ def analyze_coverage(coverage_file: str = "coverage.json") -> Dict:
     return uncovered
 
 
-def extract_functions_from_file(file_path: str) -> List[Dict]:
+def extract_functions_from_file(file_path: str) -> list[dict]:
     """从Python文件中提取函数定义"""
     try:
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             tree = ast.parse(f.read())
 
         functions = []
@@ -78,7 +77,7 @@ def extract_functions_from_file(file_path: str) -> List[Dict]:
         return []
 
 
-def generate_test_template(module_path: str, functions: List[Dict]) -> str:
+def generate_test_template(module_path: str, functions: list[dict]) -> str:
     """生成测试模板"""
     module_name = module_path.replace("app/", "").replace("/", "_").replace(".py", "")
     test_class_name = "".join(word.capitalize() for word in module_name.split("_"))

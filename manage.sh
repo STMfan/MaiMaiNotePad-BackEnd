@@ -1768,7 +1768,7 @@ code_quality_menu() {
                 fi
                 echo ""
                 print_info "运行代码风格检查..."
-                if flake8 app tests scripts/python; then
+                if ruff check app tests scripts/python; then
                     print_success "代码风格检查通过"
                 else
                     print_warning "发现代码风格问题"
@@ -1800,7 +1800,7 @@ code_quality_menu() {
             3)
                 echo ""
                 print_info "检查代码风格..."
-                if flake8 app tests scripts/python; then
+                if ruff check app tests scripts/python; then
                     print_success "代码风格检查通过"
                 else
                     print_warning "发现代码风格问题，请查看上方输出"
@@ -3410,7 +3410,7 @@ handle_tui_code_quality_menu() {
                 fi
                 echo ""
                 print_info "运行代码风格检查..."
-                if flake8 app tests scripts/python; then
+                if ruff check app tests scripts/python; then
                     print_success "代码风格检查通过"
                 else
                     print_warning "发现代码风格问题"
@@ -3442,7 +3442,7 @@ handle_tui_code_quality_menu() {
             3)
                 clear
                 print_info "检查代码风格..."
-                if flake8 app tests scripts/python; then
+                if ruff check app tests scripts/python; then
                     print_success "代码风格检查通过"
                 else
                     print_warning "发现代码风格问题，请查看上方输出"
@@ -3938,7 +3938,7 @@ if [ $# -gt 0 ]; then
             
             echo ""
             print_info "运行代码风格检查..."
-            if flake8 app tests scripts/python; then
+            if ruff check app tests scripts/python; then
                 print_success "代码风格检查通过"
             else
                 print_warning "发现代码风格问题"

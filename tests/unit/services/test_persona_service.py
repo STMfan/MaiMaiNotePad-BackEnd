@@ -9,10 +9,11 @@ PersonaService 单元测试
 
 from datetime import datetime
 from unittest.mock import Mock, patch
+
 from sqlalchemy.orm import Session
 
+from app.models.database import PersonaCard, PersonaCardFile, StarRecord, User
 from app.services.persona_service import PersonaService
-from app.models.database import PersonaCard, PersonaCardFile, User, StarRecord
 
 
 class TestPersonaCardRetrieval:

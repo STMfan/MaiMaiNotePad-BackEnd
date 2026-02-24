@@ -5,16 +5,16 @@
 优先级：环境变量 > config.toml > 默认值
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
-from typing import Optional
 import os
 
-# 导入配置管理器
-from app.core.config_manager import config_manager
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 导入版本号
 from app.__version__ import __version__
+
+# 导入配置管理器
+from app.core.config_manager import config_manager
 
 
 class Settings(BaseSettings):
@@ -91,7 +91,7 @@ class Settings(BaseSettings):
     CACHE_HOST: str = config_manager.get("cache.host", "localhost", env_var="CACHE_HOST")
     CACHE_PORT: int = config_manager.get_int("cache.port", 6379, env_var="CACHE_PORT")
     CACHE_DB: int = config_manager.get_int("cache.db", 0, env_var="CACHE_DB")
-    CACHE_PASSWORD: Optional[str] = Field(default_factory=lambda: os.getenv("CACHE_PASSWORD"))  # 从环境变量读取
+    CACHE_PASSWORD: str | None = Field(default_factory=lambda: os.getenv("CACHE_PASSWORD"))  # 从环境变量读取
     CACHE_KEY_PREFIX: str = config_manager.get("cache.key_prefix", "maimnp", env_var="CACHE_KEY_PREFIX")
     CACHE_DEFAULT_TTL: int = config_manager.get_int("cache.default_ttl", 3600, env_var="CACHE_DEFAULT_TTL")
     CACHE_MAX_CONNECTIONS: int = config_manager.get_int("cache.max_connections", 10, env_var="CACHE_MAX_CONNECTIONS")
@@ -104,10 +104,10 @@ class Settings(BaseSettings):
     )
 
     # 测试配置（可选）
-    MAIMNP_BASE_URL: Optional[str] = None
-    MAIMNP_USERNAME: Optional[str] = None
-    MAIMNP_PASSWORD: Optional[str] = None
-    MAIMNP_EMAIL: Optional[str] = None
+    MAIMNP_BASE_URL: str | None = None
+    MAIMNP_USERNAME: str | None = None
+    MAIMNP_PASSWORD: str | None = None
+    MAIMNP_EMAIL: str | None = None
 
 
 # 全局配置实例

@@ -4,18 +4,22 @@
 提供基于 AI 的内容安全审核接口。
 """
 
-from fastapi import APIRouter, HTTPException, Depends
-from app.models.schemas import ModerationRequest, ModerationResponse, ModerationResult
-from app.services.moderation_service import get_moderation_service, ModerationService
-from app.api.response_util import Success, Error
 import logging
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.api.response_util import Error, Success
+from app.models.schemas import ModerationRequest, ModerationResponse, ModerationResult
+from app.services.moderation_service import ModerationService, get_moderation_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/moderation", tags=["内容审核"])
 
 
-@router.post("/check", response_model=ModerationResponse, summary="内容审核", description="对用户生成的文本进行内容安全审核")
+@router.post(
+    "/check", response_model=ModerationResponse, summary="内容审核", description="对用户生成的文本进行内容安全审核"
+)
 async def check_content(request: ModerationRequest, service: ModerationService = Depends(get_moderation_service)):
     """
     内容审核接口
@@ -43,11 +47,11 @@ async def check_content(request: ModerationRequest, service: ModerationService =
 
     except ValueError as e:
         logger.error(f"审核服务配置错误: {e}")
-        raise HTTPException(status_code=500, detail=f"审核服务配置错误: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"审核服务配置错误: {str(e)}") from e
 
     except Exception as e:
         logger.error(f"审核过程发生异常: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"审核失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"审核失败: {str(e)}") from e
 
 
 @router.get("/health", summary="健康检查", description="检查审核服务是否正常运行")

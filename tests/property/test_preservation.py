@@ -18,13 +18,14 @@ CRITICAL: These tests are EXPECTED TO PASS on unfixed code - they capture
 the baseline behavior that must be preserved.
 """
 
-import pytest
+import os
 import subprocess
 import sys
-import os
 from pathlib import Path
-from hypothesis import given, strategies as st, settings, HealthCheck, Phase
 
+import pytest
+from hypothesis import HealthCheck, Phase, given, settings
+from hypothesis import strategies as st
 
 # ============================================================================
 # Property 2: Preservation - 单独测试执行行为保持不变
@@ -512,7 +513,7 @@ class TestPreservationWithPropertyTests:
         users = []
         user_data = []
 
-        for i in range(num_users):
+        for _i in range(num_users):
             user = factory.create_user()
             # Capture data immediately before cleanup might delete it
             user_data.append({"id": user.id, "email": user.email, "username": user.username})

@@ -5,8 +5,9 @@
 验证 fixtures、装饰器和辅助函数的正确性。
 """
 
-import pytest
 import math
+
+import pytest
 
 
 class TestBoundaryGeneratorFixtures:
@@ -341,7 +342,7 @@ class TestBoundaryGeneratorReusability:
         # 验证两次生成的结果相同
         assert len(boundaries1) == len(boundaries2)
 
-        for bv1, bv2 in zip(boundaries1, boundaries2):
+        for bv1, bv2 in zip(boundaries1, boundaries2, strict=False):
             assert bv1.value == bv2.value
             assert bv1.description == bv2.description
 

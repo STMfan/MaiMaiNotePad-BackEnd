@@ -12,16 +12,17 @@
 """
 
 import os
-import toml
-from pathlib import Path
-from typing import Any, Dict, Optional, List
 from functools import lru_cache
+from pathlib import Path
+from typing import Any
+
+import toml
 
 
 class ConfigManager:
     """配置管理器类"""
 
-    def __init__(self, config_file: Optional[str] = None):
+    def __init__(self, config_file: str | None = None):
         """
         初始化配置管理器
 
@@ -33,21 +34,21 @@ class ConfigManager:
         if config_file is None:
             # 从环境变量读取配置环境
             config_env = os.environ.get("CONFIG_ENV", "dev").lower()
-            
+
             # 映射环境到配置文件
             env_to_file = {
                 "dev": "configs/config.dev.toml",
                 "prod": "configs/config.prod.toml",
                 "degraded": "configs/config.degraded.toml",
             }
-            
+
             self.config_file = env_to_file.get(config_env, "configs/config.dev.toml")
             self.config_env = config_env
         else:
             self.config_file = config_file
             self.config_env = "custom"
-        
-        self._config: Dict[str, Any] = {}
+
+        self._config: dict[str, Any] = {}
         self._load_config()
 
     def _load_config(self):
@@ -63,7 +64,7 @@ class ConfigManager:
 
         if config_path.exists():
             try:
-                with open(config_path, "r", encoding="utf-8") as f:
+                with open(config_path, encoding="utf-8") as f:
                     self._config = toml.load(f)
             except Exception as e:
                 print(f"警告: 无法加载配置文件 {config_path}: {e}")
@@ -72,7 +73,7 @@ class ConfigManager:
             print(f"警告: 配置文件 {config_path} 不存在，使用默认配置")
             self._config = {}
 
-    def get(self, key_path: str, default: Any = None, env_var: Optional[str] = None) -> Any:
+    def get(self, key_path: str, default: Any = None, env_var: str | None = None) -> Any:
         """
         获取配置值
 
@@ -120,29 +121,29 @@ class ConfigManager:
         Returns:
             转换后的值
         """
-        if target_type == bool:
+        if target_type is bool:
             return value.lower() in ("true", "1", "yes", "on")
-        elif target_type == int:
+        elif target_type is int:
             return int(value)
-        elif target_type == float:
+        elif target_type is float:
             return float(value)
-        elif target_type == list:
+        elif target_type is list:
             # 简单的列表解析，假设用逗号分隔
             return [item.strip() for item in value.split(",")]
         else:
             return value
 
-    def get_int(self, key_path: str, default: int = 0, env_var: Optional[str] = None) -> int:
+    def get_int(self, key_path: str, default: int = 0, env_var: str | None = None) -> int:
         """获取整数配置值"""
         value = self.get(key_path, default, env_var)
         return int(value) if value is not None else default
 
-    def get_float(self, key_path: str, default: float = 0.0, env_var: Optional[str] = None) -> float:
+    def get_float(self, key_path: str, default: float = 0.0, env_var: str | None = None) -> float:
         """获取浮点数配置值"""
         value = self.get(key_path, default, env_var)
         return float(value) if value is not None else default
 
-    def get_bool(self, key_path: str, default: bool = False, env_var: Optional[str] = None) -> bool:
+    def get_bool(self, key_path: str, default: bool = False, env_var: str | None = None) -> bool:
         """获取布尔配置值"""
         value = self.get(key_path, default, env_var)
         if isinstance(value, bool):
@@ -151,7 +152,7 @@ class ConfigManager:
             return value.lower() in ("true", "1", "yes", "on")
         return bool(value) if value is not None else default
 
-    def get_list(self, key_path: str, default: Optional[List] = None, env_var: Optional[str] = None) -> List:
+    def get_list(self, key_path: str, default: list | None = None, env_var: str | None = None) -> list:
         """获取列表配置值"""
         if default is None:
             default = []
@@ -162,7 +163,7 @@ class ConfigManager:
             return [item.strip() for item in value.split(",")]
         return default
 
-    def get_section(self, section: str) -> Dict[str, Any]:
+    def get_section(self, section: str) -> dict[str, Any]:
         """
         获取整个配置节
 
@@ -190,7 +191,7 @@ class ConfigManager:
     def get_current_env(self) -> str:
         """
         获取当前配置环境
-        
+
         Returns:
             配置环境名称 (dev/prod/degraded/custom)
         """
@@ -199,7 +200,7 @@ class ConfigManager:
     def get_config_file_path(self) -> str:
         """
         获取当前使用的配置文件路径
-        
+
         Returns:
             配置文件路径
         """

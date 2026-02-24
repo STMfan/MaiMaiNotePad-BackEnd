@@ -12,31 +12,31 @@
 
 import os
 from datetime import datetime
-from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status as HTTPStatus, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import status as http_status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.api.response_util import Success, Page
+from app.api.deps import get_current_user
+from app.api.response_util import Page, Success
+from app.core.database import get_db
 from app.core.error_handlers import (
     APIError,
-    ValidationError,
     AuthorizationError,
-    NotFoundError,
     ConflictError,
-    FileOperationError,
     DatabaseError,
+    FileOperationError,
+    NotFoundError,
+    ValidationError,
 )
 
 # 导入错误处理和日志记录模块
-from app.core.logging import app_logger, log_exception, log_file_operation, log_database_operation
-from app.models.schemas import KnowledgeBaseUpdate
+from app.core.logging import app_logger, log_database_operation, log_exception, log_file_operation
 from app.models.database import KnowledgeBase
-from app.api.deps import get_current_user
-from app.core.database import get_db
+from app.models.schemas import KnowledgeBaseUpdate
+from app.services.file_service import FileDatabaseError, FileService, FileValidationError
 from app.services.knowledge_service import KnowledgeService
-from app.services.file_service import FileService, FileValidationError, FileDatabaseError
 
 # 创建路由器
 router = APIRouter()
@@ -71,13 +71,13 @@ def kb_to_dict(kb) -> dict:
 # 知识库相关路由
 @router.post("/upload")
 async def upload_knowledge_base(
-    files: List[UploadFile] = File(...),
+    files: list[UploadFile] = File(...),
     name: str = Form(...),
     description: str = Form(...),
-    copyright_owner: Optional[str] = Form(None),
-    content: Optional[str] = Form(None),
-    tags: Optional[str] = Form(None),
-    is_public: Optional[bool] = Form(False),
+    copyright_owner: str | None = Form(None),
+    content: str | None = Form(None),
+    tags: str | None = Form(None),
+    is_public: bool | None = Form(False),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -129,18 +129,18 @@ async def upload_knowledge_base(
     except (ValidationError, FileOperationError, DatabaseError, HTTPException):
         raise
     except FileValidationError as e:
-        raise ValidationError(e.message)
+        raise ValidationError(e.message) from e
     except FileDatabaseError as e:
-        raise DatabaseError(e.message)
+        raise DatabaseError(e.message) from e
     except Exception as e:
         log_exception(app_logger, "Upload knowledge base error", exception=e)
         log_file_operation(
             app_logger, "upload", f"knowledge_base/{name}", user_id=user_id, success=False, error_message=str(e)
         )
-        raise APIError("上传知识库失败")
+        raise APIError("上传知识库失败") from e
 
 
-def _validate_upload_params(name: str, description: str, files: List[UploadFile]) -> None:
+def _validate_upload_params(name: str, description: str, files: list[UploadFile]) -> None:
     """验证上传参数
 
     Args:
@@ -158,7 +158,7 @@ def _validate_upload_params(name: str, description: str, files: List[UploadFile]
         raise ValidationError("至少需要上传一个文件")
 
 
-async def _prepare_file_data(files: List[UploadFile]) -> List[tuple[str, bytes]]:
+async def _prepare_file_data(files: list[UploadFile]) -> list[tuple[str, bytes]]:
     """准备文件数据
 
     Args:
@@ -167,7 +167,7 @@ async def _prepare_file_data(files: List[UploadFile]) -> List[tuple[str, bytes]]
     Returns:
         文件数据列表，每个元素为 (文件名, 文件内容) 元组
     """
-    file_data: List[tuple[str, bytes]] = []
+    file_data: list[tuple[str, bytes]] = []
     for file in files:
         content_bytes = await file.read()
         file_data.append((file.filename, content_bytes))
@@ -203,7 +203,7 @@ def _set_kb_visibility(kb: KnowledgeBase, is_public: bool, db: Session) -> None:
     except Exception as e:
         db.rollback()
         log_exception(app_logger, "Update knowledge base visibility after upload error", exception=e)
-        raise DatabaseError("更新知识库可见性状态失败")
+        raise DatabaseError("更新知识库可见性状态失败") from e
 
 
 @router.get("/public")
@@ -240,7 +240,7 @@ async def get_public_knowledge_bases(
 
     except Exception as e:
         log_exception(app_logger, "Get public knowledge bases error", exception=e)
-        raise APIError("获取公开知识库失败")
+        raise APIError("获取公开知识库失败") from e
 
 
 @router.get("/{kb_id}")
@@ -282,7 +282,7 @@ async def get_knowledge_base(kb_id: str, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         log_exception(app_logger, "Get knowledge base error", exception=e)
-        raise APIError("获取知识库失败")
+        raise APIError("获取知识库失败") from e
 
 
 @router.get("/{kb_id}/starred")
@@ -300,7 +300,7 @@ async def check_knowledge_starred(
         return Success(message="检查Star状态成功", data={"starred": starred})
     except Exception as e:
         log_exception(app_logger, "Check knowledge starred error", exception=e)
-        raise APIError("检查Star状态失败")
+        raise APIError("检查Star状态失败") from e
 
 
 @router.get("/user/{user_id}")
@@ -346,7 +346,7 @@ async def get_user_knowledge_bases(
         raise
     except Exception as e:
         log_exception(app_logger, "Get user knowledge bases error", exception=e)
-        raise APIError("获取用户知识库失败")
+        raise APIError("获取用户知识库失败") from e
 
 
 @router.post("/{kb_id}/star")
@@ -394,7 +394,7 @@ async def star_knowledge_base(
     except Exception as e:
         log_exception(app_logger, "Star knowledge base error", exception=e)
         log_database_operation(app_logger, operation, "star", user_id=user_id, success=False, error_message=str(e))
-        raise APIError(message + "知识库失败")
+        raise APIError(message + "知识库失败") from e
 
 
 @router.delete("/{kb_id}/star")
@@ -430,7 +430,7 @@ async def unstar_knowledge_base(
     except Exception as e:
         log_exception(app_logger, "Unstar knowledge base error", exception=e)
         log_database_operation(app_logger, "delete", "star", user_id=user_id, success=False, error_message=str(e))
-        raise APIError("取消Star知识库失败")
+        raise APIError("取消Star知识库失败") from e
 
 
 @router.put("/{kb_id}")
@@ -467,7 +467,7 @@ async def update_knowledge_base(
             success=False,
             error_message=str(e),
         )
-        raise APIError("修改知识库失败")
+        raise APIError("修改知识库失败") from e
 
 
 def _validate_kb_for_update(
@@ -607,7 +607,7 @@ def _apply_kb_updates(kb: KnowledgeBase, update_dict: dict, db: Session) -> None
 @router.post("/{kb_id}/files")
 async def add_files_to_knowledge_base(
     kb_id: str,
-    files: List[UploadFile] = File(...),
+    files: list[UploadFile] = File(...),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -650,15 +650,15 @@ async def add_files_to_knowledge_base(
     except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError):
         raise
     except FileValidationError as e:
-        raise ValidationError(e.message)
+        raise ValidationError(e.message) from e
     except FileDatabaseError as e:
-        raise DatabaseError(e.message)
+        raise DatabaseError(e.message) from e
     except Exception as e:
         log_exception(app_logger, "Add files to knowledge base error", exception=e)
         log_file_operation(
             app_logger, "add_files", f"knowledge_base/{kb_id}", user_id=user_id, success=False, error_message=str(e)
         )
-        raise APIError("添加文件失败")
+        raise APIError("添加文件失败") from e
 
 
 def _validate_kb_for_file_addition(kb: KnowledgeBase, user_id: str, current_user: dict) -> None:
@@ -713,15 +713,15 @@ async def delete_files_from_knowledge_base(
     except (NotFoundError, AuthorizationError, ValidationError, FileOperationError, DatabaseError):
         raise
     except FileValidationError as e:
-        raise ValidationError(e.message)
+        raise ValidationError(e.message) from e
     except FileDatabaseError as e:
-        raise DatabaseError(e.message)
+        raise DatabaseError(e.message) from e
     except Exception as e:
         log_exception(app_logger, "Delete files from knowledge base error", exception=e)
         log_file_operation(
             app_logger, "delete_files", f"knowledge_base/{kb_id}", user_id=user_id, success=False, error_message=str(e)
         )
-        raise APIError("删除文件失败")
+        raise APIError("删除文件失败") from e
 
 
 def _validate_kb_for_file_deletion(
@@ -858,11 +858,11 @@ async def download_knowledge_base_files(
     except HTTPException:
         raise
     except FileValidationError as e:
-        raise HTTPException(status_code=HTTPStatus.HTTP_404_NOT_FOUND, detail=e.message)
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=e.message) from e
     except FileDatabaseError as e:
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=e.message)
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=e.message) from e
     except Exception as e:
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"下载失败: {str(e)}")
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"下载失败: {str(e)}") from e
 
 
 @router.get("/{kb_id}/file/{file_id}")
@@ -910,9 +910,9 @@ async def download_knowledge_base_file(
     except (NotFoundError, AuthorizationError, FileOperationError):
         raise
     except FileValidationError as e:
-        raise NotFoundError(e.message)
+        raise NotFoundError(e.message) from e
     except FileDatabaseError as e:
-        raise FileOperationError(e.message)
+        raise FileOperationError(e.message) from e
     except Exception as e:
         log_exception(app_logger, "Download knowledge base file error", exception=e)
         log_file_operation(
@@ -923,7 +923,7 @@ async def download_knowledge_base_file(
             success=False,
             error_message=str(e),
         )
-        raise APIError("下载文件失败")
+        raise APIError("下载文件失败") from e
 
 
 @router.delete("/{kb_id}")
@@ -959,15 +959,15 @@ async def delete_knowledge_base(
     except (NotFoundError, AuthorizationError, FileOperationError, DatabaseError):
         raise
     except FileValidationError as e:
-        raise NotFoundError(e.message)
+        raise NotFoundError(e.message) from e
     except FileDatabaseError as e:
-        raise FileOperationError(e.message)
+        raise FileOperationError(e.message) from e
     except Exception as e:
         log_exception(app_logger, "Delete knowledge base error", exception=e)
         log_file_operation(
             app_logger, "delete", f"knowledge_base/{kb_id}", user_id=user_id, success=False, error_message=str(e)
         )
-        raise APIError("删除知识库失败")
+        raise APIError("删除知识库失败") from e
 
 
 def _validate_kb_deletion_permission(kb: KnowledgeBase, user_id: str, current_user: dict) -> None:

@@ -6,9 +6,11 @@
 **Validates: Requirements FR6 - 基于属性的测试**
 """
 
-import pytest
-from hypothesis import given, strategies as st, assume, settings, HealthCheck
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import pytest
+from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import strategies as st
 
 # Mark all tests in this file as serial
 pytestmark = pytest.mark.serial
@@ -42,15 +44,17 @@ class TestDataConsistency:
 
         **Validates: Requirements FR6**
         """
-        from app.services.user_service import UserService
+        import os
+        import uuid
+
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        import uuid
-        import os
+
+        from app.services.user_service import UserService
 
         # 创建独立的数据库会话用于并发测试
         engine = create_engine(os.environ["DATABASE_URL"], connect_args={"check_same_thread": False})
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
         username = f"concurrent_user_{uuid.uuid4().hex[:8]}"
         email_base = f"concurrent_{uuid.uuid4().hex[:8]}"
@@ -59,7 +63,7 @@ class TestDataConsistency:
 
         def create_user(index):
             """在独立会话中创建用户"""
-            session = SessionLocal()
+            session = session_local()
             try:
                 service = UserService(session)
                 result = service.create_user(
@@ -102,20 +106,22 @@ class TestDataConsistency:
 
         **Validates: Requirements FR6**
         """
-        from app.services.persona_service import PersonaService
+        import os
+
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        import os
+
+        from app.services.persona_service import PersonaService
 
         # 创建独立的数据库会话
         engine = create_engine(os.environ["DATABASE_URL"], connect_args={"check_same_thread": False})
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
         results = []
 
         def create_persona(index):
             """在独立会话中创建 persona"""
-            session = SessionLocal()
+            session = session_local()
             try:
                 import tempfile
 
@@ -163,20 +169,22 @@ class TestDataConsistency:
 
         **Validates: Requirements FR6**
         """
-        from app.services.knowledge_service import KnowledgeService
+        import os
+
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        import os
+
+        from app.services.knowledge_service import KnowledgeService
 
         # 创建独立的数据库会话
         engine = create_engine(os.environ["DATABASE_URL"], connect_args={"check_same_thread": False})
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
         results = []
 
         def create_knowledge(index):
             """在独立会话中创建知识库条目"""
-            session = SessionLocal()
+            session = session_local()
             try:
                 import tempfile
 
@@ -229,23 +237,25 @@ class TestDataConsistency:
 
         **Validates: Requirements FR6**
         """
-        from app.services.user_service import UserService
+        import os
+
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        import os
+
+        from app.services.user_service import UserService
 
         # 限制操作数
         assume(2 <= num_operations <= 5)
 
         # 创建独立的数据库会话
         engine = create_engine(os.environ["DATABASE_URL"], connect_args={"check_same_thread": False})
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
         results = []
 
         def update_user(index):
             """在独立会话中更新用户"""
-            session = SessionLocal()
+            session = session_local()
             try:
                 service = UserService(session)
                 # 使用 username 字段代替不存在的 avatar_path 参数
@@ -294,18 +304,20 @@ class TestTransactionIsolation:
 
         **Validates: Requirements FR6**
         """
-        from app.services.user_service import UserService
+        import os
+        import uuid
+
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        import uuid
-        import os
+
+        from app.services.user_service import UserService
 
         # 创建独立的数据库会话
         engine = create_engine(os.environ["DATABASE_URL"], connect_args={"check_same_thread": False})
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        session_local_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
         # 会话 1：成功创建用户
-        session1 = SessionLocal()
+        session1 = session_local_factory()
         try:
             service1 = UserService(session1)
             user1 = service1.create_user(
@@ -319,7 +331,7 @@ class TestTransactionIsolation:
             session1.close()
 
         # 会话 2：尝试创建用户但回滚
-        session2 = SessionLocal()
+        session2 = session_local_factory()
         try:
             service2 = UserService(session2)
             _ = service2.create_user(
@@ -350,20 +362,22 @@ class TestTransactionIsolation:
 
         **Validates: Requirements FR6**
         """
-        from app.services.user_service import UserService
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import sessionmaker
         import os
         import time
 
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+
+        from app.services.user_service import UserService
+
         # 创建独立的数据库会话
         engine = create_engine(os.environ["DATABASE_URL"], connect_args={"check_same_thread": False})
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        session_local_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
         original_username = test_user.username
 
         # 会话 1：更新用户
-        session1 = SessionLocal()
+        session1 = session_local_factory()
         service1 = UserService(session1)
 
         try:
@@ -380,7 +394,7 @@ class TestTransactionIsolation:
             time.sleep(0.1)
 
             # 会话 2：读取用户
-            session2 = SessionLocal()
+            session2 = session_local_factory()
             try:
                 service2 = UserService(session2)
                 user_in_session2 = service2.get_user_by_id(test_user.id)
@@ -413,8 +427,9 @@ class TestForeignKeyConstraints:
 
         **Validates: Requirements FR6**
         """
-        from app.services.persona_service import PersonaService
         import uuid
+
+        from app.services.persona_service import PersonaService
 
         service = PersonaService(test_db)
 
@@ -454,9 +469,10 @@ class TestForeignKeyConstraints:
 
         **Validates: Requirements FR6**
         """
+        import uuid
+
         from app.services.persona_service import PersonaService
         from app.services.user_service import UserService
-        import uuid
 
         # 创建一个新用户
         user_service = UserService(test_db)
@@ -512,9 +528,10 @@ class TestDataIntegrity:
 
         **Validates: Requirements FR6**
         """
+        import uuid
+
         from app.services.persona_service import PersonaService
         from app.services.user_service import UserService
-        import uuid
 
         # 创建 persona
         persona_service = PersonaService(test_db)
@@ -550,8 +567,9 @@ class TestDataIntegrity:
 
         **Validates: Requirements FR6**
         """
-        from app.services.persona_service import PersonaService
         import uuid
+
+        from app.services.persona_service import PersonaService
 
         # 限制记录数
         assume(1 <= num_records <= 5)

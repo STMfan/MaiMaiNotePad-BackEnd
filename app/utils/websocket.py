@@ -4,14 +4,14 @@ WebSocket 管理器模块
 提供 WebSocket 连接管理和消息推送功能。
 """
 
-from typing import Dict, List, Iterable
+from collections.abc import Iterable
 
 from fastapi import WebSocket
 from fastapi.encoders import jsonable_encoder
 
-from app.models.database import Message
 from app.core.database import get_db_context
 from app.core.logging import app_logger
+from app.models.database import Message
 
 
 class MessageWebSocketManager:
@@ -33,7 +33,7 @@ class MessageWebSocketManager:
 
     def __init__(self) -> None:
         """初始化 WebSocket 管理器"""
-        self.connections: Dict[str, List[WebSocket]] = {}
+        self.connections: dict[str, list[WebSocket]] = {}
 
     async def connect(self, user_id: str, websocket: WebSocket) -> None:
         """

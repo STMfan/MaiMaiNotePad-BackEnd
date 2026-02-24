@@ -5,8 +5,8 @@
 Requirements: 5.5 (knowledge.py error paths)
 """
 
-import uuid
 import io
+import uuid
 
 from tests.conftest import assert_error_response
 

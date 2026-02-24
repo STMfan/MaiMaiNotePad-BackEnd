@@ -4,11 +4,12 @@ SQLAlchemy 数据库模型
 包含应用的所有数据模型定义。
 """
 
-from datetime import datetime
-from typing import List, TYPE_CHECKING
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, Index
-from sqlalchemy.orm import relationship
 import uuid
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Boolean, Column, DateTime, Index, Integer, String, Text
+from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 
@@ -61,31 +62,31 @@ class User(Base):
     )
 
     # 关联关系
-    uploaded_knowledge_bases: List["KnowledgeBase"] = relationship(
+    uploaded_knowledge_bases: list["KnowledgeBase"] = relationship(
         "KnowledgeBase",
         back_populates="uploader",
         primaryjoin="User.id==KnowledgeBase.uploader_id",
         foreign_keys="KnowledgeBase.uploader_id",
     )
-    uploaded_persona_cards: List["PersonaCard"] = relationship(
+    uploaded_persona_cards: list["PersonaCard"] = relationship(
         "PersonaCard",
         back_populates="uploader",
         primaryjoin="User.id==PersonaCard.uploader_id",
         foreign_keys="PersonaCard.uploader_id",
     )
-    received_messages: List["Message"] = relationship(
+    received_messages: list["Message"] = relationship(
         "Message",
         foreign_keys="Message.recipient_id",
         back_populates="recipient",
         primaryjoin="User.id==Message.recipient_id",
     )
-    sent_messages: List["Message"] = relationship(
+    sent_messages: list["Message"] = relationship(
         "Message",
         foreign_keys="Message.sender_id",
         back_populates="sender",
         primaryjoin="User.id==Message.sender_id",
     )
-    star_records: List["StarRecord"] = relationship(
+    star_records: list["StarRecord"] = relationship(
         "StarRecord",
         back_populates="user",
         primaryjoin="User.id==StarRecord.user_id",

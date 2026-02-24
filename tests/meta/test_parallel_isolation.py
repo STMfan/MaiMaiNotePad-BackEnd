@@ -18,12 +18,14 @@ They are located in tests/meta/ and excluded from regular test runs.
 Run them explicitly with: pytest tests/meta/ -v
 """
 
-import pytest
+import os
 import subprocess
 import sys
-import os
 from pathlib import Path
-from hypothesis import given, strategies as st, settings, HealthCheck
+
+import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 # Mark all tests in this file as serial and meta
 pytestmark = [pytest.mark.serial, pytest.mark.meta]

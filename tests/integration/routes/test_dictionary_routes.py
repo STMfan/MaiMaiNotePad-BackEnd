@@ -5,11 +5,7 @@
 需求: 3.7
 """
 
-import json
 import pytest
-import tempfile
-import os
-from pathlib import Path
 from sqlalchemy.orm import Session
 
 
@@ -38,13 +34,13 @@ def mock_dict_path_unreadable(tmp_path, monkeypatch):
     dict_file.write_text('{"blocks": {}, "tokens": {}}')
     dict_file.chmod(0o000)  # 移除所有权限
     monkeypatch.setenv("TRANSLATION_DICT_PATH", str(dict_file))
-    
+
     yield dict_file
-    
+
     # 清理：恢复权限以便删除
     try:
         dict_file.chmod(0o644)
-    except:
+    except Exception:
         pass
 
 
@@ -188,7 +184,9 @@ class TestGetTranslationDictionary:
         assert data["blocks"] == {"test": "测试"}
         assert data["tokens"] == {}
 
-    def test_get_translation_dictionary_invalid_blocks_type(self, mock_dict_invalid_blocks_type, client, test_db: Session):
+    def test_get_translation_dictionary_invalid_blocks_type(
+        self, mock_dict_invalid_blocks_type, client, test_db: Session
+    ):
         """测试 blocks 类型无效的翻译字典
 
         验证：
@@ -203,7 +201,9 @@ class TestGetTranslationDictionary:
         assert data["blocks"] == {}
         assert data["tokens"] == {"test": "测试"}
 
-    def test_get_translation_dictionary_invalid_tokens_type(self, mock_dict_invalid_tokens_type, client, test_db: Session):
+    def test_get_translation_dictionary_invalid_tokens_type(
+        self, mock_dict_invalid_tokens_type, client, test_db: Session
+    ):
         """测试 tokens 类型无效的翻译字典
 
         验证：
@@ -232,6 +232,7 @@ class TestGetTranslationDictionary:
         assert response.status_code == 200
         data = response.json()["data"]
         assert data == {"blocks": {}, "tokens": {}}
+
 
 class TestDictionaryPermissions:
     """测试字典端点权限"""

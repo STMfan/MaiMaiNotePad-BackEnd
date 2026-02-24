@@ -11,39 +11,40 @@
 """
 
 import os
-from typing import List, Optional, Any
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status as HTTPStatus, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import status as http_status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user, get_current_user_optional
 from app.api.response_util import Page, Success
+from app.core.database import get_db
 from app.core.error_handlers import (
     APIError,
-    ValidationError,
     AuthenticationError,
     AuthorizationError,
-    NotFoundError,
     ConflictError,
-    FileOperationError,
     DatabaseError,
+    FileOperationError,
+    NotFoundError,
+    ValidationError,
 )
-from app.services.file_upload_service import FileUploadService
 
 # 导入错误处理和日志记录模块
-from app.core.logging import app_logger, log_exception, log_file_operation, log_database_operation
-from app.models.schemas import PersonaCardUpdate, BaseResponse
-from app.api.deps import get_current_user, get_current_user_optional
-from app.core.database import get_db
+from app.core.logging import app_logger, log_database_operation, log_exception, log_file_operation
+from app.models.schemas import BaseResponse, PersonaCardUpdate
+from app.services.file_service import FileDatabaseError, FileService, FileValidationError
+from app.services.file_upload_service import FileUploadService
 from app.services.persona_service import PersonaService
-from app.services.file_service import FileService, FileValidationError, FileDatabaseError
 
 # 创建路由器
 router = APIRouter()
 
 
 # 人设卡相关路由（上传、查询、编辑、删除等）
-def _validate_persona_card_upload_input(name: str, description: str, files: List[UploadFile]) -> None:
+def _validate_persona_card_upload_input(name: str, description: str, files: list[UploadFile]) -> None:
     """验证人设卡上传输入
 
     Args:
@@ -77,7 +78,7 @@ def _check_persona_card_uniqueness(persona_service: PersonaService) -> None:
         )
 
 
-async def _prepare_persona_card_file_data(files: List[UploadFile]) -> List[tuple[str, bytes]]:
+async def _prepare_persona_card_file_data(files: list[UploadFile]) -> list[tuple[str, bytes]]:
     """准备人设卡文件数据
 
     Args:
@@ -124,7 +125,7 @@ def _set_persona_card_visibility(pc, is_public: bool, db: Session) -> str:
     except Exception as e:
         db.rollback()
         log_exception(app_logger, "Update persona card visibility after upload error", exception=e)
-        raise DatabaseError("更新人设卡可见性状态失败")
+        raise DatabaseError("更新人设卡可见性状态失败") from e
 
 
 def _create_persona_card_upload_record(
@@ -150,13 +151,13 @@ def _create_persona_card_upload_record(
 
 @router.post("/persona/upload")
 async def upload_persona_card(
-    files: List[UploadFile] = File(...),
+    files: list[UploadFile] = File(...),
     name: str = Form(...),
     description: str = Form(...),
-    copyright_owner: Optional[str] = Form(None),
-    content: Optional[str] = Form(None),
-    tags: Optional[str] = Form(None),
-    is_public: Optional[bool] = Form(False),
+    copyright_owner: str | None = Form(None),
+    content: str | None = Form(None),
+    tags: str | None = Form(None),
+    is_public: bool | None = Form(False),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -193,9 +194,9 @@ async def upload_persona_card(
         return Success(message="人设卡上传成功", data=pc.to_dict())
 
     except FileValidationError as e:
-        raise ValidationError(e.message, details=getattr(e, "details", {}))
+        raise ValidationError(e.message, details=getattr(e, "details", {})) from e
     except FileDatabaseError as e:
-        raise DatabaseError(e.message)
+        raise DatabaseError(e.message) from e
     except (ValidationError, FileOperationError, DatabaseError, HTTPException):
         raise
     except Exception as e:
@@ -203,7 +204,7 @@ async def upload_persona_card(
         log_file_operation(
             app_logger, "upload", f"persona_card/{name}", user_id=user_id, success=False, error_message=str(e)
         )
-        raise APIError("上传人设卡失败")
+        raise APIError("上传人设卡失败") from e
 
 
 @router.get("/persona/public")
@@ -240,7 +241,7 @@ async def get_public_persona_cards(
 
     except Exception as e:
         log_exception(app_logger, "Get public persona cards error", exception=e)
-        raise APIError("获取公开人设卡失败")
+        raise APIError("获取公开人设卡失败") from e
 
 
 @router.get("/persona/{pc_id}")
@@ -280,7 +281,7 @@ async def get_persona_card(pc_id: str, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         log_exception(app_logger, "Get persona card detail error", exception=e)
-        raise APIError("获取人设卡详情失败")
+        raise APIError("获取人设卡详情失败") from e
 
 
 @router.get("/persona/{pc_id}/starred")
@@ -298,7 +299,7 @@ async def check_persona_starred(
         return Success(message="Star状态检查成功", data={"starred": starred})
     except Exception as e:
         log_exception(app_logger, "Check persona starred error", exception=e)
-        raise APIError("检查Star状态失败")
+        raise APIError("检查Star状态失败") from e
 
 
 @router.get("/persona/user/{user_id}")
@@ -340,7 +341,7 @@ async def get_user_persona_cards(
         raise
     except Exception as e:
         log_exception(app_logger, "Get user persona cards error", exception=e)
-        raise APIError("获取用户人设卡失败")
+        raise APIError("获取用户人设卡失败") from e
 
 
 def _validate_persona_card_for_update(persona_service: PersonaService, pc_id: str, user_id: str, current_user: dict):
@@ -507,7 +508,7 @@ async def update_persona_card(
         log_database_operation(
             app_logger, "update", "persona_card", record_id=pc_id, user_id=user_id, success=False, error_message=str(e)
         )
-        raise APIError("修改人设卡失败")
+        raise APIError("修改人设卡失败") from e
 
 
 @router.post("/persona/{pc_id}/star")
@@ -557,7 +558,7 @@ async def star_persona_card(pc_id: str, current_user: dict = Depends(get_current
     except Exception as e:
         log_exception(app_logger, "Star persona card error", exception=e)
         log_database_operation(app_logger, operation, "star", user_id=user_id, success=False, error_message=str(e))
-        raise APIError(message + "人设卡失败")
+        raise APIError(message + "人设卡失败") from e
 
 
 @router.delete("/persona/{pc_id}/star")
@@ -596,7 +597,7 @@ async def unstar_persona_card(
     except Exception as e:
         log_exception(app_logger, "Unstar persona card error", exception=e)
         log_database_operation(app_logger, "delete", "star", user_id=user_id, success=False, error_message=str(e))
-        raise APIError("取消Star人设卡失败")
+        raise APIError("取消Star人设卡失败") from e
 
 
 @router.delete("/persona/{pc_id}")
@@ -654,13 +655,13 @@ async def delete_persona_card(
         log_database_operation(
             app_logger, "delete", "persona_card", record_id=pc_id, user_id=user_id, success=False, error_message=str(e)
         )
-        raise APIError("删除人设卡失败")
+        raise APIError("删除人设卡失败") from e
 
 
 @router.post("/persona/{pc_id}/files")
 async def add_files_to_persona_card(
     pc_id: str,
-    files: List[UploadFile] = File(...),
+    files: list[UploadFile] = File(...),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -713,7 +714,7 @@ async def add_files_to_persona_card(
         log_file_operation(
             app_logger, "add_files", f"persona_card/{pc_id}", user_id=user_id, success=False, error_message=str(e)
         )
-        raise APIError("添加文件失败")
+        raise APIError("添加文件失败") from e
 
 
 @router.delete("/persona/{pc_id}/{file_id}", response_model=BaseResponse[dict])
@@ -766,7 +767,7 @@ async def delete_files_from_persona_card(
         log_file_operation(
             app_logger, "delete_files", f"persona_card/{pc_id}", user_id=user_id, success=False, error_message=str(e)
         )
-        raise APIError("删除文件失败")
+        raise APIError("删除文件失败") from e
 
 
 def _validate_pc_file_deletion_permission(pc: Any, user_id: str, current_user: dict) -> None:
@@ -823,7 +824,7 @@ def _cleanup_empty_pc_if_needed(persona_service: Any, pc_id: str, user_id: str) 
 
 @router.get("/persona/{pc_id}/download", response_class=FileResponse)
 async def download_persona_card_files(
-    pc_id: str, current_user: Optional[dict] = Depends(get_current_user_optional), db: Session = Depends(get_db)
+    pc_id: str, current_user: dict | None = Depends(get_current_user_optional), db: Session = Depends(get_db)
 ):
     """下载人设卡的所有文件压缩包"""
     try:
@@ -856,14 +857,14 @@ async def download_persona_card_files(
     except (HTTPException, NotFoundError, AuthenticationError, AuthorizationError):
         raise
     except FileValidationError as e:
-        raise HTTPException(status_code=HTTPStatus.HTTP_404_NOT_FOUND, detail=e.message)
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=e.message) from e
     except FileDatabaseError as e:
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=e.message)
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=e.message) from e
     except Exception as e:
-        raise HTTPException(status_code=HTTPStatus.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"下载失败: {str(e)}")
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"下载失败: {str(e)}") from e
 
 
-def _validate_pc_download_permission(pc: Any, current_user: Optional[dict]) -> None:
+def _validate_pc_download_permission(pc: Any, current_user: dict | None) -> None:
     """验证人设卡下载权限
 
     Args:
@@ -943,4 +944,4 @@ async def download_persona_card_file(
             success=False,
             error_message=str(e),
         )
-        raise APIError("下载文件失败")
+        raise APIError("下载文件失败") from e

@@ -7,14 +7,15 @@ AuthService 单元测试
 需求: 2.2 - 服务层单元测试
 """
 
-import pytest
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
+
+import pytest
 from sqlalchemy.orm import Session
 
-from app.services.auth_service import AuthService
-from app.models.database import User, EmailVerification
 from app.core.security import get_password_hash
+from app.models.database import EmailVerification, User
+from app.services.auth_service import AuthService
 
 
 class TestAuthentication:

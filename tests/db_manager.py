@@ -8,17 +8,18 @@
 """
 
 import os
-from typing import Optional, Generator
+from collections.abc import Generator
 from contextlib import contextmanager
+
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 
 class TestDatabaseManager:
     """管理用于并行测试的测试数据库实例"""
 
-    def __init__(self, database_url: Optional[str] = None):
+    def __init__(self, database_url: str | None = None):
         """
         初始化数据库管理器
 
@@ -108,17 +109,17 @@ class TestDatabaseManager:
             session: 要清理的数据库会话
         """
         from app.models.database import (
-            CommentReaction,
             Comment,
+            CommentReaction,
             DownloadRecord,
-            UploadRecord,
             EmailVerification,
-            StarRecord,
-            Message,
-            PersonaCardFile,
-            PersonaCard,
-            KnowledgeBaseFile,
             KnowledgeBase,
+            KnowledgeBaseFile,
+            Message,
+            PersonaCard,
+            PersonaCardFile,
+            StarRecord,
+            UploadRecord,
             User,
         )
 
@@ -150,7 +151,7 @@ class ParallelTestDatabaseManager:
     每个测试 worker 获取自己的数据库实例以避免冲突
     """
 
-    def __init__(self, base_url: Optional[str] = None):
+    def __init__(self, base_url: str | None = None):
         """
         初始化并行数据库管理器
 
@@ -194,7 +195,7 @@ class ParallelTestDatabaseManager:
 
 
 # 全局数据库管理器实例
-_db_manager: Optional[TestDatabaseManager] = None
+_db_manager: TestDatabaseManager | None = None
 
 
 def get_test_db_manager() -> TestDatabaseManager:

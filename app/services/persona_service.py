@@ -6,12 +6,13 @@
 
 import logging
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Any
+
 from sqlalchemy.orm import Session
 
-from app.models.database import PersonaCard, PersonaCardFile, User, UploadRecord
-from app.core.cache.decorators import cached, cache_invalidate
+from app.core.cache.decorators import cache_invalidate
 from app.core.cache.invalidation import invalidate_persona_cache
+from app.models.database import PersonaCard, PersonaCardFile, UploadRecord, User
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class PersonaService:
         """
         self.db = db
 
-    def get_persona_card_by_id(self, pc_id: str, include_files: bool = False) -> Optional[PersonaCard]:
+    def get_persona_card_by_id(self, pc_id: str, include_files: bool = False) -> PersonaCard | None:
         """
         根据 ID 获取人设卡。
 
@@ -52,7 +53,7 @@ class PersonaService:
             logger.error(f"获取人设卡失败 ID={pc_id}: {str(e)}")
             return None
 
-    def get_all_persona_cards(self) -> List[PersonaCard]:
+    def get_all_persona_cards(self) -> list[PersonaCard]:
         """
         获取所有人设卡。
 
@@ -70,11 +71,11 @@ class PersonaService:
         self,
         page: int = 1,
         page_size: int = 20,
-        name: Optional[str] = None,
-        uploader_id: Optional[str] = None,
+        name: str | None = None,
+        uploader_id: str | None = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
-    ) -> Tuple[List[PersonaCard], int]:
+    ) -> tuple[list[PersonaCard], int]:
         """
         获取公开人设卡列表，支持分页、搜索和排序。
 
@@ -127,12 +128,12 @@ class PersonaService:
         user_id: str,
         page: int = 1,
         page_size: int = 20,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
+        name: str | None = None,
+        tag: str | None = None,
         status: str = "all",
         sort_by: str = "created_at",
         sort_order: str = "desc",
-    ) -> Tuple[List[PersonaCard], int]:
+    ) -> tuple[list[PersonaCard], int]:
         """
         获取指定用户上传的人设卡列表。
 
@@ -168,8 +169,8 @@ class PersonaService:
             return [], 0
 
     def _filter_persona_cards(
-        self, pcs: List[PersonaCard], name: Optional[str], tag: Optional[str], status: str
-    ) -> List[PersonaCard]:
+        self, pcs: list[PersonaCard], name: str | None, tag: str | None, status: str
+    ) -> list[PersonaCard]:
         """
         根据条件筛选人设卡列表。
 
@@ -193,13 +194,13 @@ class PersonaService:
             filtered.append(pc)
         return filtered
 
-    def _match_name_filter(self, pc: PersonaCard, name: Optional[str]) -> bool:
+    def _match_name_filter(self, pc: PersonaCard, name: str | None) -> bool:
         """检查人设卡是否匹配名称筛选条件"""
         if name and name.lower() not in pc.name.lower():
             return False
         return True
 
-    def _match_tag_filter(self, pc: PersonaCard, tag: Optional[str]) -> bool:
+    def _match_tag_filter(self, pc: PersonaCard, tag: str | None) -> bool:
         """检查人设卡是否匹配标签筛选条件"""
         if not tag:
             return True
@@ -218,7 +219,7 @@ class PersonaService:
             return not pc.is_pending and (not pc.is_public)
         return True
 
-    def _sort_persona_cards(self, pcs: List[PersonaCard], sort_by: str, sort_order: str) -> List[PersonaCard]:
+    def _sort_persona_cards(self, pcs: list[PersonaCard], sort_by: str, sort_order: str) -> list[PersonaCard]:
         """
         对人设卡列表进行排序。
 
@@ -241,7 +242,7 @@ class PersonaService:
         reverse = sort_order.lower() != "asc"
         return sorted(pcs, key=key_func, reverse=reverse)
 
-    def _paginate_items(self, items: List[Any], page: int, page_size: int) -> List[Any]:
+    def _paginate_items(self, items: list[Any], page: int, page_size: int) -> list[Any]:
         """
         对列表进行分页。
 
@@ -257,7 +258,7 @@ class PersonaService:
         end = start + page_size
         return items[start:end]
 
-    def save_persona_card(self, pc_data: Dict[str, Any]) -> Optional[PersonaCard]:
+    def save_persona_card(self, pc_data: dict[str, Any]) -> PersonaCard | None:
         """
         保存或更新人设卡。
 
@@ -288,9 +289,10 @@ class PersonaService:
             # 清除人设卡相关缓存
             try:
                 from app.core.cache.factory import get_cache_manager
+
                 cache_manager = get_cache_manager()
                 if cache_manager.is_enabled():
-                    invalidate_persona_cache(cache_manager, pc.id)
+                    invalidate_persona_cache(pc.id)
             except Exception as cache_error:
                 logger.warning(f"清除缓存失败: {cache_error}")
 
@@ -303,8 +305,8 @@ class PersonaService:
 
     @cache_invalidate(key_pattern="persona:{pc_id}")
     def update_persona_card(
-        self, pc_id: str, update_data: Dict[str, Any], user_id: str, is_admin: bool = False, is_moderator: bool = False
-    ) -> Tuple[bool, str, Optional[PersonaCard]]:
+        self, pc_id: str, update_data: dict[str, Any], user_id: str, is_admin: bool = False, is_moderator: bool = False
+    ) -> tuple[bool, str, PersonaCard | None]:
         """
         更新人设卡信息（自动失效缓存）。
 
@@ -347,9 +349,10 @@ class PersonaService:
             # 清除人设卡相关缓存
             try:
                 from app.core.cache.factory import get_cache_manager
+
                 cache_manager = get_cache_manager()
                 if cache_manager.is_enabled():
-                    invalidate_persona_cache(cache_manager, pc_id)
+                    invalidate_persona_cache(pc_id)
             except Exception as cache_error:
                 logger.warning(f"清除缓存失败: {cache_error}")
 
@@ -364,7 +367,7 @@ class PersonaService:
         """检查用户是否有权限更新人设卡"""
         return pc.uploader_id == user_id or is_admin or is_moderator
 
-    def _validate_public_pc_update(self, pc: PersonaCard, update_data: Dict[str, Any]) -> bool:
+    def _validate_public_pc_update(self, pc: PersonaCard, update_data: dict[str, Any]) -> bool:
         """验证公开或审核中的人设卡更新是否合法"""
         if not (pc.is_public or pc.is_pending):
             return True
@@ -372,13 +375,13 @@ class PersonaService:
         disallowed_fields = [key for key in update_data.keys() if key not in allowed_fields]
         return len(disallowed_fields) == 0
 
-    def _remove_protected_fields(self, update_data: Dict[str, Any]) -> None:
+    def _remove_protected_fields(self, update_data: dict[str, Any]) -> None:
         """移除受保护的字段"""
         update_data.pop("copyright_owner", None)
         update_data.pop("name", None)
 
     def _validate_public_status_change(
-        self, pc: PersonaCard, update_data: Dict[str, Any], is_admin: bool, is_moderator: bool
+        self, pc: PersonaCard, update_data: dict[str, Any], is_admin: bool, is_moderator: bool
     ) -> bool:
         """验证公开状态修改权限"""
         if pc.is_public or pc.is_pending:
@@ -387,7 +390,7 @@ class PersonaService:
             return False
         return True
 
-    def _apply_updates(self, pc: PersonaCard, update_data: Dict[str, Any]) -> None:
+    def _apply_updates(self, pc: PersonaCard, update_data: dict[str, Any]) -> None:
         """应用更新到人设卡对象"""
         for key, value in update_data.items():
             if hasattr(pc, key):
@@ -423,9 +426,10 @@ class PersonaService:
             # 清除人设卡相关缓存
             try:
                 from app.core.cache.factory import get_cache_manager
+
                 cache_manager = get_cache_manager()
                 if cache_manager.is_enabled():
-                    invalidate_persona_cache(cache_manager, pc_id)
+                    invalidate_persona_cache(pc_id)
             except Exception as cache_error:
                 logger.warning(f"清除缓存失败: {cache_error}")
 
@@ -477,8 +481,9 @@ class PersonaService:
             if self.is_starred(user_id, pc_id):
                 return False
 
-            from app.models.database import StarRecord
             import uuid
+
+            from app.models.database import StarRecord
 
             star = StarRecord(
                 id=str(uuid.uuid4()), user_id=user_id, target_id=pc_id, target_type="persona", created_at=datetime.now()
@@ -494,9 +499,10 @@ class PersonaService:
             # 清除人设卡相关缓存（因为 star_count 变化）
             try:
                 from app.core.cache.factory import get_cache_manager
+
                 cache_manager = get_cache_manager()
                 if cache_manager.is_enabled():
-                    invalidate_persona_cache(cache_manager, pc_id)
+                    invalidate_persona_cache(pc_id)
             except Exception as cache_error:
                 logger.warning(f"清除缓存失败: {cache_error}")
 
@@ -543,9 +549,10 @@ class PersonaService:
             # 清除人设卡相关缓存（因为 star_count 变化）
             try:
                 from app.core.cache.factory import get_cache_manager
+
                 cache_manager = get_cache_manager()
                 if cache_manager.is_enabled():
-                    invalidate_persona_cache(cache_manager, pc_id)
+                    invalidate_persona_cache(pc_id)
             except Exception as cache_error:
                 logger.warning(f"清除缓存失败: {cache_error}")
 
@@ -581,7 +588,7 @@ class PersonaService:
             logger.error(f"递增人设卡 {pc_id} 下载次数失败: {str(e)}")
             return False
 
-    def get_files_by_persona_card_id(self, pc_id: str) -> List[PersonaCardFile]:
+    def get_files_by_persona_card_id(self, pc_id: str) -> list[PersonaCardFile]:
         """
         获取人设卡的所有文件。
 
@@ -621,7 +628,7 @@ class PersonaService:
 
     def create_upload_record(
         self, uploader_id: str, target_id: str, name: str, description: str, status: str = "success"
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         创建人设卡上传记录。
 
@@ -681,7 +688,7 @@ class PersonaService:
             logger.error(f"删除上传记录失败 {target_id}: {str(e)}")
             return False
 
-    def resolve_uploader_id(self, uploader_identifier: str) -> Optional[str]:
+    def resolve_uploader_id(self, uploader_identifier: str) -> str | None:
         """
         将上传者标识解析为用户 ID。
         支持用户 ID 或用户名。

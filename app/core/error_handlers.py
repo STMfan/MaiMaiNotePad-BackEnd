@@ -3,22 +3,23 @@
 提供统一的异常处理和错误响应
 """
 
+import json
 import logging
+import os
 import traceback
 import uuid
-import json
-import os
-from typing import Dict, Any, Optional
-from fastapi import Request, HTTPException
+from datetime import datetime
+from typing import Any
+
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
-from datetime import datetime
+
 from app.core.logging import app_logger, log_exception
 from app.core.messages import get_message
 
-
-DEFAULT_ERROR_CODE_BY_STATUS: Dict[int, str] = {
+DEFAULT_ERROR_CODE_BY_STATUS: dict[int, str] = {
     400: "40000",
     401: "40001",
     403: "40003",
@@ -30,7 +31,7 @@ DEFAULT_ERROR_CODE_BY_STATUS: Dict[int, str] = {
 }
 
 
-ERROR_CODE_BY_MESSAGE: Dict[str, str] = {
+ERROR_CODE_BY_MESSAGE: dict[str, str] = {
     "无效的JSON格式": "10001",
     "不支持的Content-Type": "10002",
     "请提供用户名和密码": "10003",
@@ -148,7 +149,7 @@ ERROR_CODE_BY_MESSAGE: Dict[str, str] = {
 }
 
 
-ERROR_CODE_BY_DETAIL_KEY: Dict[str, str] = {
+ERROR_CODE_BY_DETAIL_KEY: dict[str, str] = {
     "PERSONA_FILE_COUNT_INVALID": "14020",
     "PERSONA_FILE_NAME_INVALID": "14021",
     "PERSONA_FILE_TYPE_INVALID": "14022",
@@ -159,7 +160,7 @@ ERROR_CODE_BY_DETAIL_KEY: Dict[str, str] = {
 }
 
 
-def resolve_error_code(status_code: int, message: str, details: Optional[Dict[str, Any]] = None) -> str:
+def resolve_error_code(status_code: int, message: str, details: dict[str, Any] | None = None) -> str:
     detail_code = None
     if isinstance(details, dict):
         raw_code = details.get("code")
@@ -184,9 +185,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # app/ �
 ERROR_MESSAGES_FILE = os.path.join(BASE_DIR, "error_messages.json")
 
 
-def load_error_messages() -> Dict[str, Any]:
+def load_error_messages() -> dict[str, Any]:
     try:
-        with open(ERROR_MESSAGES_FILE, "r", encoding="utf-8") as f:
+        with open(ERROR_MESSAGES_FILE, encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, dict):
             return data
@@ -195,7 +196,7 @@ def load_error_messages() -> Dict[str, Any]:
     return {}
 
 
-ERROR_MESSAGES: Dict[str, Any] = load_error_messages()
+ERROR_MESSAGES: dict[str, Any] = load_error_messages()
 
 
 def resolve_display_message(code: str, fallback_message: str) -> str:
@@ -302,11 +303,11 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
         self, status_code: int, error_type: str, message: str, request_id: str, path: str, include_details: bool = True
     ) -> JSONResponse:
         """创建错误响应"""
-        from typing import Dict, Any
+        from typing import Any
 
         code = resolve_error_code(status_code, message, None)
         display_message = resolve_display_message(code, message)
-        error_response: Dict[str, Any] = {
+        error_response: dict[str, Any] = {
             "success": False,
             "error": {
                 "code": code,
@@ -333,7 +334,7 @@ class APIError(Exception):
         message: str,
         status_code: int = 400,
         error_type: str = "API_ERROR",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         self.message = message
         self.status_code = status_code
@@ -345,7 +346,7 @@ class APIError(Exception):
 class ValidationError(APIError):
     """数据验证错误"""
 
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(message=message, status_code=422, error_type="VALIDATION_ERROR", details=details)
 
 
@@ -397,14 +398,14 @@ class RateLimitError(APIError):
 class FileOperationError(APIError):
     """文件操作错误"""
 
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(message=message, status_code=400, error_type="FILE_OPERATION_ERROR", details=details)
 
 
 class DatabaseError(APIError):
     """数据库操作错误"""
 
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(message=message, status_code=500, error_type="DATABASE_ERROR", details=details)
 
 

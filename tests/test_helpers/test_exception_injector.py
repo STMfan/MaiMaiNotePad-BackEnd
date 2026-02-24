@@ -4,8 +4,9 @@
 测试 ExceptionInjector 类的所有功能。
 """
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
 from tests.helpers.exception_injector import ExceptionInjector, ExceptionType, create_injector

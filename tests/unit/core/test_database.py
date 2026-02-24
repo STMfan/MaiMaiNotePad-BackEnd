@@ -18,8 +18,8 @@ class TestDatabaseEngine:
 
     def test_engine_uses_settings_url(self):
         """测试引擎使用设置中的DATABASE_URL"""
-        from app.core.database import engine
         from app.core.config import settings
+        from app.core.database import engine
 
         # 引擎URL应该匹配设置
         assert str(engine.url) == settings.DATABASE_URL or settings.DATABASE_URL in str(engine.url)
@@ -97,8 +97,9 @@ class TestBase:
 
     def test_base_can_be_inherited(self):
         """测试Base可用于模型继承"""
-        from app.core.database import Base
         from sqlalchemy import Column, Integer, String
+
+        from app.core.database import Base
 
         class TestModel(Base):
             __tablename__ = "test_model"
@@ -183,9 +184,10 @@ class TestGetDb:
 
     def test_get_db_can_be_used_as_dependency(self):
         """测试get_db作为FastAPI依赖工作"""
-        from app.core.database import get_db
         from fastapi import Depends, FastAPI
         from fastapi.testclient import TestClient
+
+        from app.core.database import get_db
 
         app = FastAPI()
 
@@ -268,11 +270,12 @@ class TestGetDbContext:
 
     def test_get_db_context_can_add_and_commit(self, test_db):
         """测试get_db_context可以添加和提交数据"""
-        from app.core.database import get_db_context
-        from app.models.database import User
-        from app.core.security import get_password_hash
         import uuid
         from datetime import datetime
+
+        from app.core.database import get_db_context
+        from app.core.security import get_password_hash
+        from app.models.database import User
 
         user_id = str(uuid.uuid4())
 

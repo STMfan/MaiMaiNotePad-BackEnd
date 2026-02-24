@@ -6,9 +6,11 @@
 **Validates: Requirements FR6 - 基于属性的测试**
 """
 
-import pytest
-from hypothesis import given, strategies as st, settings, HealthCheck
 import sys
+
+import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 # Mark all tests in this file as serial
 pytestmark = pytest.mark.serial
@@ -504,8 +506,9 @@ class TestSpecialCharacterHandling:
 
         **Validates: Requirements FR6**
         """
-        from app.services.persona_service import PersonaService
         import uuid
+
+        from app.services.persona_service import PersonaService
 
         service = PersonaService(test_db)
 

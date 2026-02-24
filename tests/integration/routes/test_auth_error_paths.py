@@ -7,11 +7,12 @@ Requirements: 5.7 (auth.py error paths)
 
 import uuid
 from datetime import datetime, timedelta
-from fastapi.testclient import TestClient
 from unittest.mock import patch
 
-from app.models.database import User, EmailVerification
+from fastapi.testclient import TestClient
+
 from app.core.security import get_password_hash
+from app.models.database import EmailVerification, User
 from tests.conftest import assert_error_response
 
 
@@ -159,8 +160,8 @@ class TestTokenValidationErrors:
         - 返回 400 状态码
         - 返回错误消息
         """
-        from app.main import app
         from app.core.security import create_access_token
+        from app.main import app
 
         client = TestClient(app)
 

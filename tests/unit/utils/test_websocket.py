@@ -4,8 +4,9 @@ app/utils/websocket.py 单元测试
 测试WebSocket连接管理和消息广播。
 """
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
 from fastapi import WebSocket
 
 from app.utils.websocket import MessageWebSocketManager, message_ws_manager
@@ -127,11 +128,12 @@ class TestMessageWebSocketManager:
     @pytest.mark.asyncio
     async def test_send_message_update_with_messages(self, manager, mock_websocket, test_db):
         """Test sending message update with unread messages"""
-        from app.models.database import Message, User
-        from app.core.security import get_password_hash
         import uuid
-        from datetime import datetime
         from contextlib import contextmanager
+        from datetime import datetime
+
+        from app.core.security import get_password_hash
+        from app.models.database import Message, User
 
         # Create test users
         sender = User(
@@ -213,10 +215,11 @@ class TestMessageWebSocketManager:
     @pytest.mark.asyncio
     async def test_send_message_update_no_messages(self, manager, mock_websocket, test_db):
         """Test sending message update when user has no messages"""
-        from app.models.database import User
-        from app.core.security import get_password_hash
         import uuid
         from datetime import datetime
+
+        from app.core.security import get_password_hash
+        from app.models.database import User
 
         # Create test user with no messages
         user = User(
@@ -263,10 +266,11 @@ class TestMessageWebSocketManager:
     @pytest.mark.asyncio
     async def test_send_message_update_multiple_connections(self, manager, test_db):
         """Test sending update to user with multiple connections"""
-        from app.models.database import User
-        from app.core.security import get_password_hash
         import uuid
         from datetime import datetime
+
+        from app.core.security import get_password_hash
+        from app.models.database import User
 
         # Create test user
         user = User(
@@ -298,10 +302,11 @@ class TestMessageWebSocketManager:
     @pytest.mark.asyncio
     async def test_broadcast_user_update_multiple_users(self, manager, test_db):
         """Test broadcasting updates to multiple users"""
-        from app.models.database import User
-        from app.core.security import get_password_hash
         import uuid
         from datetime import datetime
+
+        from app.core.security import get_password_hash
+        from app.models.database import User
 
         # Create test users
         users = []
@@ -337,10 +342,11 @@ class TestMessageWebSocketManager:
     @pytest.mark.asyncio
     async def test_broadcast_user_update_deduplicates_ids(self, manager, test_db):
         """Test broadcast deduplicates user IDs"""
-        from app.models.database import User
-        from app.core.security import get_password_hash
         import uuid
         from datetime import datetime
+
+        from app.core.security import get_password_hash
+        from app.models.database import User
 
         # Create test user
         user = User(

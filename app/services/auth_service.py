@@ -4,22 +4,23 @@
 包含登录、注册、密码重置等认证相关的业务逻辑。
 """
 
-import uuid
 import logging
 import secrets
+import uuid
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Tuple
+from typing import Any
+
 from sqlalchemy.orm import Session
 
-from app.models.database import User, EmailVerification
-from app.core.security import (
-    verify_password,
-    get_password_hash,
-    create_user_token,
-    create_refresh_token,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
-)
 from app.core.config_manager import config_manager
+from app.core.security import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    create_refresh_token,
+    create_user_token,
+    get_password_hash,
+    verify_password,
+)
+from app.models.database import EmailVerification, User
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class AuthService:
         """
         self.db = db
 
-    def authenticate_user(self, username: str, password: str) -> Optional[Dict[str, Any]]:
+    def authenticate_user(self, username: str, password: str) -> dict[str, Any] | None:
         """
         使用用户名和密码进行身份验证。
         包含计时攻击防护和账户锁定检查。
@@ -88,7 +89,7 @@ class AuthService:
             logger.error(f"用户认证失败: {str(e)}")
             return None
 
-    def create_tokens(self, user: User) -> Dict[str, Any]:
+    def create_tokens(self, user: User) -> dict[str, Any]:
         """
         为已认证用户创建访问令牌和刷新令牌。
 
@@ -134,7 +135,7 @@ class AuthService:
             logger.error(f"为用户 {user.id} 创建令牌失败: {str(e)}")
             raise
 
-    def register_user(self, username: str, password: str, email: str) -> Optional[User]:
+    def register_user(self, username: str, password: str, email: str) -> User | None:
         """
         注册新用户（假设邮箱验证已完成）。
 
@@ -222,7 +223,7 @@ class AuthService:
             logger.error(f"验证邮箱验证码失败 {email}: {str(e)}")
             return False
 
-    def save_verification_code(self, email: str, code: str) -> Optional[str]:
+    def save_verification_code(self, email: str, code: str) -> str | None:
         """
         保存邮箱验证码到数据库。
         验证码有效期从配置读取（默认 2 分钟）。
@@ -302,7 +303,7 @@ class AuthService:
             logger.error(f"检查邮箱发送频率失败 {email}: {str(e)}")
             return False
 
-    def reset_password(self, email: str, verification_code: str, new_password: str) -> Tuple[bool, str]:
+    def reset_password(self, email: str, verification_code: str, new_password: str) -> tuple[bool, str]:
         """
         通过邮箱验证重置用户密码。
 
@@ -356,7 +357,7 @@ class AuthService:
         """
         return "".join([str(secrets.randbelow(10)) for _ in range(6)])
 
-    def send_verification_code(self, email: str) -> Optional[str]:
+    def send_verification_code(self, email: str) -> str | None:
         """
         生成并保存注册用邮箱验证码。
 
@@ -397,7 +398,7 @@ MaiMaiNotePad 团队
             logger.error(f"发送验证码到 {email} 失败: {str(e)}")
             raise
 
-    def send_reset_password_code(self, email: str) -> Optional[str]:
+    def send_reset_password_code(self, email: str) -> str | None:
         """
         生成并保存重置密码用邮箱验证码。
 
@@ -438,7 +439,7 @@ MaiMaiNotePad 团队
             logger.error(f"发送重置密码验证码到 {email} 失败: {str(e)}")
             raise
 
-    def refresh_access_token(self, refresh_token: str) -> Dict[str, Any]:
+    def refresh_access_token(self, refresh_token: str) -> dict[str, Any]:
         """
         使用刷新令牌获取新的访问令牌。
 
@@ -448,7 +449,7 @@ MaiMaiNotePad 团队
         Returns:
             包含新 access_token 和用户信息的字典
         """
-        from app.core.security import verify_token, create_user_token
+        from app.core.security import create_user_token, verify_token
 
         try:
             # 验证刷新令牌

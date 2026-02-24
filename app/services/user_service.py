@@ -3,18 +3,19 @@
 包含用户管理相关的业务逻辑
 """
 
+import logging
 import os
 import uuid
-import logging
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Any
+
 from sqlalchemy.orm import Session
 
-from app.models.database import User
-from app.core.security import verify_password, get_password_hash
-from app.core.config_manager import config_manager
-from app.core.cache.decorators import cached, cache_invalidate
+from app.core.cache.decorators import cache_invalidate
 from app.core.cache.invalidation import invalidate_user_cache
+from app.core.config_manager import config_manager
+from app.core.security import get_password_hash, verify_password
+from app.models.database import User
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class UserService:
         """
         self.db = db
 
-    def get_user_by_id(self, user_id: str) -> Optional[User]:
+    def get_user_by_id(self, user_id: str) -> User | None:
         """
         根据 ID 获取用户。
 
@@ -50,7 +51,7 @@ class UserService:
             logger.error(f"Error getting user by ID {user_id}: {str(e)}")
             return None
 
-    def get_user_by_username(self, username: str) -> Optional[User]:
+    def get_user_by_username(self, username: str) -> User | None:
         """
         根据用户名获取用户。
 
@@ -66,7 +67,7 @@ class UserService:
             logger.error(f"Error getting user by username {username}: {str(e)}")
             return None
 
-    def get_user_by_email(self, email: str) -> Optional[User]:
+    def get_user_by_email(self, email: str) -> User | None:
         """
         根据邮箱获取用户。
 
@@ -83,7 +84,7 @@ class UserService:
             logger.error(f"Error getting user by email {email}: {str(e)}")
             return None
 
-    def get_all_users(self) -> List[User]:
+    def get_all_users(self) -> list[User]:
         """
         获取数据库中所有用户。
 
@@ -104,7 +105,7 @@ class UserService:
         is_admin: bool = False,
         is_moderator: bool = False,
         is_super_admin: bool = False,
-    ) -> Optional[User]:
+    ) -> User | None:
         """
         创建新用户。
 
@@ -163,7 +164,7 @@ class UserService:
             return None
 
     @cache_invalidate(key_pattern="user:{user_id}")
-    def update_user(self, user_id: str, username: Optional[str] = None, email: Optional[str] = None) -> Optional[User]:
+    def update_user(self, user_id: str, username: str | None = None, email: str | None = None) -> User | None:
         """
         更新用户信息（自动失效缓存）。
 
@@ -193,7 +194,7 @@ class UserService:
                 if existing and existing.id != user_id:
                     logger.warning(f"Username {username} already exists")
                     return None
-                
+
                 user.username = username
 
             # 如果提供了新邮箱则更新
@@ -262,9 +263,7 @@ class UserService:
             logger.error(f"Error updating password for user {user_id}: {str(e)}")
             return False
 
-    def update_role(
-        self, user_id: str, is_admin: Optional[bool] = None, is_moderator: Optional[bool] = None
-    ) -> Optional[User]:
+    def update_role(self, user_id: str, is_admin: bool | None = None, is_moderator: bool | None = None) -> User | None:
         """
         更新用户角色。
 
@@ -300,7 +299,7 @@ class UserService:
             logger.error(f"Error updating role for user {user_id}: {str(e)}")
             return None
 
-    def verify_credentials(self, username: str, password: str) -> Optional[User]:
+    def verify_credentials(self, username: str, password: str) -> User | None:
         """
         验证用户凭证（带计时攻击防护）。
 
@@ -518,8 +517,8 @@ class UserService:
             return False
 
     def get_upload_records_by_uploader(
-        self, uploader_id: str, page: int = 1, page_size: int = 20, status: Optional[str] = None
-    ) -> List:
+        self, uploader_id: str, page: int = 1, page_size: int = 20, status: str | None = None
+    ) -> list:
         """
         Get upload records by uploader with pagination and optional status filter.
 
@@ -550,7 +549,7 @@ class UserService:
             logger.error(f"Error getting upload records for uploader {uploader_id}: {str(e)}")
             return []
 
-    def get_upload_records_count_by_uploader(self, uploader_id: str, status: Optional[str] = None) -> int:
+    def get_upload_records_count_by_uploader(self, uploader_id: str, status: str | None = None) -> int:
         """
         Get total count of upload records by uploader with optional status filter.
 
@@ -679,7 +678,7 @@ class UserService:
             logger.error(f"Error getting total file size for {target_type} {target_id}: {str(e)}")
             return 0
 
-    def get_dashboard_trend_stats(self, user_id: str, days: int = 30) -> Dict[str, Any]:
+    def get_dashboard_trend_stats(self, user_id: str, days: int = 30) -> dict[str, Any]:
         """
         Get download and star trend statistics for a user.
 
@@ -692,7 +691,8 @@ class UserService:
         """
         try:
             from sqlalchemy import func
-            from app.models.database import KnowledgeBase, PersonaCard, DownloadRecord, StarRecord
+
+            from app.models.database import DownloadRecord, KnowledgeBase, PersonaCard, StarRecord
 
             # 从配置读取天数限制
             min_days = config_manager.get_int("statistics.min_trend_days", 1)
@@ -708,10 +708,10 @@ class UserService:
             start_dt = datetime.combine(start_date, datetime.min.time())
             end_dt = datetime.combine(end_date, datetime.max.time())
 
-            kb_downloads: Dict[str, int] = {}
-            persona_downloads: Dict[str, int] = {}
-            kb_stars: Dict[str, int] = {}
-            persona_stars: Dict[str, int] = {}
+            kb_downloads: dict[str, int] = {}
+            persona_downloads: dict[str, int] = {}
+            kb_stars: dict[str, int] = {}
+            persona_stars: dict[str, int] = {}
 
             kb_download_rows = (
                 self.db.query(

@@ -7,14 +7,15 @@ Requirements: 2.2
 """
 
 import os
-import pytest
-import tempfile
 import shutil
+import tempfile
 from unittest.mock import patch
+
+import pytest
 from sqlalchemy.orm import Session
 
-from app.services.file_service import FileService, FileValidationError, FileDatabaseError
 from app.models.database import KnowledgeBase, KnowledgeBaseFile
+from app.services.file_service import FileDatabaseError, FileService, FileValidationError
 
 
 class TestFileServiceInit:

@@ -6,8 +6,8 @@
 """
 
 import os
-import sys
 import smtplib
+import sys
 from pathlib import Path
 
 # 添加项目根目录到 Python 路径

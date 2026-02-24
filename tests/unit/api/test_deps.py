@@ -4,16 +4,17 @@
 测试 app/api/deps.py 中的认证和授权依赖
 """
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 
 from app.api.deps import (
-    get_current_user,
     get_admin_user,
-    get_moderator_user,
+    get_current_user,
     get_current_user_optional,
+    get_moderator_user,
 )
 from app.models.database import User
 

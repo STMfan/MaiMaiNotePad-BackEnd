@@ -8,8 +8,8 @@ import pytest
 
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
-from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
 from app.core.security import create_access_token  # noqa: E402
+from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
 
 
 def test_websocket_client_with_valid_token(client, test_user):

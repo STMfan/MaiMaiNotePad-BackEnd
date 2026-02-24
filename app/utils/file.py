@@ -6,9 +6,9 @@
 
 import os
 from datetime import datetime
-from typing import Tuple
+
+from fastapi import HTTPException, UploadFile, status
 from werkzeug.utils import secure_filename
-from fastapi import UploadFile, HTTPException, status
 
 
 def validate_file_type(file: UploadFile, allowed_types: list[str]) -> bool:
@@ -111,10 +111,10 @@ async def save_uploaded_file(file: UploadFile, target_dir: str) -> str:
 
         return file_path
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"文件保存失败: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"文件保存失败: {str(e)}") from e
 
 
-async def save_uploaded_file_with_size(file: UploadFile, directory: str) -> Tuple[str, int]:
+async def save_uploaded_file_with_size(file: UploadFile, directory: str) -> tuple[str, int]:
     """
     保存上传的文件到指定目录，并返回文件路径和文件大小
 
@@ -159,7 +159,7 @@ async def save_uploaded_file_with_size(file: UploadFile, directory: str) -> Tupl
 
         return file_path, file_size_b
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"文件保存失败: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"文件保存失败: {str(e)}") from e
 
 
 def ensure_directory_exists(directory: str) -> None:

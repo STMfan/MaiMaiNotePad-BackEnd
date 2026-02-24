@@ -4,9 +4,10 @@ app/main.py 单元测试
 测试应用初始化、中间件设置和路由注册。
 """
 
-import pytest
 import os
 from unittest.mock import patch
+
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -23,15 +24,15 @@ class TestApplicationInitialization:
 
     def test_app_has_correct_title(self):
         """测试应用具有来自设置的正确标题"""
-        from app.main import app
         from app.core.config import settings
+        from app.main import app
 
         assert app.title == settings.APP_NAME
 
     def test_app_has_version(self):
         """测试应用具有来自设置的版本"""
-        from app.main import app
         from app.core.config import settings
+        from app.main import app
 
         assert app.version == settings.APP_VERSION
 
@@ -50,6 +51,7 @@ class TestDirectoryCreation:
         """测试导入时创建必需的目录"""
         # Re-import to trigger directory creation
         import importlib
+
         import app.main
 
         importlib.reload(app.main)
@@ -366,8 +368,9 @@ class TestExceptionHandlers:
 
     def test_http_exception_handler(self):
         """测试 HTTPException 被正确处理"""
-        from app.main import app
         from fastapi import HTTPException
+
+        from app.main import app
 
         @app.get("/test-error")
         async def test_error():
@@ -385,7 +388,7 @@ class TestLifespan:
     @pytest.mark.asyncio
     async def test_lifespan_startup(self):
         """测试生命周期启动执行"""
-        from app.main import lifespan, app
+        from app.main import app, lifespan
 
         # Test that lifespan context manager works
         async with lifespan(app):
@@ -489,6 +492,7 @@ class TestMainExecution:
     def test_main_module_has_name_check(self):
         """测试 main.py 具有 __name__ == '__main__' 检查"""
         import inspect
+
         import app.main
 
         source = inspect.getsource(app.main)
@@ -498,6 +502,7 @@ class TestMainExecution:
     def test_main_uses_settings_for_host_port(self):
         """测试主执行使用设置的主机和端口"""
         import inspect
+
         import app.main
 
         source = inspect.getsource(app.main)
@@ -581,16 +586,18 @@ class TestErrorHandlers:
 
     def test_http_exception_handler_registered(self):
         """测试HTTP异常处理器注册"""
-        from app.main import app
         from starlette.exceptions import HTTPException
+
+        from app.main import app
 
         # 验证HTTPException处理器存在（使用starlette的）
         assert HTTPException in app.exception_handlers
 
     def test_validation_error_handler_registered(self):
         """测试验证错误处理器注册"""
-        from app.main import app
         from fastapi.exceptions import RequestValidationError
+
+        from app.main import app
 
         # 验证RequestValidationError处理器存在
         assert RequestValidationError in app.exception_handlers
@@ -705,8 +712,9 @@ class TestApplicationLifecycle:
     async def test_lifespan_startup_event(self, caplog):
         """测试lifespan启动事件 - Task 3.1.1"""
         import logging
-        from app.main import lifespan, app
+
         from app.core.config import settings
+        from app.main import app, lifespan
 
         caplog.set_level(logging.INFO)
 
@@ -722,8 +730,9 @@ class TestApplicationLifecycle:
     async def test_lifespan_startup_logs_app_info(self, caplog):
         """验证启动日志输出 - Task 3.1.2"""
         import logging
-        from app.main import lifespan, app
+
         from app.core.config import settings
+        from app.main import app, lifespan
 
         caplog.set_level(logging.INFO)
 
@@ -738,7 +747,8 @@ class TestApplicationLifecycle:
     async def test_lifespan_shutdown_event(self, caplog):
         """测试lifespan关闭事件 - Task 3.2.1"""
         import logging
-        from app.main import lifespan, app
+
+        from app.main import app, lifespan
 
         caplog.set_level(logging.INFO)
 
@@ -754,7 +764,8 @@ class TestApplicationLifecycle:
     async def test_lifespan_shutdown_logs(self, caplog):
         """验证关闭日志输出 - Task 3.2.2"""
         import logging
-        from app.main import lifespan, app
+
+        from app.main import app, lifespan
 
         caplog.set_level(logging.INFO)
 
@@ -768,7 +779,7 @@ class TestApplicationLifecycle:
     @pytest.mark.asyncio
     async def test_lifespan_resource_cleanup(self):
         """测试资源清理 - Task 3.2.3"""
-        from app.main import lifespan, app
+        from app.main import app, lifespan
 
         # Test that lifespan properly cleans up resources
         async with lifespan(app):
@@ -782,7 +793,7 @@ class TestApplicationLifecycle:
     @pytest.mark.asyncio
     async def test_lifespan_graceful_shutdown(self):
         """测试优雅关闭 - Task 3.2.4"""
-        from app.main import lifespan, app
+        from app.main import app, lifespan
 
         # Test graceful shutdown
         try:

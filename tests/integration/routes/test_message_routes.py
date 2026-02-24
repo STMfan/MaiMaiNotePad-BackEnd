@@ -8,7 +8,8 @@ Requirements: 3.2
 
 import uuid
 from datetime import datetime
-from app.models.database import User, Message
+
+from app.models.database import Message, User
 
 
 class TestSendMessage:

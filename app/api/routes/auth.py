@@ -1,20 +1,21 @@
 """认证路由模块 - 处理用户登录、注册、密码重置等认证相关的API端点"""
 
-from fastapi import APIRouter, Depends, Form, Request
 import hashlib
+
+from fastapi import APIRouter, Depends, Form, Request
+from sqlalchemy.orm import Session
 
 from app.api.response_util import Success
 from app.core.database import get_db
-from app.services.auth_service import AuthService
-from app.services.user_service import UserService
+from app.core.error_handlers import APIError, AuthenticationError, ValidationError
+from app.core.logging import app_logger, log_database_operation, log_exception
 from app.models.schemas import (
     BaseResponse,
     LoginResponse,
     TokenResponse,
 )
-from app.core.logging import app_logger, log_exception, log_database_operation
-from app.core.error_handlers import APIError, ValidationError, AuthenticationError
-from sqlalchemy.orm import Session
+from app.services.auth_service import AuthService
+from app.services.user_service import UserService
 
 # 创建路由器
 router = APIRouter()
@@ -38,7 +39,7 @@ async def login(request: Request, db: Session = Depends(get_db)):
                 username = username_raw.strip() if isinstance(username_raw, str) else ""
                 password = data.get("password", "")
             except Exception:
-                raise ValidationError("无效的JSON格式")
+                raise ValidationError("无效的JSON格式") from None
         elif "application/x-www-form-urlencoded" in content_type:
             # 处理表单格式
             form_data = await request.form()
@@ -73,7 +74,7 @@ async def login(request: Request, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         log_exception(app_logger, "Login error", exception=e)
-        raise APIError("登录过程中发生错误")
+        raise APIError("登录过程中发生错误") from e
 
 
 @router.post("/refresh", response_model=BaseResponse[TokenResponse])
@@ -106,7 +107,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         log_exception(app_logger, "Refresh token error", exception=e)
-        raise APIError("刷新令牌过程中发生错误")
+        raise APIError("刷新令牌过程中发生错误") from e
 
 
 @router.post("/send_verification_code", response_model=BaseResponse[None])
@@ -139,13 +140,13 @@ async def send_verification_code(email: str = Form(...), db: Session = Depends(g
         error_msg = str(e)
         # 提取更详细的错误信息
         if "Connection unexpectedly closed" in error_msg:
-            raise APIError("邮件发送失败: SMTP连接被意外关闭，请检查邮件服务器配置和网络连接")
+            raise APIError("邮件发送失败: SMTP连接被意外关闭，请检查邮件服务器配置和网络连接") from e
         elif "authentication failed" in error_msg.lower() or "login" in error_msg.lower():
-            raise APIError("邮件发送失败: 邮箱认证失败，请检查邮箱账号和授权码")
+            raise APIError("邮件发送失败: 邮箱认证失败，请检查邮箱账号和授权码") from e
         elif "timeout" in error_msg.lower():
-            raise APIError("邮件发送失败: 连接超时，请检查网络连接和邮件服务器地址")
+            raise APIError("邮件发送失败: 连接超时，请检查网络连接和邮件服务器地址") from e
         else:
-            raise APIError(f"发送验证码失败: {error_msg}")
+            raise APIError(f"发送验证码失败: {error_msg}") from e
 
 
 @router.post("/user/check_register", response_model=BaseResponse[None])
@@ -168,7 +169,7 @@ async def check_register(username: str = Form(...), email: str = Form(...), db: 
         raise
     except Exception as e:
         log_exception(app_logger, "Check user register legality error", exception=e)
-        raise APIError("检查注册信息失败")
+        raise APIError("检查注册信息失败") from e
 
 
 @router.post("/send_reset_password_code", response_model=BaseResponse[None])
@@ -207,13 +208,13 @@ async def send_reset_password_code(email: str = Form(...), db: Session = Depends
         error_msg = str(e)
         # 提取更详细的错误信息
         if "Connection unexpectedly closed" in error_msg:
-            raise APIError("邮件发送失败: SMTP连接被意外关闭，请检查邮件服务器配置和网络连接")
+            raise APIError("邮件发送失败: SMTP连接被意外关闭，请检查邮件服务器配置和网络连接") from e
         elif "authentication failed" in error_msg.lower() or "login" in error_msg.lower():
-            raise APIError("邮件发送失败: 邮箱认证失败，请检查邮箱账号和授权码")
+            raise APIError("邮件发送失败: 邮箱认证失败，请检查邮箱账号和授权码") from e
         elif "timeout" in error_msg.lower():
-            raise APIError("邮件发送失败: 连接超时，请检查网络连接和邮件服务器地址")
+            raise APIError("邮件发送失败: 连接超时，请检查网络连接和邮件服务器地址") from e
         else:
-            raise APIError(f"发送重置密码验证码失败: {error_msg}")
+            raise APIError(f"发送重置密码验证码失败: {error_msg}") from e
 
 
 @router.post("/reset_password", response_model=BaseResponse[None])
@@ -249,7 +250,7 @@ async def reset_password(
 
     except Exception as e:
         log_exception(app_logger, "Reset password error", exception=e)
-        raise APIError("重置密码失败")
+        raise APIError("重置密码失败") from e
 
 
 @router.post("/user/register", response_model=BaseResponse[None])
@@ -291,4 +292,4 @@ async def user_register(
         raise
     except Exception as e:
         log_exception(app_logger, "Register user error", exception=e)
-        raise APIError("注册用户失败")
+        raise APIError("注册用户失败") from e

@@ -5,10 +5,11 @@
 需求：3.1
 """
 
-import uuid
 import io
+import uuid
 from datetime import datetime
 from unittest.mock import patch
+
 from PIL import Image
 
 from app.models.database import KnowledgeBase, PersonaCard, StarRecord, UploadRecord
@@ -229,6 +230,7 @@ class TestChangePassword:
         Task: 5.2.4 测试密码修改失败
         """
         from unittest.mock import patch
+
         from sqlalchemy.exc import SQLAlchemyError
 
         # Patch the Session.commit method at the module level where it's used
@@ -251,11 +253,11 @@ class TestChangePassword:
 class TestAvatarManagement:
     """Test avatar upload, delete, and retrieval endpoints"""
 
-    def create_test_image(self, format="PNG", size=(200, 200)):
+    def create_test_image(self, img_format="PNG", size=(200, 200)):
         """Helper to create a test image file"""
         img = Image.new("RGB", size, color="red")
         img_bytes = io.BytesIO()
-        img.save(img_bytes, format=format)
+        img.save(img_bytes, format=img_format)
         img_bytes.seek(0)
         return img_bytes
 
@@ -423,8 +425,9 @@ class TestAvatarManagement:
         Task: 5.2.5 验证users.py达到95%以上覆盖率
         """
         import uuid
-        from app.main import app
+
         from app.api.deps import get_current_user
+        from app.main import app
 
         # Create a non-existent user ID
         non_existent_user_id = str(uuid.uuid4())
@@ -648,13 +651,13 @@ class TestUserStars:
         test_db.commit()
 
         # Filter by knowledge
-        response = authenticated_client.get("/api/users/stars?type=knowledge")
+        response = authenticated_client.get("/api/users/stars?star_type=knowledge")
         data = response.json()
         assert data["pagination"]["total"] == 1
         assert data["data"][0]["type"] == "knowledge"
 
         # Filter by persona
-        response2 = authenticated_client.get("/api/users/stars?type=persona")
+        response2 = authenticated_client.get("/api/users/stars?star_type=persona")
         data2 = response2.json()
         assert data2["pagination"]["total"] == 1
         assert data2["data"][0]["type"] == "persona"
@@ -821,7 +824,7 @@ class TestUploadHistory:
         # Create records with different statuses
         statuses = [("approved", "success"), ("rejected", "failed"), ("pending", "processing")]
 
-        for db_status, expected_status in statuses:
+        for db_status, _expected_status in statuses:
             kb = KnowledgeBase(
                 id=str(uuid.uuid4()),
                 name=f"KB {db_status}",
@@ -1082,7 +1085,7 @@ class TestUploadStats:
         statuses = ["approved", "approved", "pending", "rejected"]
         types = ["knowledge", "knowledge", "persona", "persona"]
 
-        for status, upload_type in zip(statuses, types):
+        for status, upload_type in zip(statuses, types, strict=False):
             if upload_type == "knowledge":
                 target = KnowledgeBase(
                     id=str(uuid.uuid4()),
@@ -1633,11 +1636,11 @@ class TestAvatarManagementEdgeCases:
     Requirements: 3.1, 10.2
     """
 
-    def create_test_image(self, format="PNG", size=(200, 200)):
+    def create_test_image(self, img_format="PNG", size=(200, 200)):
         """Helper to create a test image file"""
         img = Image.new("RGB", size, color="red")
         img_bytes = io.BytesIO()
-        img.save(img_bytes, format=format)
+        img.save(img_bytes, format=img_format)
         img_bytes.seek(0)
         return img_bytes
 
@@ -1769,7 +1772,7 @@ class TestAvatarManagementEdgeCases:
         - 动画 GIF 被处理或拒绝
         """
         # Create a simple GIF (PIL doesn't easily create animated GIFs, so we'll use a static one)
-        img_bytes = self.create_test_image(format="GIF")
+        img_bytes = self.create_test_image(img_format="GIF")
 
         response = authenticated_client.post(
             "/api/users/me/avatar", files={"avatar": ("test.gif", img_bytes, "image/gif")}
@@ -2007,7 +2010,7 @@ class TestUserStarsEdgeCases:
         test_db.commit()
 
         # Filter by type and pagination
-        response = authenticated_client.get("/api/users/stars?type=knowledge&page=1&page_size=3")
+        response = authenticated_client.get("/api/users/stars?star_type=knowledge&page=1&page_size=3")
 
         assert response.status_code == 200
         data = response.json()
@@ -2697,8 +2700,9 @@ class TestChangePasswordEdgeCases:
         Task: 5.2.2 测试权限验证失败（117行）
         """
         import uuid
-        from app.main import app
+
         from app.api.deps import get_current_user
+        from app.main import app
 
         # Create a non-existent user ID
         non_existent_user_id = str(uuid.uuid4())

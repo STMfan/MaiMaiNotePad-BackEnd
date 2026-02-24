@@ -8,10 +8,11 @@ Requirements: 2.2
 
 import uuid
 from unittest.mock import patch
+
 from sqlalchemy.orm import Session
 
-from app.services.knowledge_service import KnowledgeService
 from app.models.database import KnowledgeBase, UploadRecord
+from app.services.knowledge_service import KnowledgeService
 from tests.fixtures.data_factory import TestDataFactory
 
 

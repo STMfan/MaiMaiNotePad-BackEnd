@@ -5,11 +5,9 @@
 """
 
 import os
-from typing import Dict, Tuple
-
 
 # 消息字典：将消息键映射到（英文，中文）翻译
-MESSAGE_TRANSLATIONS: Dict[str, Tuple[str, str]] = {
+MESSAGE_TRANSLATIONS: dict[str, tuple[str, str]] = {
     "invalid_credentials": ("Invalid authentication credentials", "无效的认证凭证"),
     "user_not_found": ("User not found", "用户不存在"),
     "insufficient_permissions": ("Not enough permissions", "权限不足"),

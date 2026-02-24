@@ -9,10 +9,12 @@ import pytest
 
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
+from datetime import UTC, datetime, timedelta  # noqa: E402
+
 import jwt  # noqa: E402
-from datetime import datetime, timedelta, timezone  # noqa: E402
 from starlette.websockets import WebSocketDisconnect  # noqa: E402
-from app.core.security import create_access_token, SECRET_KEY, ALGORITHM  # noqa: E402
+
+from app.core.security import ALGORITHM, SECRET_KEY, create_access_token  # noqa: E402
 
 
 class TestWebSocketExpiredToken:
@@ -151,7 +153,7 @@ class TestWebSocketWrongSignature:
         """
         # 使用错误的密钥创建token（至少32字节以避免警告）
         wrong_secret = "wrong_secret_key_for_testing_at_least_32_bytes_long"
-        token_data = {"sub": test_user.id, "exp": datetime.now(timezone.utc) + timedelta(minutes=15)}
+        token_data = {"sub": test_user.id, "exp": datetime.now(UTC) + timedelta(minutes=15)}
         wrong_signature_token = jwt.encode(token_data, wrong_secret, algorithm=ALGORITHM)
 
         with pytest.raises(WebSocketDisconnect) as exc_info:
@@ -197,7 +199,7 @@ class TestWebSocketWrongSignature:
         - 返回状态码1008
         """
         # 使用不同的算法创建token
-        token_data = {"sub": test_user.id, "exp": datetime.now(timezone.utc) + timedelta(minutes=15)}
+        token_data = {"sub": test_user.id, "exp": datetime.now(UTC) + timedelta(minutes=15)}
         # 使用HS384算法而不是配置的算法
         # HS384 需要至少48字节的密钥，使用一个足够长的测试密钥
         test_secret_for_hs384 = SECRET_KEY + "_extended_to_48_bytes_for_hs384_algorithm"
@@ -246,7 +248,7 @@ class TestWebSocketTokenMissingClaims:
         - 返回状态码1008
         """
         # 创建sub为None的token
-        token_data = {"sub": None, "exp": datetime.now(timezone.utc) + timedelta(minutes=15)}
+        token_data = {"sub": None, "exp": datetime.now(UTC) + timedelta(minutes=15)}
         token_with_null_sub = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
 
         with pytest.raises(WebSocketDisconnect) as exc_info:
@@ -265,7 +267,7 @@ class TestWebSocketTokenMissingClaims:
         - 返回状态码1008
         """
         # 创建sub为空字符串的token
-        token_data = {"sub": "", "exp": datetime.now(timezone.utc) + timedelta(minutes=15)}
+        token_data = {"sub": "", "exp": datetime.now(UTC) + timedelta(minutes=15)}
         token_with_empty_sub = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
 
         with pytest.raises(WebSocketDisconnect) as exc_info:
@@ -290,7 +292,7 @@ class TestWebSocketTokenEdgeCases:
         注意：这个测试验证token验证逻辑不会因为特殊字符而失败
         """
         # 创建包含特殊字符的sub
-        token_data = {"sub": "user@#$%^&*()", "exp": datetime.now(timezone.utc) + timedelta(minutes=15)}
+        token_data = {"sub": "user@#$%^&*()", "exp": datetime.now(UTC) + timedelta(minutes=15)}
         special_char_token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
 
         # token验证应该成功，能建立连接
@@ -313,7 +315,7 @@ class TestWebSocketTokenEdgeCases:
         """
         # 创建非常长的sub
         long_sub = "a" * 1000
-        token_data = {"sub": long_sub, "exp": datetime.now(timezone.utc) + timedelta(minutes=15)}
+        token_data = {"sub": long_sub, "exp": datetime.now(UTC) + timedelta(minutes=15)}
         long_sub_token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
 
         # token验证应该成功，能建立连接

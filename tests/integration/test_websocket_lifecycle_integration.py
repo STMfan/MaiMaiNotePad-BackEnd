@@ -9,13 +9,16 @@ import pytest
 
 # Mark all tests in this file as serial to avoid WebSocket connection conflicts
 pytestmark = pytest.mark.serial
-from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
-from app.core.security import create_access_token  # noqa: E402
-from app.utils.websocket import message_ws_manager  # noqa: E402
-from app.models.database import User  # noqa: E402
-from app.core.security import get_password_hash  # noqa: E402
 import uuid  # noqa: E402
 from datetime import datetime  # noqa: E402
+
+from app.core.security import (
+    create_access_token,  # noqa: E402
+    get_password_hash,  # noqa: E402
+)
+from app.models.database import User  # noqa: E402
+from app.utils.websocket import message_ws_manager  # noqa: E402
+from tests.helpers.websocket_client import WebSocketTestClient  # noqa: E402
 
 
 class TestWebSocketCompleteLifecycle:
@@ -182,7 +185,7 @@ class TestWebSocketMultiUserConcurrency:
                                 assert len(message_ws_manager.connections[user.id]) == 1
 
                             # 每个用户发送消息
-                            for i, (user, ws_client) in enumerate(ws_clients):
+                            for i, (_user, ws_client) in enumerate(ws_clients):
                                 ws_client.send_message(f"message from user {i}")
                                 assert ws_client.is_connected()
 
@@ -382,7 +385,7 @@ class TestWebSocketReconnection:
         token = create_access_token({"sub": test_user.id})
 
         # 快速执行10次连接-断开
-        for i in range(10):
+        for _i in range(10):
             ws_client = WebSocketTestClient(client, token)
             with ws_client.connect() as _:
                 ws_client.receive_message()

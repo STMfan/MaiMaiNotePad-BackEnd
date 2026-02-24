@@ -4,10 +4,12 @@ WebSocket测试客户端异常模拟功能的单元测试
 测试WebSocketTestClient类的各种异常模拟方法。
 """
 
+from unittest.mock import MagicMock, Mock
+
 import pytest
-from unittest.mock import Mock, MagicMock
-from tests.helpers.websocket_client import WebSocketTestClient, ConnectionState
 from fastapi.testclient import TestClient
+
+from tests.helpers.websocket_client import ConnectionState, WebSocketTestClient
 
 
 class TestWebSocketExceptionSimulation:
