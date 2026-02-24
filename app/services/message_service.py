@@ -13,6 +13,7 @@ from typing import List, Optional, Set, Dict, Any
 from sqlalchemy.orm import Session
 
 from app.models.database import Message, User
+from app.core.cache.invalidation import invalidate_message_cache
 
 
 class MessageService:
@@ -221,6 +222,9 @@ class MessageService:
         for message in messages:
             self.db.refresh(message)
 
+        # 失效消息缓存
+        invalidate_message_cache()
+
         return messages
 
     def mark_message_read(self, message_id: str, user_id: str) -> bool:
@@ -267,6 +271,10 @@ class MessageService:
 
         self.db.delete(message)
         self.db.commit()
+
+        # 失效消息缓存
+        invalidate_message_cache()
+
         return True
 
     def delete_broadcast_messages(self, message_id: str, sender_id: str) -> int:
@@ -312,6 +320,10 @@ class MessageService:
             count += 1
 
         self.db.commit()
+
+        # 失效消息缓存
+        invalidate_message_cache()
+
         return count
 
     def update_message(
@@ -352,6 +364,10 @@ class MessageService:
             message.summary = summary
 
         self.db.commit()
+
+        # 失效消息缓存
+        invalidate_message_cache()
+
         return True
 
     def update_broadcast_messages(
@@ -412,6 +428,10 @@ class MessageService:
             count += 1
 
         self.db.commit()
+
+        # 失效消息缓存
+        invalidate_message_cache()
+
         return count
 
     def get_broadcast_messages(self, page: int = 1, page_size: int = 20) -> List[Message]:

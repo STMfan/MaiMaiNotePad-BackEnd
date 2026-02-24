@@ -285,6 +285,15 @@ class PersonaService:
             self.db.commit()
             self.db.refresh(pc)
 
+            # 清除人设卡相关缓存
+            try:
+                from app.core.cache.factory import get_cache_manager
+                cache_manager = get_cache_manager()
+                if cache_manager.is_enabled():
+                    invalidate_persona_cache(cache_manager, pc.id)
+            except Exception as cache_error:
+                logger.warning(f"清除缓存失败: {cache_error}")
+
             logger.info(f"人设卡已保存: pc_id={pc.id}")
             return pc
         except Exception as e:
@@ -334,6 +343,15 @@ class PersonaService:
 
             self.db.commit()
             self.db.refresh(pc)
+
+            # 清除人设卡相关缓存
+            try:
+                from app.core.cache.factory import get_cache_manager
+                cache_manager = get_cache_manager()
+                if cache_manager.is_enabled():
+                    invalidate_persona_cache(cache_manager, pc_id)
+            except Exception as cache_error:
+                logger.warning(f"清除缓存失败: {cache_error}")
 
             logger.info(f"人设卡已更新: pc_id={pc_id}, user_id={user_id}")
             return True, "人设卡更新成功", pc
@@ -402,6 +420,15 @@ class PersonaService:
             self.db.delete(pc)
             self.db.commit()
 
+            # 清除人设卡相关缓存
+            try:
+                from app.core.cache.factory import get_cache_manager
+                cache_manager = get_cache_manager()
+                if cache_manager.is_enabled():
+                    invalidate_persona_cache(cache_manager, pc_id)
+            except Exception as cache_error:
+                logger.warning(f"清除缓存失败: {cache_error}")
+
             logger.info(f"人设卡已删除: pc_id={pc_id}")
             return True
         except Exception as e:
@@ -464,6 +491,15 @@ class PersonaService:
 
             self.db.commit()
 
+            # 清除人设卡相关缓存（因为 star_count 变化）
+            try:
+                from app.core.cache.factory import get_cache_manager
+                cache_manager = get_cache_manager()
+                if cache_manager.is_enabled():
+                    invalidate_persona_cache(cache_manager, pc_id)
+            except Exception as cache_error:
+                logger.warning(f"清除缓存失败: {cache_error}")
+
             logger.info(f"已收藏: user_id={user_id}, pc_id={pc_id}")
             return True
         except Exception as e:
@@ -503,6 +539,15 @@ class PersonaService:
                 pc.star_count = pc.star_count - 1
 
             self.db.commit()
+
+            # 清除人设卡相关缓存（因为 star_count 变化）
+            try:
+                from app.core.cache.factory import get_cache_manager
+                cache_manager = get_cache_manager()
+                if cache_manager.is_enabled():
+                    invalidate_persona_cache(cache_manager, pc_id)
+            except Exception as cache_error:
+                logger.warning(f"清除缓存失败: {cache_error}")
 
             logger.info(f"已取消收藏: user_id={user_id}, pc_id={pc_id}")
             return True

@@ -422,6 +422,17 @@ class FileUploadService:
             pc = self._create_persona_card_object(
                 name, description, uploader_id, copyright_owner, content, tags, pc_dir, persona_version
             )
+            
+            # 清除人设卡相关缓存
+            try:
+                from app.core.cache.factory import get_cache_manager
+                from app.core.cache.invalidation import invalidate_persona_cache
+                cache_manager = get_cache_manager()
+                if cache_manager.is_enabled():
+                    invalidate_persona_cache(cache_manager, pc.id)
+            except Exception as cache_error:
+                logger.warning(f"清除缓存失败: {cache_error}")
+            
             return pc
         except Exception as e:
             if os.path.exists(pc_dir):

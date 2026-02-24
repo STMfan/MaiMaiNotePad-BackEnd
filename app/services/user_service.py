@@ -14,6 +14,7 @@ from app.models.database import User
 from app.core.security import verify_password, get_password_hash
 from app.core.config_manager import config_manager
 from app.core.cache.decorators import cached, cache_invalidate
+from app.core.cache.invalidation import invalidate_user_cache
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +152,9 @@ class UserService:
             self.db.commit()
             self.db.refresh(new_user)
 
+            # 失效用户缓存
+            invalidate_user_cache()
+
             logger.info(f"User {username} created successfully")
             return new_user
         except Exception as e:
@@ -205,6 +209,9 @@ class UserService:
             self.db.commit()
             self.db.refresh(user)
 
+            # 失效用户缓存
+            invalidate_user_cache()
+
             logger.info(f"User {user.username} updated successfully")
             return user
         except Exception as e:
@@ -245,6 +252,9 @@ class UserService:
 
             self.db.commit()
 
+            # 失效用户缓存
+            invalidate_user_cache()
+
             logger.info(f"User {user.username} updated password successfully")
             return True
         except Exception as e:
@@ -279,6 +289,9 @@ class UserService:
 
             self.db.commit()
             self.db.refresh(user)
+
+            # 失效用户缓存
+            invalidate_user_cache()
 
             logger.info(f"User {user.username} role updated successfully")
             return user

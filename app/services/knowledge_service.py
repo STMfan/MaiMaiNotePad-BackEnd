@@ -280,6 +280,14 @@ class KnowledgeService:
             self.db.commit()
             self.db.refresh(kb)
 
+            # 清除知识库相关缓存
+            try:
+                from app.core.cache.invalidation import invalidate_knowledge_cache
+                if self.cache_manager.is_enabled():
+                    invalidate_knowledge_cache(self.cache_manager, kb_id=kb.id, uploader_id=kb.uploader_id)
+            except Exception as cache_error:
+                logger.warning(f"清除缓存失败: {cache_error}")
+
             logger.info(f"知识库已保存: kb_id={kb.id}")
             return kb
         except Exception as e:
@@ -355,6 +363,14 @@ class KnowledgeService:
                 self.db.commit()
                 self.db.refresh(kb)
 
+                # 清除知识库相关缓存
+                try:
+                    from app.core.cache.invalidation import invalidate_knowledge_cache
+                    if self.cache_manager.is_enabled():
+                        invalidate_knowledge_cache(self.cache_manager, kb_id=kb_id, uploader_id=kb.uploader_id)
+                except Exception as cache_error:
+                    logger.warning(f"清除缓存失败: {cache_error}")
+
                 logger.info(f"知识库已更新: kb_id={kb_id}, user_id={user_id}")
                 return True, "修改知识库成功", kb
             except Exception as e:
@@ -415,8 +431,17 @@ class KnowledgeService:
                 if not kb:
                     return False
 
+                uploader_id = kb.uploader_id
                 self.db.delete(kb)
                 self.db.commit()
+
+                # 清除知识库相关缓存
+                try:
+                    from app.core.cache.invalidation import invalidate_knowledge_cache
+                    if self.cache_manager.is_enabled():
+                        invalidate_knowledge_cache(self.cache_manager, kb_id=kb_id, uploader_id=uploader_id)
+                except Exception as cache_error:
+                    logger.warning(f"清除缓存失败: {cache_error}")
 
                 logger.info(f"知识库已删除: kb_id={kb_id}")
                 return True
@@ -486,6 +511,14 @@ class KnowledgeService:
 
             self.db.commit()
 
+            # 清除知识库相关缓存（因为 star_count 变化）
+            try:
+                from app.core.cache.invalidation import invalidate_knowledge_cache
+                if self.cache_manager.is_enabled():
+                    invalidate_knowledge_cache(self.cache_manager, kb_id=kb_id, uploader_id=kb.uploader_id)
+            except Exception as cache_error:
+                logger.warning(f"清除缓存失败: {cache_error}")
+
             logger.info(f"已收藏: user_id={user_id}, kb_id={kb_id}")
             return True
         except Exception as e:
@@ -526,6 +559,14 @@ class KnowledgeService:
                 kb.star_count = kb.star_count - 1
 
             self.db.commit()
+
+            # 清除知识库相关缓存（因为 star_count 变化）
+            try:
+                from app.core.cache.invalidation import invalidate_knowledge_cache
+                if self.cache_manager.is_enabled():
+                    invalidate_knowledge_cache(self.cache_manager, kb_id=kb_id, uploader_id=kb.uploader_id)
+            except Exception as cache_error:
+                logger.warning(f"清除缓存失败: {cache_error}")
 
             logger.info(f"已取消收藏: user_id={user_id}, kb_id={kb_id}")
             return True

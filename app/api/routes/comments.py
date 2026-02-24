@@ -22,6 +22,7 @@ from app.core.database import get_db
 from app.core.logging import app_logger, log_exception
 from app.utils.websocket import message_ws_manager
 from sqlalchemy.orm import Session
+from app.core.cache.invalidation import invalidate_comment_cache
 
 
 router = APIRouter()
@@ -350,6 +351,9 @@ async def create_comment(
         # 发送通知
         _send_comment_notifications(db, user, content, parent, recipients)
         db.commit()
+
+        # 失效评论缓存
+        invalidate_comment_cache()
 
         # 广播WebSocket更新
         if recipients:
@@ -719,6 +723,9 @@ async def delete_comment(
 
         _validate_delete_comment_permission(comment, current_user, db)
         _soft_delete_comment_and_children(comment, db)
+
+        # 失效评论缓存
+        invalidate_comment_cache()
 
         return Success(message="删除评论成功", data={"id": comment.id})
     except (AuthorizationError, NotFoundError):
