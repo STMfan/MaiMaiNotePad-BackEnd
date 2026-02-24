@@ -13,6 +13,7 @@ from app.api.routes.admin import router as admin_router
 from app.api.routes.review import router as review_router
 from app.api.routes.dictionary import router as dictionary_router
 from app.api.routes.comments import router as comments_router
+from app.api.routes.moderation import router as moderation_router
 
 __all__ = [
     "users_router",
@@ -24,4 +25,5 @@ __all__ = [
     "review_router",
     "dictionary_router",
     "comments_router",
+    "moderation_router",
 ]

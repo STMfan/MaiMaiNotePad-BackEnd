@@ -11,8 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.models.database import PersonaCard, PersonaCardFile, User, UploadRecord
 from app.core.cache.decorators import cached, cache_invalidate
+from app.core.cache.invalidation import invalidate_persona_cache
 
 logger = logging.getLogger(__name__)
+
+# 定义人设卡相关的缓存模式
+PERSONA_PUBLIC_CACHE_PATTERN = "maimnp:http:*persona/public*"
 
 
 class PersonaService:

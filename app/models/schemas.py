@@ -308,3 +308,32 @@ class PageResponse(BaseModel, Generic[T]):
     message: str = ""
     data: List[T]
     pagination: Pagination
+
+
+# 内容审核相关模型
+class ModerationRequest(BaseModel):
+    """内容审核请求模型"""
+
+    text: str = Field(..., min_length=1, description="待审核的文本内容")
+    text_type: Literal["comment", "post", "title", "content"] = Field(
+        default="comment", description="文本类型：comment（评论）、post（帖子）、title（标题）、content（正文）"
+    )
+
+
+class ModerationResult(BaseModel):
+    """内容审核结果模型"""
+
+    decision: Literal["true", "false", "unknown"] = Field(..., description="审核决策：true（通过）、false（拒绝）、unknown（不确定）")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="违规置信度，0~1 之间的浮点数")
+    violation_types: List[Literal["porn", "politics", "abuse"]] = Field(
+        default_factory=list, description="违规类型列表，可包含 porn（色情）、politics（涉政）、abuse（辱骂）"
+    )
+
+
+class ModerationResponse(BaseModel):
+    """内容审核响应模型"""
+
+    success: bool = Field(..., description="请求是否成功")
+    result: Optional[ModerationResult] = Field(None, description="审核结果")
+    message: Optional[str] = Field(None, description="附加消息")
+

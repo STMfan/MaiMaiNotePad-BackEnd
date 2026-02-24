@@ -114,8 +114,21 @@ class TestGetPublicPersonaCards:
     """测试 GET /api/persona/public 端点"""
 
     def test_get_public_persona_cards_empty(self, client, test_db):
-        """测试当没有公开人设卡时获取"""
-        response = client.get("/api/persona/public")
+        """测试当没有公开人设卡时获取
+        
+        注意：这个测试需要清除缓存，因为缓存中间件会缓存 GET 请求的响应。
+        """
+        # 删除所有PersonaCard（包括公开和私有的）
+        from app.models.database import PersonaCard, PersonaCardFile
+        
+        # 先删除关联的文件记录
+        test_db.query(PersonaCardFile).delete()
+        # 再删除人设卡
+        test_db.query(PersonaCard).delete()
+        test_db.commit()
+        
+        # 添加 Cache-Control: no-cache 头来绕过缓存
+        response = client.get("/api/persona/public", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()
@@ -133,7 +146,8 @@ class TestGetPublicPersonaCards:
         # Create private persona card (should not appear)
         _ = factory.create_persona_card(uploader=user, name="Private PC", is_public=False)
 
-        response = client.get("/api/persona/public")
+        # 添加 Cache-Control: no-cache 头来绕过缓存
+        response = client.get("/api/persona/public", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()
@@ -155,7 +169,7 @@ class TestGetPublicPersonaCards:
             factory.create_persona_card(uploader=user, name=f"PC {i}", is_public=True)
 
         # Get first page with page_size=2
-        response = client.get("/api/persona/public?page=1&page_size=2")
+        response = client.get("/api/persona/public?page=1&page_size=2", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()
@@ -165,7 +179,7 @@ class TestGetPublicPersonaCards:
         assert data["pagination"]["page_size"] == 2
 
         # Get second page
-        response = client.get("/api/persona/public?page=2&page_size=2")
+        response = client.get("/api/persona/public?page=2&page_size=2", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()
@@ -179,7 +193,7 @@ class TestGetPublicPersonaCards:
         _ = factory.create_persona_card(uploader=user, name="Bob Bot", is_public=True)
         _ = factory.create_persona_card(uploader=user, name="Charlie", is_public=True)
 
-        response = client.get("/api/persona/public?name=Bot")
+        response = client.get("/api/persona/public?name=Bot", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()
@@ -196,7 +210,7 @@ class TestGetPublicPersonaCards:
         _ = factory.create_persona_card(uploader=user1, name="PC 1", is_public=True)
         _ = factory.create_persona_card(uploader=user2, name="PC 2", is_public=True)
 
-        response = client.get(f"/api/persona/public?uploader_id={user1.id}")
+        response = client.get(f"/api/persona/public?uploader_id={user1.id}", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()
@@ -210,7 +224,7 @@ class TestGetPublicPersonaCards:
         _ = factory.create_persona_card(uploader=user, name="PC 2", is_public=True)
 
         # Sort descending (newest first)
-        response = client.get("/api/persona/public?sort_by=created_at&sort_order=desc")
+        response = client.get("/api/persona/public?sort_by=created_at&sort_order=desc", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()
@@ -218,7 +232,7 @@ class TestGetPublicPersonaCards:
         assert data["data"][1]["name"] == "PC 1"
 
         # Sort ascending (oldest first)
-        response = client.get("/api/persona/public?sort_by=created_at&sort_order=asc")
+        response = client.get("/api/persona/public?sort_by=created_at&sort_order=asc", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()
@@ -822,7 +836,7 @@ class TestPersonaCardEdgeCases:
         _ = factory.create_persona_card(uploader=user, is_public=True)
 
         # Filter by username (should be resolved to ID)
-        response = client.get("/api/persona/public?uploader_id=testuploader")
+        response = client.get("/api/persona/public?uploader_id=testuploader", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()

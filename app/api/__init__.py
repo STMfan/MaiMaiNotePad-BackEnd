@@ -15,6 +15,7 @@ from app.api.routes import (
     dictionary,
     comments,
     metrics,
+    moderation,
 )
 
 # 创建主 APIRouter
@@ -62,5 +63,9 @@ api_router.include_router(comments.router, prefix="", tags=["comments"])
 
 # 监控指标路由
 api_router.include_router(metrics.router, prefix="", tags=["监控"])
+
+# 内容审核路由
+# moderation 路由内部已包含 /moderation 前缀，这里使用空前缀
+api_router.include_router(moderation.router, prefix="", tags=["内容审核"])
 
 __all__ = ["api_router"]

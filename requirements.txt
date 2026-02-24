@@ -36,3 +36,6 @@ redis[hiredis]==5.2.1
 
 # 监控
 prometheus-client==0.21.0
+
+# AI 服务
+openai==1.59.5
