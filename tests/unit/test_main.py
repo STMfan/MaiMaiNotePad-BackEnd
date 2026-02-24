@@ -310,8 +310,9 @@ class TestStaticFileRoutes:
         assert response.status_code in [403, 404]
 
         # Test path resolution and validation (line 138-154)
-        response = client.get("/uploads/avatars/normal_file.jpg")
-        assert response.status_code in [200, 404]  # 404 if file doesn't exist
+        # 使用一个肯定不存在的文件名
+        response = client.get("/uploads/avatars/nonexistent_test_file_12345.jpg")
+        assert response.status_code == 404  # 文件不存在应该返回 404
 
         # Verify the route handles various edge cases
         test_cases = [

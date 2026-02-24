@@ -6,8 +6,82 @@
 """
 
 import json
-from unittest.mock import patch, mock_open
+import pytest
+import tempfile
+import os
+from pathlib import Path
 from sqlalchemy.orm import Session
+
+
+@pytest.fixture
+def mock_dict_path_empty(tmp_path, monkeypatch):
+    """创建一个不存在的字典文件路径"""
+    non_existent_path = tmp_path / "nonexistent" / "translation_dict.json"
+    # 使用环境变量来控制字典文件路径
+    monkeypatch.setenv("TRANSLATION_DICT_PATH", str(non_existent_path))
+    return non_existent_path
+
+
+@pytest.fixture
+def mock_dict_path_invalid_json(tmp_path, monkeypatch):
+    """创建一个包含无效 JSON 的字典文件"""
+    dict_file = tmp_path / "translation_dict.json"
+    dict_file.write_text("invalid json content")
+    monkeypatch.setenv("TRANSLATION_DICT_PATH", str(dict_file))
+    return dict_file
+
+
+@pytest.fixture
+def mock_dict_path_unreadable(tmp_path, monkeypatch):
+    """创建一个无法读取的字典文件"""
+    dict_file = tmp_path / "translation_dict.json"
+    dict_file.write_text('{"blocks": {}, "tokens": {}}')
+    dict_file.chmod(0o000)  # 移除所有权限
+    monkeypatch.setenv("TRANSLATION_DICT_PATH", str(dict_file))
+    
+    yield dict_file
+    
+    # 清理：恢复权限以便删除
+    try:
+        dict_file.chmod(0o644)
+    except:
+        pass
+
+
+@pytest.fixture
+def mock_dict_missing_blocks(tmp_path, monkeypatch):
+    """创建一个缺少 blocks 字段的字典文件"""
+    dict_file = tmp_path / "translation_dict.json"
+    dict_file.write_text('{"tokens": {"test": "测试"}}')
+    monkeypatch.setenv("TRANSLATION_DICT_PATH", str(dict_file))
+    return dict_file
+
+
+@pytest.fixture
+def mock_dict_missing_tokens(tmp_path, monkeypatch):
+    """创建一个缺少 tokens 字段的字典文件"""
+    dict_file = tmp_path / "translation_dict.json"
+    dict_file.write_text('{"blocks": {"test": "测试"}}')
+    monkeypatch.setenv("TRANSLATION_DICT_PATH", str(dict_file))
+    return dict_file
+
+
+@pytest.fixture
+def mock_dict_invalid_blocks_type(tmp_path, monkeypatch):
+    """创建一个 blocks 类型无效的字典文件"""
+    dict_file = tmp_path / "translation_dict.json"
+    dict_file.write_text('{"blocks": ["not", "a", "dict"], "tokens": {"test": "测试"}}')
+    monkeypatch.setenv("TRANSLATION_DICT_PATH", str(dict_file))
+    return dict_file
+
+
+@pytest.fixture
+def mock_dict_invalid_tokens_type(tmp_path, monkeypatch):
+    """创建一个 tokens 类型无效的字典文件"""
+    dict_file = tmp_path / "translation_dict.json"
+    dict_file.write_text('{"blocks": {"test": "测试"}, "tokens": ["not", "a", "dict"]}')
+    monkeypatch.setenv("TRANSLATION_DICT_PATH", str(dict_file))
+    return dict_file
 
 
 class TestGetTranslationDictionary:
@@ -41,7 +115,7 @@ class TestGetTranslationDictionary:
         - 翻译内容正确
         """
 
-        response = client.get("/api/dictionary/translation")
+        response = client.get("/api/dictionary/translation", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()["data"]
@@ -54,9 +128,7 @@ class TestGetTranslationDictionary:
         assert "bot" in blocks or "bot" in tokens
         assert "personality" in blocks or "personality" in tokens
 
-    @patch("app.api.routes.dictionary.os.path.exists")
-    @patch("builtins.open", new_callable=mock_open)
-    def test_get_translation_dictionary_file_not_found(self, mock_file, mock_exists, client, test_db: Session):
+    def test_get_translation_dictionary_file_not_found(self, mock_dict_path_empty, client, test_db: Session):
         """测试文件不存在时的翻译字典
 
         验证：
@@ -65,18 +137,13 @@ class TestGetTranslationDictionary:
         - 返回默认结构（空 blocks 和 tokens）
         """
 
-        # Mock file not existing
-        mock_exists.return_value = False
-
-        response = client.get("/api/dictionary/translation")
+        response = client.get("/api/dictionary/translation", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()["data"]
         assert data == {"blocks": {}, "tokens": {}}
 
-    @patch("app.api.routes.dictionary.os.path.exists")
-    @patch("builtins.open", new_callable=mock_open, read_data="invalid json")
-    def test_get_translation_dictionary_invalid_json(self, mock_file, mock_exists, client, test_db: Session):
+    def test_get_translation_dictionary_invalid_json(self, mock_dict_path_invalid_json, client, test_db: Session):
         """测试包含无效 JSON 的翻译字典
 
         验证：
@@ -85,18 +152,13 @@ class TestGetTranslationDictionary:
         - 返回默认结构
         """
 
-        # Mock file exists but contains invalid JSON
-        mock_exists.return_value = True
-
-        response = client.get("/api/dictionary/translation")
+        response = client.get("/api/dictionary/translation", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()["data"]
         assert data == {"blocks": {}, "tokens": {}}
 
-    @patch("app.api.routes.dictionary.os.path.exists")
-    @patch("builtins.open", new_callable=mock_open)
-    def test_get_translation_dictionary_missing_blocks(self, mock_file, mock_exists, client, test_db: Session):
+    def test_get_translation_dictionary_missing_blocks(self, mock_dict_missing_blocks, client, test_db: Session):
         """测试缺少 blocks 字段的翻译字典
 
         验证：
@@ -104,20 +166,14 @@ class TestGetTranslationDictionary:
         - tokens 字段正常返回
         """
 
-        # Mock file with missing blocks
-        mock_exists.return_value = True
-        mock_file.return_value.read.return_value = json.dumps({"tokens": {"test": "测试"}})
-
-        response = client.get("/api/dictionary/translation")
+        response = client.get("/api/dictionary/translation", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()["data"]
         assert data["blocks"] == {}
         assert data["tokens"] == {"test": "测试"}
 
-    @patch("app.api.routes.dictionary.os.path.exists")
-    @patch("builtins.open", new_callable=mock_open)
-    def test_get_translation_dictionary_missing_tokens(self, mock_file, mock_exists, client, test_db: Session):
+    def test_get_translation_dictionary_missing_tokens(self, mock_dict_missing_tokens, client, test_db: Session):
         """测试缺少 tokens 字段的翻译字典
 
         验证：
@@ -125,20 +181,14 @@ class TestGetTranslationDictionary:
         - blocks 字段正常返回
         """
 
-        # Mock file with missing tokens
-        mock_exists.return_value = True
-        mock_file.return_value.read.return_value = json.dumps({"blocks": {"test": "测试"}})
-
-        response = client.get("/api/dictionary/translation")
+        response = client.get("/api/dictionary/translation", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()["data"]
         assert data["blocks"] == {"test": "测试"}
         assert data["tokens"] == {}
 
-    @patch("app.api.routes.dictionary.os.path.exists")
-    @patch("builtins.open", new_callable=mock_open)
-    def test_get_translation_dictionary_invalid_blocks_type(self, mock_file, mock_exists, client, test_db: Session):
+    def test_get_translation_dictionary_invalid_blocks_type(self, mock_dict_invalid_blocks_type, client, test_db: Session):
         """测试 blocks 类型无效的翻译字典
 
         验证：
@@ -146,22 +196,14 @@ class TestGetTranslationDictionary:
         - 系统不会崩溃
         """
 
-        # Mock file with invalid blocks type (array instead of dict)
-        mock_exists.return_value = True
-        mock_file.return_value.read.return_value = json.dumps(
-            {"blocks": ["not", "a", "dict"], "tokens": {"test": "测试"}}
-        )
-
-        response = client.get("/api/dictionary/translation")
+        response = client.get("/api/dictionary/translation", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()["data"]
         assert data["blocks"] == {}
         assert data["tokens"] == {"test": "测试"}
 
-    @patch("app.api.routes.dictionary.os.path.exists")
-    @patch("builtins.open", new_callable=mock_open)
-    def test_get_translation_dictionary_invalid_tokens_type(self, mock_file, mock_exists, client, test_db: Session):
+    def test_get_translation_dictionary_invalid_tokens_type(self, mock_dict_invalid_tokens_type, client, test_db: Session):
         """测试 tokens 类型无效的翻译字典
 
         验证：
@@ -169,20 +211,14 @@ class TestGetTranslationDictionary:
         - 系统不会崩溃
         """
 
-        # Mock file with invalid tokens type
-        mock_exists.return_value = True
-        mock_file.return_value.read.return_value = json.dumps({"blocks": {"test": "测试"}, "tokens": "not a dict"})
-
-        response = client.get("/api/dictionary/translation")
+        response = client.get("/api/dictionary/translation", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()["data"]
         assert data["blocks"] == {"test": "测试"}
         assert data["tokens"] == {}
 
-    @patch("app.api.routes.dictionary.os.path.exists")
-    @patch("builtins.open")
-    def test_get_translation_dictionary_file_read_error(self, mock_file, mock_exists, client, test_db: Session):
+    def test_get_translation_dictionary_file_read_error(self, mock_dict_path_unreadable, client, test_db: Session):
         """测试文件读取失败时的翻译字典
 
         验证：
@@ -191,16 +227,11 @@ class TestGetTranslationDictionary:
         - 返回 200 状态码
         """
 
-        # Mock file exists but read fails
-        mock_exists.return_value = True
-        mock_file.side_effect = IOError("File read error")
-
-        response = client.get("/api/dictionary/translation")
+        response = client.get("/api/dictionary/translation", headers={"Cache-Control": "no-cache"})
 
         assert response.status_code == 200
         data = response.json()["data"]
         assert data == {"blocks": {}, "tokens": {}}
-
 
 class TestDictionaryPermissions:
     """测试字典端点权限"""
